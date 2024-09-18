@@ -114,3 +114,30 @@ impl Decode for u64 {
         Ok(Self::from_be_bytes(buf))
     }
 }
+
+#[derive(Debug, Default)]
+pub struct ExternalBytes(pub u64);
+
+impl ExternalBytes {
+    pub fn calc<F>(f: F) -> u64
+    where
+        F: FnOnce(&mut Self) -> Result<()>,
+    {
+        let mut external_bytes = Self(0);
+
+        // TODO: 途中で失敗した場合は、それまでに書き込まれたサイズでいい理由を書く
+        let _ = f(&mut external_bytes);
+        external_bytes.0
+    }
+}
+
+impl Write for ExternalBytes {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0 += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}

@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use crate::{Decode, Encode, Error, Result};
+use crate::{boxes::FtypBox, Decode, Encode, Error, Result};
 
 // 単なる `Box` だと Rust の標準ライブラリのそれと名前が衝突するので変えておく
 pub trait BaseBox: Encode + Decode {
@@ -20,24 +20,28 @@ pub trait FullBox: BaseBox {
 
 #[derive(Debug, Clone)]
 pub struct Mp4File<B> {
-    // TODO: ftyp_box
+    pub ftyp_box: FtypBox,
     pub boxes: Vec<B>,
 }
 
 impl<B: BaseBox> Decode for Mp4File<B> {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let ftyp_box = FtypBox::decode(&mut reader)?;
+
         let mut boxes = Vec::new();
         let mut buf = [0];
         while reader.read(&mut buf)? != 0 {
             let b = B::decode(buf.chain(&mut reader))?;
             boxes.push(b);
         }
-        Ok(Self { boxes })
+        Ok(Self { ftyp_box, boxes })
     }
 }
 
 impl<B: BaseBox> Encode for Mp4File<B> {
     fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.ftyp_box.encode(&mut writer)?;
+
         for b in &self.boxes {
             b.encode(&mut writer)?;
         }
@@ -206,6 +210,17 @@ impl BoxType {
             4
         } else {
             4 + 16
+        }
+    }
+
+    pub fn expect(self, expected: Self) -> Result<()> {
+        if self == expected {
+            Ok(())
+        } else {
+            Err(Error::invalid_data(&format!(
+                "Expected box type {:?}, but got {:?}",
+                expected, self
+            )))
         }
     }
 }

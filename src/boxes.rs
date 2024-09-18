@@ -1,11 +1,13 @@
 use std::io::{Read, Write};
 
-use crate::{Decode, Encode, Result};
+use crate::{io::ExternalBytes, BaseBox, BoxHeader, BoxType, Decode, Encode, Result};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Brand([u8; 4]);
 
 impl Brand {
+    // TODO: Add constants for the predefined brands
+
     pub const fn new(brand: [u8; 4]) -> Self {
         Self(brand)
     }
@@ -40,32 +42,62 @@ impl Decode for Brand {
     }
 }
 
-// /// [ISO/IEC 14496-12] FileTypeBox class
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub struct FtypBox {
-//     pub major_brand: Brand,
-//     pub minor_version: u32,
-//     pub compatible_brands: Vec<Brand>,
-// }
+/// [ISO/IEC 14496-12] FileTypeBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FtypBox {
+    pub major_brand: Brand,
+    pub minor_version: u32,
+    pub compatible_brands: Vec<Brand>,
+}
 
-// impl Encode for FtypBox {
-//     fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-//         BoxHeader::from_box(self).encode(&mut writer)?;
+impl FtypBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'f', b't', b'y', b'p']);
 
-//         self.major_brand.encode(&mut writer)?;
-//         writer.write_u32(self.minor_version)?;
-//         for brand in &self.compatible_brands {
-//             brand.encode(&mut writer)?;
-//         }
-//         Ok(())
-//     }
-// }
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.major_brand.encode(&mut writer)?;
+        self.minor_version.encode(&mut writer)?;
+        for brand in &self.compatible_brands {
+            brand.encode(&mut writer)?;
+        }
+        Ok(())
+    }
+}
 
-// impl Decode for FtypBox {
-//     fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
-//         let major_brand = Brand::decode(&mut reader)?;
-//         let minor_version = reader.read_u32()?;
-//         todo!();
-//     }
-// }
-//
+impl Encode for FtypBox {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
+        self.encode_payload(&mut writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for FtypBox {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        header.with_box_payload_reader(reader, |mut reader| {
+            let major_brand = Brand::decode(&mut reader)?;
+            let minor_version = u32::decode(&mut reader)?;
+            let mut compatible_brands = Vec::new();
+            while reader.limit() > 0 {
+                compatible_brands.push(Brand::decode(&mut reader)?);
+            }
+            Ok(Self {
+                major_brand,
+                minor_version,
+                compatible_brands,
+            })
+        })
+    }
+}
+
+impl BaseBox for FtypBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
