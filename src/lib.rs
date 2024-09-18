@@ -1,7 +1,4 @@
-use std::{
-    io::{ErrorKind, Read, Write},
-    num::NonZeroU64,
-};
+use std::io::{Read, Write};
 
 // TODO: Add Error type
 
@@ -10,15 +7,10 @@ pub trait BaseBox: Encode + Decode {
     fn box_type(&self) -> BoxType;
 
     fn box_size(&self) -> BoxSize {
-        let mut size = ByteSize(0);
-        if self.encode(&mut size).is_err() {
-            BoxSize::Unknown
-        } else if let Some(n) = NonZeroU64::new(size.0) {
-            BoxSize::Known(n)
-        } else {
-            BoxSize::Unknown
-        }
+        BoxSize::with_payload_size(self.box_type(), self.box_payload_size())
     }
+
+    fn box_payload_size(&self) -> u64;
 }
 
 pub trait FullBox: BaseBox {
@@ -32,20 +24,6 @@ pub trait Encode {
 
 pub trait Decode: Sized {
     fn decode<R: Read>(reader: R) -> std::io::Result<Self>;
-}
-
-#[derive(Debug)]
-struct ByteSize(pub u64);
-
-impl Write for ByteSize {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0 += buf.len() as u64;
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -76,52 +54,46 @@ impl<B: BaseBox> Encode for Mp4File<B> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BaseBoxHeader {
+pub struct BoxHeader {
     pub box_type: BoxType,
     pub box_size: BoxSize,
 }
 
-impl BaseBoxHeader {
+impl BoxHeader {
     pub fn from_box<B: BaseBox>(b: &B) -> Self {
-        Self {
-            box_type: b.box_type(),
-            box_size: b.box_size(),
-        }
+        let box_type = b.box_type();
+        let box_size = b.box_size();
+        Self { box_type, box_size }
     }
 
     pub fn header_size(self) -> usize {
-        let mut size = 0;
-
-        if matches!(self.box_type, BoxType::Normal(_)) {
-            size += 4;
-        } else {
-            size += 20;
-        }
-
-        if matches!(self.box_size, BoxSize::Known(_)) {
-            size += 4;
-        } else {
-            size += 12;
-        }
-
-        size
+        self.box_type.external_size() + self.box_size.external_size()
     }
 
-    pub fn payload_size(self) -> std::io::Result<Option<u64>> {
-        match self.box_size {
-            BoxSize::Unknown => Ok(None),
-            BoxSize::Known(size) => {
-                let payload_size = size
-                    .get()
-                    .checked_sub(self.header_size() as u64)
-                    .ok_or_else(|| ErrorKind::InvalidData)?; // TODO: error message
-                Ok(Some(payload_size))
-            }
+    pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> std::io::Result<T>
+    where
+        F: FnOnce(&mut std::io::Take<R>) -> std::io::Result<T>,
+    {
+        let mut reader = if self.box_size.get() == 0 {
+            reader.take(u64::MAX)
+        } else {
+            let payload_size = self
+                .box_size
+                .get()
+                .checked_sub(self.header_size() as u64)
+                .ok_or_else(|| std::io::ErrorKind::InvalidData)?; // TODO: error message
+            reader.take(payload_size)
+        };
+
+        let value = f(&mut reader)?;
+        if reader.limit() != 0 {
+            return Err(std::io::ErrorKind::InvalidData.into());
         }
+        Ok(value)
     }
 }
 
-impl Encode for BaseBoxHeader {
+impl Encode for BoxHeader {
     fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
         let large_size = self.box_size.get() > u32::MAX as u64;
         if large_size {
@@ -148,7 +120,7 @@ impl Encode for BaseBoxHeader {
     }
 }
 
-impl Decode for BaseBoxHeader {
+impl Decode for BoxHeader {
     fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
         let mut box_size = reader.read_u32()? as u64;
 
@@ -166,13 +138,45 @@ impl Decode for BaseBoxHeader {
         if box_size == 1 {
             box_size = reader.read_u64()?;
         }
-        let box_size = if let Some(n) = NonZeroU64::new(box_size) {
-            BoxSize::Known(n)
-        } else {
-            BoxSize::Unknown
-        };
+        let box_size =
+            BoxSize::new(box_type, box_size).ok_or_else(|| std::io::ErrorKind::InvalidData)?; // TODO: error message
 
         Ok(Self { box_type, box_size })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct BoxSize(u64);
+
+impl BoxSize {
+    pub const VARIABLE_SIZE: Self = Self(0);
+
+    pub fn new(box_type: BoxType, box_size: u64) -> Option<Self> {
+        if box_size == 0 {
+            return Some(Self(0));
+        }
+
+        if box_size < 4 + box_type.external_size() as u64 {
+            None
+        } else {
+            Some(Self(box_size))
+        }
+    }
+
+    pub const fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
+        Self(box_type.external_size() as u64 + payload_size)
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    pub const fn external_size(self) -> usize {
+        if self.0 > u32::MAX as u64 {
+            4 + 8
+        } else {
+            4
+        }
     }
 }
 
@@ -187,6 +191,15 @@ impl BoxType {
         match self {
             BoxType::Normal(ty) => &ty[..],
             BoxType::Uuid(ty) => &ty[..],
+        }
+    }
+
+    // TODO: rename
+    pub const fn external_size(self) -> usize {
+        if matches!(self, Self::Normal(_)) {
+            4
+        } else {
+            4 + 16
         }
     }
 }
@@ -206,22 +219,7 @@ impl std::fmt::Debug for BoxType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum BoxSize {
-    Unknown,
-    Known(NonZeroU64),
-}
-
-impl BoxSize {
-    pub const fn get(self) -> u64 {
-        match self {
-            BoxSize::Unknown => 0,
-            BoxSize::Known(v) => v.get(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawBox {
     pub box_type: BoxType,
     pub box_size: BoxSize,
@@ -230,7 +228,7 @@ pub struct RawBox {
 
 impl Encode for RawBox {
     fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-        BaseBoxHeader::from_box(self).encode(&mut writer)?;
+        BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
     }
@@ -238,22 +236,11 @@ impl Encode for RawBox {
 
 impl Decode for RawBox {
     fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
-        let header = BaseBoxHeader::decode(&mut reader)?;
+        let header = BoxHeader::decode(&mut reader)?;
         dbg!(header);
 
         let mut payload = Vec::new();
-        match header.payload_size()? {
-            None => {
-                reader.read_to_end(&mut payload)?;
-            }
-            Some(size) => {
-                reader.take(size).read_to_end(&mut payload)?;
-                if payload.len() as u64 != size {
-                    // TODO: error message
-                    return Err(std::io::ErrorKind::InvalidData.into());
-                }
-            }
-        }
+        header.with_box_payload_reader(reader, |reader| reader.read_to_end(&mut payload))?;
         Ok(Self {
             box_type: header.box_type,
             box_size: header.box_size,
@@ -270,7 +257,77 @@ impl BaseBox for RawBox {
     fn box_size(&self) -> BoxSize {
         self.box_size
     }
+
+    fn box_payload_size(&self) -> u64 {
+        self.payload.len() as u64
+    }
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Brand([u8; 4]);
+
+impl Brand {
+    pub const fn new(brand: [u8; 4]) -> Self {
+        Self(brand)
+    }
+
+    pub const fn get(self) -> [u8; 4] {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for Brand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Ok(s) = std::str::from_utf8(&self.0) {
+            f.debug_tuple("Brand").field(&s).finish()
+        } else {
+            f.debug_tuple("Brand").field(&self.0).finish()
+        }
+    }
+}
+
+impl Encode for Brand {
+    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+        writer.write_all(&self.0)
+    }
+}
+
+impl Decode for Brand {
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut buf = [0; 4];
+        reader.read_exact(&mut buf)?;
+        Ok(Self(buf))
+    }
+}
+
+// /// [ISO/IEC 14496-12] FileTypeBox class
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// pub struct FtypBox {
+//     pub major_brand: Brand,
+//     pub minor_version: u32,
+//     pub compatible_brands: Vec<Brand>,
+// }
+
+// impl Encode for FtypBox {
+//     fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+//         BoxHeader::from_box(self).encode(&mut writer)?;
+
+//         self.major_brand.encode(&mut writer)?;
+//         writer.write_u32(self.minor_version)?;
+//         for brand in &self.compatible_brands {
+//             brand.encode(&mut writer)?;
+//         }
+//         Ok(())
+//     }
+// }
+
+// impl Decode for FtypBox {
+//     fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+//         let major_brand = Brand::decode(&mut reader)?;
+//         let minor_version = reader.read_u32()?;
+//         todo!();
+//     }
+// }
 
 pub trait WriteExt {
     fn write_u8(&mut self, v: u8) -> std::io::Result<()>;
