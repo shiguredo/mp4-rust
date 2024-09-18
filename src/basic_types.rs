@@ -25,13 +25,13 @@ pub struct Mp4File<B> {
 }
 
 impl<B: BaseBox> Decode for Mp4File<B> {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let ftyp_box = FtypBox::decode(&mut reader)?;
+    fn decode<R: Read>(mut reader: &mut R) -> Result<Self> {
+        let ftyp_box = FtypBox::decode(reader)?;
 
         let mut boxes = Vec::new();
         let mut buf = [0];
         while reader.read(&mut buf)? != 0 {
-            let b = B::decode(buf.chain(&mut reader))?;
+            let b = B::decode(&mut buf.chain(&mut reader))?;
             boxes.push(b);
         }
         Ok(Self { ftyp_box, boxes })
@@ -39,11 +39,11 @@ impl<B: BaseBox> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.ftyp_box.encode(&mut writer)?;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.ftyp_box.encode(writer)?;
 
         for b in &self.boxes {
-            b.encode(&mut writer)?;
+            b.encode(writer)?;
         }
         Ok(())
     }
@@ -100,12 +100,12 @@ impl BoxHeader {
 }
 
 impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         let large_size = self.box_size.get() > u32::MAX as u64;
         if large_size {
-            1u32.encode(&mut writer)?;
+            1u32.encode(writer)?;
         } else {
-            (self.box_size.get() as u32).encode(&mut writer)?;
+            (self.box_size.get() as u32).encode(writer)?;
         }
 
         match self.box_type {
@@ -119,7 +119,7 @@ impl Encode for BoxHeader {
         }
 
         if large_size {
-            self.box_size.get().encode(&mut writer)?;
+            self.box_size.get().encode(writer)?;
         }
 
         Ok(())
@@ -127,8 +127,8 @@ impl Encode for BoxHeader {
 }
 
 impl Decode for BoxHeader {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut box_size = u32::decode(&mut reader)? as u64;
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut box_size = u32::decode(reader)? as u64;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -142,7 +142,7 @@ impl Decode for BoxHeader {
         };
 
         if box_size == 1 {
-            box_size = u64::decode(&mut reader)?;
+            box_size = u64::decode(reader)?;
         }
         let box_size = BoxSize::new(box_type, box_size).ok_or_else(|| {
             Error::invalid_data(&format!(
@@ -248,16 +248,16 @@ pub struct RawBox {
 }
 
 impl Encode for RawBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
     }
 }
 
 impl Decode for RawBox {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let header = BoxHeader::decode(&mut reader)?;
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
         dbg!(header);
 
         let mut payload = Vec::new();

@@ -48,43 +48,43 @@ impl std::fmt::Display for Error {
 }
 
 pub trait Encode {
-    fn encode<W: Write>(&self, writer: W) -> Result<()>;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()>;
 }
 
 impl Encode for u8 {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
 impl Encode for u16 {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
 impl Encode for u32 {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
 impl Encode for u64 {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
 pub trait Decode: Sized {
-    fn decode<R: Read>(reader: R) -> Result<Self>;
+    fn decode<R: Read>(reader: &mut R) -> Result<Self>;
 }
 
 impl Decode for u8 {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -92,7 +92,7 @@ impl Decode for u8 {
 }
 
 impl Decode for u16 {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -100,7 +100,7 @@ impl Decode for u16 {
 }
 
 impl Decode for u32 {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -108,7 +108,7 @@ impl Decode for u32 {
 }
 
 impl Decode for u64 {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))

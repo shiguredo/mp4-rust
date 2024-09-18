@@ -28,14 +28,14 @@ impl std::fmt::Debug for Brand {
 }
 
 impl Encode for Brand {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.0)?;
         Ok(())
     }
 }
 
 impl Decode for Brand {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf)?;
         Ok(Self(buf))
@@ -53,35 +53,35 @@ pub struct FtypBox {
 impl FtypBox {
     pub const TYPE: BoxType = BoxType::Normal([b'f', b't', b'y', b'p']);
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.major_brand.encode(&mut writer)?;
-        self.minor_version.encode(&mut writer)?;
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.major_brand.encode(writer)?;
+        self.minor_version.encode(writer)?;
         for brand in &self.compatible_brands {
-            brand.encode(&mut writer)?;
+            brand.encode(writer)?;
         }
         Ok(())
     }
 }
 
 impl Encode for FtypBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(&mut writer)?;
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
         Ok(())
     }
 }
 
 impl Decode for FtypBox {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let header = BoxHeader::decode(&mut reader)?;
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
 
-        header.with_box_payload_reader(reader, |mut reader| {
-            let major_brand = Brand::decode(&mut reader)?;
-            let minor_version = u32::decode(&mut reader)?;
+        header.with_box_payload_reader(reader, |reader| {
+            let major_brand = Brand::decode(reader)?;
+            let minor_version = u32::decode(reader)?;
             let mut compatible_brands = Vec::new();
             while reader.limit() > 0 {
-                compatible_brands.push(Brand::decode(&mut reader)?);
+                compatible_brands.push(Brand::decode(reader)?);
             }
             Ok(Self {
                 major_brand,
