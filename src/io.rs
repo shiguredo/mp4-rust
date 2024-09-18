@@ -6,32 +6,28 @@ use std::{
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Error {
-    io: std::io::Error,
-    trace: Backtrace,
+    pub io_error: std::io::Error,
+    pub backtrace: Backtrace,
 }
 
 impl Error {
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidData, message))
     }
-
-    pub fn kind(&self) -> ErrorKind {
-        self.io.kind()
-    }
 }
 
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Self {
-            io: value,
-            trace: Backtrace::capture(),
+            io_error: value,
+            backtrace: Backtrace::capture(),
         }
     }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.io)
+        Some(&self.io_error)
     }
 }
 
@@ -43,10 +39,10 @@ impl std::fmt::Debug for Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.trace.status() == std::backtrace::BacktraceStatus::Captured {
-            write!(f, "{}\n\nBacktrace:\n{}", self.io, self.trace)
+        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
+            write!(f, "{}\n\nBacktrace:\n{}", self.io_error, self.backtrace)
         } else {
-            write!(f, "{}", self.io)
+            write!(f, "{}", self.io_error)
         }
     }
 }
