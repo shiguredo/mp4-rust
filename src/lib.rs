@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    io::{ErrorKind, Read, Write},
+    num::NonZeroU64,
+};
 
 // TODO: Add Error type
 
@@ -10,8 +13,10 @@ pub trait BaseBox: Encode + Decode {
         let mut size = ByteSize(0);
         if self.encode(&mut size).is_err() {
             BoxSize::Unknown
+        } else if let Some(n) = NonZeroU64::new(size.0) {
+            BoxSize::Known(n)
         } else {
-            BoxSize::Known(size.0)
+            BoxSize::Unknown
         }
     }
 }
@@ -83,6 +88,37 @@ impl BaseBoxHeader {
             box_size: b.box_size(),
         }
     }
+
+    pub fn header_size(self) -> usize {
+        let mut size = 0;
+
+        if matches!(self.box_type, BoxType::Normal(_)) {
+            size += 4;
+        } else {
+            size += 20;
+        }
+
+        if matches!(self.box_size, BoxSize::Known(_)) {
+            size += 4;
+        } else {
+            size += 12;
+        }
+
+        size
+    }
+
+    pub fn payload_size(self) -> std::io::Result<Option<u64>> {
+        match self.box_size {
+            BoxSize::Unknown => Ok(None),
+            BoxSize::Known(size) => {
+                let payload_size = size
+                    .get()
+                    .checked_sub(self.header_size() as u64)
+                    .ok_or_else(|| ErrorKind::InvalidData)?; // TODO: error message
+                Ok(Some(payload_size))
+            }
+        }
+    }
 }
 
 impl Encode for BaseBoxHeader {
@@ -113,28 +149,74 @@ impl Encode for BaseBoxHeader {
 }
 
 impl Decode for BaseBoxHeader {
-    fn decode<R: Read>(reader: R) -> std::io::Result<Self> {
-        todo!()
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut box_size = reader.read_u32()? as u64;
+
+        let mut box_type = [0; 4];
+        reader.read_exact(&mut box_type)?;
+
+        let box_type = if box_type == [b'u', b'u', b'i', b'd'] {
+            let mut box_type = [0; 16];
+            reader.read_exact(&mut box_type)?;
+            BoxType::Uuid(box_type)
+        } else {
+            BoxType::Normal(box_type)
+        };
+
+        if box_size == 1 {
+            box_size = reader.read_u64()?;
+        }
+        let box_size = if let Some(n) = NonZeroU64::new(box_size) {
+            BoxSize::Known(n)
+        } else {
+            BoxSize::Unknown
+        };
+
+        Ok(Self { box_type, box_size })
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BoxType {
     Normal([u8; 4]),
     Uuid([u8; 16]),
 }
 
+impl BoxType {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            BoxType::Normal(ty) => &ty[..],
+            BoxType::Uuid(ty) => &ty[..],
+        }
+    }
+}
+
+impl std::fmt::Debug for BoxType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoxType::Normal(ty) => {
+                if let Ok(ty) = std::str::from_utf8(ty) {
+                    f.debug_tuple("BoxType").field(&ty).finish()
+                } else {
+                    f.debug_tuple("BoxType").field(ty).finish()
+                }
+            }
+            BoxType::Uuid(ty) => f.debug_tuple("BoxType").field(ty).finish(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BoxSize {
     Unknown,
-    Known(u64),
+    Known(NonZeroU64),
 }
 
 impl BoxSize {
     pub const fn get(self) -> u64 {
         match self {
             BoxSize::Unknown => 0,
-            BoxSize::Known(v) => v,
+            BoxSize::Known(v) => v.get(),
         }
     }
 }
@@ -142,6 +224,7 @@ impl BoxSize {
 #[derive(Debug, Clone)]
 pub struct RawBox {
     pub box_type: BoxType,
+    pub box_size: BoxSize,
     pub payload: Vec<u8>,
 }
 
@@ -154,14 +237,38 @@ impl Encode for RawBox {
 }
 
 impl Decode for RawBox {
-    fn decode<R: Read>(reader: R) -> std::io::Result<Self> {
-        todo!()
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let header = BaseBoxHeader::decode(&mut reader)?;
+        dbg!(header);
+
+        let mut payload = Vec::new();
+        match header.payload_size()? {
+            None => {
+                reader.read_to_end(&mut payload)?;
+            }
+            Some(size) => {
+                reader.take(size).read_to_end(&mut payload)?;
+                if payload.len() as u64 != size {
+                    // TODO: error message
+                    return Err(std::io::ErrorKind::InvalidData.into());
+                }
+            }
+        }
+        Ok(Self {
+            box_type: header.box_type,
+            box_size: header.box_size,
+            payload,
+        })
     }
 }
 
 impl BaseBox for RawBox {
     fn box_type(&self) -> BoxType {
-        todo!()
+        self.box_type
+    }
+
+    fn box_size(&self) -> BoxSize {
+        self.box_size
     }
 }
 
