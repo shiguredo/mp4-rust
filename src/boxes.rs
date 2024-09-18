@@ -1,6 +1,9 @@
 use std::io::{Read, Write};
 
-use crate::{io::ExternalBytes, BaseBox, BoxHeader, BoxType, Decode, Encode, Result};
+use crate::{
+    io::{ExternalBytes, PeekReader},
+    BaseBox, BoxHeader, BoxType, Decode, Encode, RawBox, Result,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Brand([u8; 4]);
@@ -99,5 +102,87 @@ impl BaseBox for FtypBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RootBox {
+    Free(FreeBox), // free, mdat, moov
+    Unknown(RawBox),
+}
+
+impl Encode for RootBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        match self {
+            RootBox::Free(b) => b.encode(writer),
+            RootBox::Unknown(b) => b.encode(writer),
+        }
+    }
+}
+
+impl Decode for RootBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
+        let header = BoxHeader::decode(&mut reader)?;
+        match header.box_type {
+            FreeBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Free),
+            _ => Decode::decode(&mut reader.into_reader()).map(Self::Unknown),
+        }
+    }
+}
+
+impl BaseBox for RootBox {
+    fn box_type(&self) -> BoxType {
+        match self {
+            RootBox::Free(b) => b.box_type(),
+            RootBox::Unknown(b) => b.box_type(),
+        }
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        match self {
+            RootBox::Free(b) => b.box_payload_size(),
+            RootBox::Unknown(b) => b.box_payload_size(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FreeBox {
+    pub box_type: BoxType,
+    pub payload: Vec<u8>,
+}
+
+impl FreeBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'f', b'r', b'e', b'e']);
+}
+
+impl Encode for FreeBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+}
+
+impl Decode for FreeBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        let mut payload = Vec::new();
+        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
+        Ok(Self {
+            box_type: header.box_type,
+            payload,
+        })
+    }
+}
+
+impl BaseBox for FreeBox {
+    fn box_type(&self) -> BoxType {
+        self.box_type
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.payload.len() as u64
     }
 }

@@ -56,6 +56,8 @@ pub struct BoxHeader {
 }
 
 impl BoxHeader {
+    pub const MAX_SIZE: usize = (4 + 8) + (4 + 16);
+
     pub fn from_box<B: BaseBox>(b: &B) -> Self {
         let box_type = b.box_type();
         let box_size = b.box_size();
@@ -258,7 +260,7 @@ impl Encode for RawBox {
 impl Decode for RawBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
-        dbg!(header);
+        dbg!(header); // TODO: remove
 
         let mut payload = Vec::new();
         header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;

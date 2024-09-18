@@ -1,6 +1,6 @@
 use std::{
     backtrace::Backtrace,
-    io::{ErrorKind, Read, Write},
+    io::{Cursor, ErrorKind, Read, Write},
 };
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -139,5 +139,48 @@ impl Write for ExternalBytes {
 
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PeekReader<R, const N: usize> {
+    buf: [u8; N],
+    buf_start: usize,
+    inner: R,
+}
+
+impl<R: Read, const N: usize> PeekReader<R, N> {
+    pub fn new(inner: R) -> Self {
+        Self {
+            buf: [0; N],
+            buf_start: 0,
+            inner,
+        }
+    }
+
+    pub fn into_reader(self) -> impl Read {
+        Read::chain(
+            Cursor::new(self.buf).take(self.buf_start as u64),
+            self.inner,
+        )
+    }
+}
+
+impl<R: Read, const N: usize> Read for PeekReader<R, N> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if N < self.buf_start + buf.len() {
+            return Err(std::io::Error::new(
+                ErrorKind::Other,
+                format!("[BUG] Peek buffer exhausted: buffer_size={N}"),
+            ));
+        }
+
+        let read_size = self
+            .inner
+            .read(&mut self.buf[self.buf_start..][..buf.len()])?;
+        buf[..read_size].copy_from_slice(&self.buf[self.buf_start..][..read_size]);
+        self.buf_start += read_size;
+
+        Ok(read_size)
     }
 }
