@@ -22,8 +22,64 @@ pub trait Encode {
     fn encode<W: Write>(&self, writer: W) -> std::io::Result<()>;
 }
 
+impl Encode for u8 {
+    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+        writer.write_all(&self.to_be_bytes())
+    }
+}
+
+impl Encode for u16 {
+    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+        writer.write_all(&self.to_be_bytes())
+    }
+}
+
+impl Encode for u32 {
+    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+        writer.write_all(&self.to_be_bytes())
+    }
+}
+
+impl Encode for u64 {
+    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+        writer.write_all(&self.to_be_bytes())
+    }
+}
+
 pub trait Decode: Sized {
     fn decode<R: Read>(reader: R) -> std::io::Result<Self>;
+}
+
+impl Decode for u8 {
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for u16 {
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for u32 {
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for u64 {
+    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -97,9 +153,9 @@ impl Encode for BoxHeader {
     fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
         let large_size = self.box_size.get() > u32::MAX as u64;
         if large_size {
-            writer.write_u32(1)?;
+            1u32.encode(&mut writer)?;
         } else {
-            writer.write_u32(self.box_size.get() as u32)?;
+            (self.box_size.get() as u32).encode(&mut writer)?;
         }
 
         match self.box_type {
@@ -113,7 +169,7 @@ impl Encode for BoxHeader {
         }
 
         if large_size {
-            writer.write_u64(self.box_size.get())?;
+            self.box_size.get().encode(&mut writer)?;
         }
 
         Ok(())
@@ -122,7 +178,7 @@ impl Encode for BoxHeader {
 
 impl Decode for BoxHeader {
     fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
-        let mut box_size = reader.read_u32()? as u64;
+        let mut box_size = u32::decode(&mut reader)? as u64;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -136,7 +192,7 @@ impl Decode for BoxHeader {
         };
 
         if box_size == 1 {
-            box_size = reader.read_u64()?;
+            box_size = u64::decode(&mut reader)?;
         }
         let box_size =
             BoxSize::new(box_type, box_size).ok_or_else(|| std::io::ErrorKind::InvalidData)?; // TODO: error message
@@ -328,61 +384,3 @@ impl Decode for Brand {
 //         todo!();
 //     }
 // }
-
-pub trait WriteExt {
-    fn write_u8(&mut self, v: u8) -> std::io::Result<()>;
-    fn write_u16(&mut self, v: u16) -> std::io::Result<()>;
-    fn write_u32(&mut self, v: u32) -> std::io::Result<()>;
-    fn write_u64(&mut self, v: u64) -> std::io::Result<()>;
-}
-
-impl<T: Write> WriteExt for T {
-    fn write_u8(&mut self, v: u8) -> std::io::Result<()> {
-        self.write_all(&[v])
-    }
-
-    fn write_u16(&mut self, v: u16) -> std::io::Result<()> {
-        self.write_all(&v.to_be_bytes())
-    }
-
-    fn write_u32(&mut self, v: u32) -> std::io::Result<()> {
-        self.write_all(&v.to_be_bytes())
-    }
-
-    fn write_u64(&mut self, v: u64) -> std::io::Result<()> {
-        self.write_all(&v.to_be_bytes())
-    }
-}
-
-pub trait ReadExt {
-    fn read_u8(&mut self) -> std::io::Result<u8>;
-    fn read_u16(&mut self) -> std::io::Result<u16>;
-    fn read_u32(&mut self) -> std::io::Result<u32>;
-    fn read_u64(&mut self) -> std::io::Result<u64>;
-}
-
-impl<T: Read> ReadExt for T {
-    fn read_u8(&mut self) -> std::io::Result<u8> {
-        let mut buf = [0; 1];
-        self.read_exact(&mut buf)?;
-        Ok(buf[0])
-    }
-
-    fn read_u16(&mut self) -> std::io::Result<u16> {
-        let mut buf = [0; 2];
-        self.read_exact(&mut buf)?;
-        Ok(u16::from_be_bytes(buf))
-    }
-
-    fn read_u32(&mut self) -> std::io::Result<u32> {
-        let mut buf = [0; 4];
-        self.read_exact(&mut buf)?;
-        Ok(u32::from_be_bytes(buf))
-    }
-
-    fn read_u64(&mut self) -> std::io::Result<u64> {
-        let mut buf = [0; 8];
-        self.read_exact(&mut buf)?;
-        Ok(u64::from_be_bytes(buf))
-    }
-}
