@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 mod io;
 
-pub use io::{Decode, Encode};
+pub use io::{Decode, Encode, Error, Result};
 
 // 単なる `Box` だと Rust の標準ライブラリのそれと名前が衝突するので変えておく
 pub trait BaseBox: Encode + Decode {
@@ -27,7 +27,7 @@ pub struct Mp4File<B> {
 }
 
 impl<B: BaseBox> Decode for Mp4File<B> {
-    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut boxes = Vec::new();
         let mut buf = [0];
         while reader.read(&mut buf)? != 0 {
@@ -39,7 +39,7 @@ impl<B: BaseBox> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         for b in &self.boxes {
             b.encode(&mut writer)?;
         }
@@ -64,9 +64,9 @@ impl BoxHeader {
         self.box_type.external_size() + self.box_size.external_size()
     }
 
-    pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> std::io::Result<T>
+    pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> Result<T>
     where
-        F: FnOnce(&mut std::io::Take<R>) -> std::io::Result<T>,
+        F: FnOnce(&mut std::io::Take<R>) -> Result<T>,
     {
         let mut reader = if self.box_size.get() == 0 {
             reader.take(u64::MAX)
@@ -75,20 +75,30 @@ impl BoxHeader {
                 .box_size
                 .get()
                 .checked_sub(self.header_size() as u64)
-                .ok_or_else(|| std::io::ErrorKind::InvalidData)?; // TODO: error message
+                .ok_or_else(|| {
+                    Error::invalid_data(&format!(
+                        "Too small box size: actual={}, expected={} or more",
+                        self.box_size.get(),
+                        self.header_size()
+                    ))
+                })?;
             reader.take(payload_size)
         };
 
         let value = f(&mut reader)?;
         if reader.limit() != 0 {
-            return Err(std::io::ErrorKind::InvalidData.into());
+            return Err(Error::invalid_data(&format!(
+                "Unconsumed {} bytes at the end of the box {:?}",
+                reader.limit(),
+                self.box_type
+            )));
         }
         Ok(value)
     }
 }
 
 impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         let large_size = self.box_size.get() > u32::MAX as u64;
         if large_size {
             1u32.encode(&mut writer)?;
@@ -115,7 +125,7 @@ impl Encode for BoxHeader {
 }
 
 impl Decode for BoxHeader {
-    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut box_size = u32::decode(&mut reader)? as u64;
 
         let mut box_type = [0; 4];
@@ -132,8 +142,13 @@ impl Decode for BoxHeader {
         if box_size == 1 {
             box_size = u64::decode(&mut reader)?;
         }
-        let box_size =
-            BoxSize::new(box_type, box_size).ok_or_else(|| std::io::ErrorKind::InvalidData)?; // TODO: error message
+        let box_size = BoxSize::new(box_type, box_size).ok_or_else(|| {
+            Error::invalid_data(&format!(
+                "Too small box size: actual={}, expected={} or more",
+                box_size,
+                4 + box_type.external_size()
+            ))
+        })?;
 
         Ok(Self { box_type, box_size })
     }
@@ -221,7 +236,7 @@ pub struct RawBox {
 }
 
 impl Encode for RawBox {
-    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
@@ -229,12 +244,12 @@ impl Encode for RawBox {
 }
 
 impl Decode for RawBox {
-    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let header = BoxHeader::decode(&mut reader)?;
         dbg!(header);
 
         let mut payload = Vec::new();
-        header.with_box_payload_reader(reader, |reader| reader.read_to_end(&mut payload))?;
+        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
         Ok(Self {
             box_type: header.box_type,
             box_size: header.box_size,
@@ -281,13 +296,14 @@ impl std::fmt::Debug for Brand {
 }
 
 impl Encode for Brand {
-    fn encode<W: Write>(&self, mut writer: W) -> std::io::Result<()> {
-        writer.write_all(&self.0)
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        writer.write_all(&self.0)?;
+        Ok(())
     }
 }
 
 impl Decode for Brand {
-    fn decode<R: Read>(mut reader: R) -> std::io::Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf)?;
         Ok(Self(buf))
