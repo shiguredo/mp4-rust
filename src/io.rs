@@ -158,6 +158,7 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
         }
     }
 
+    // TODO: rename
     pub fn into_reader(self) -> impl Read {
         Read::chain(
             Cursor::new(self.buf).take(self.buf_start as u64),

@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use crate::{
     io::{ExternalBytes, PeekReader},
-    BaseBox, BoxHeader, BoxType, Decode, Encode, RawBox, Result,
+    BaseBox, BoxHeader, BoxType, Decode, Encode, Result, UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -108,7 +108,7 @@ impl BaseBox for FtypBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootBox {
     Free(FreeBox), // free, mdat, moov
-    Unknown(RawBox),
+    Unknown(UnknownBox),
 }
 
 impl Encode for RootBox {

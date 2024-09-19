@@ -1,6 +1,9 @@
 use std::io::{Read, Write};
 
-use crate::{boxes::FtypBox, Decode, Encode, Error, Result};
+use crate::{
+    boxes::{FtypBox, RootBox},
+    Decode, Encode, Error, Result,
+};
 
 // 単なる `Box` だと Rust の標準ライブラリのそれと名前が衝突するので変えておく
 pub trait BaseBox: Encode + Decode {
@@ -18,8 +21,30 @@ pub trait FullBox: BaseBox {
     fn box_flags(&self) -> u32; // u24
 }
 
+pub trait IterUnknownBoxes {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct BoxBacktrace(Vec<BoxType>);
+
+impl BoxBacktrace {
+    pub const fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn get(&self) -> &[BoxType] {
+        &self.0
+    }
+
+    pub fn join(mut self, parent: BoxType) -> Self {
+        self.0.push(parent);
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct Mp4File<B> {
+pub struct Mp4File<B = RootBox> {
     pub ftyp_box: FtypBox,
     pub boxes: Vec<B>,
 }
@@ -46,6 +71,12 @@ impl<B: BaseBox> Encode for Mp4File<B> {
             b.encode(writer)?;
         }
         Ok(())
+    }
+}
+
+impl<B: IterUnknownBoxes> IterUnknownBoxes for Mp4File<B> {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)> {
+        self.boxes.iter().flat_map(|b| b.iter_unknown_boxes())
     }
 }
 
@@ -243,13 +274,13 @@ impl std::fmt::Debug for BoxType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawBox {
+pub struct UnknownBox {
     pub box_type: BoxType,
     pub box_size: BoxSize,
     pub payload: Vec<u8>,
 }
 
-impl Encode for RawBox {
+impl Encode for UnknownBox {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         BoxHeader::from_box(self).encode(writer)?;
         writer.write_all(&self.payload)?;
@@ -257,7 +288,7 @@ impl Encode for RawBox {
     }
 }
 
-impl Decode for RawBox {
+impl Decode for UnknownBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
         dbg!(header); // TODO: remove
@@ -272,7 +303,7 @@ impl Decode for RawBox {
     }
 }
 
-impl BaseBox for RawBox {
+impl BaseBox for UnknownBox {
     fn box_type(&self) -> BoxType {
         self.box_type
     }
@@ -283,5 +314,11 @@ impl BaseBox for RawBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+}
+
+impl IterUnknownBoxes for UnknownBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)> {
+        std::iter::once((BoxBacktrace::empty(), self))
     }
 }
