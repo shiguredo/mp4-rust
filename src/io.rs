@@ -14,6 +14,10 @@ impl Error {
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidData, message))
     }
+
+    pub(crate) fn invalid_input(message: &str) -> Self {
+        Self::from(std::io::Error::new(ErrorKind::InvalidInput, message))
+    }
 }
 
 impl From<std::io::Error> for Error {

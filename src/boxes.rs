@@ -122,12 +122,6 @@ impl BaseBox for FtypBox {
     }
 }
 
-impl IterUnknownBoxes for FtypBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootBox {
     Free(FreeBox),
@@ -182,10 +176,8 @@ impl BaseBox for RootBox {
 impl IterUnknownBoxes for RootBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         match self {
-            RootBox::Free(b) => {
-                Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>
-            }
-            RootBox::Mdat(b) => Box::new(b.iter_unknown_boxes()),
+            RootBox::Free(_) => Box::new(std::iter::empty()) as Box<dyn '_ + Iterator<Item = _>>,
+            RootBox::Mdat(_) => Box::new(std::iter::empty()),
             RootBox::Moov(b) => Box::new(b.iter_unknown_boxes()),
             RootBox::Unknown(b) => Box::new(b.iter_unknown_boxes()),
         }
@@ -228,12 +220,6 @@ impl BaseBox for FreeBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
-    }
-}
-
-impl IterUnknownBoxes for FreeBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
     }
 }
 
@@ -285,12 +271,6 @@ impl BaseBox for MdatBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
-    }
-}
-
-impl IterUnknownBoxes for MdatBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
     }
 }
 
@@ -373,14 +353,13 @@ impl BaseBox for MoovBox {
 
 impl IterUnknownBoxes for MoovBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.trak_boxes
+        let iter0 = self.trak_boxes.iter().flat_map(|b| b.iter_unknown_boxes());
+        let iter1 = self
+            .unknown_boxes
             .iter()
-            .flat_map(|b| b.iter_unknown_boxes())
-            .chain(
-                self.unknown_boxes
-                    .iter()
-                    .flat_map(|b| b.iter_unknown_boxes()),
-            )
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0
+            .chain(iter1)
             .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
@@ -509,12 +488,6 @@ impl FullBox for MvhdBox {
     }
 }
 
-impl IterUnknownBoxes for MvhdBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
-    }
-}
-
 /// [ISO/IEC 14496-12] TrackBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrakBox {
@@ -603,15 +576,15 @@ impl BaseBox for TrakBox {
 
 impl IterUnknownBoxes for TrakBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.edts_box
+        let iter0 = self.edts_box.iter().flat_map(|b| b.iter_unknown_boxes());
+        let iter1 = self.mdia_box.iter_unknown_boxes();
+        let iter2 = self
+            .unknown_boxes
             .iter()
-            .flat_map(|b| b.iter_unknown_boxes())
-            .chain(self.mdia_box.iter_unknown_boxes())
-            .chain(
-                self.unknown_boxes
-                    .iter()
-                    .flat_map(|b| b.iter_unknown_boxes()),
-            )
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0
+            .chain(iter1)
+            .chain(iter2)
             .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
@@ -772,12 +745,6 @@ impl FullBox for TkhdBox {
     }
 }
 
-impl IterUnknownBoxes for TkhdBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
-    }
-}
-
 /// [ISO/IEC 14496-12] EditBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EdtsBox {
@@ -847,10 +814,11 @@ impl BaseBox for EdtsBox {
 
 impl IterUnknownBoxes for EdtsBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.unknown_boxes
+        let iter0 = self
+            .unknown_boxes
             .iter()
-            .flat_map(|b| b.iter_unknown_boxes())
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
 
@@ -957,15 +925,10 @@ impl FullBox for ElstBox {
     }
 }
 
-impl IterUnknownBoxes for ElstBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::empty()
-    }
-}
-
 /// [ISO/IEC 14496-12] MediaBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MdiaBox {
+    pub mdhd_box: MdhdBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -973,6 +936,7 @@ impl MdiaBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"mdia");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.mdhd_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -980,16 +944,25 @@ impl MdiaBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut mdhd_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
+                MdhdBox::TYPE if mdhd_box.is_none() => {
+                    mdhd_box = Some(MdhdBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        Ok(Self { unknown_boxes })
+        let mdhd_box = mdhd_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'mdhd' box in 'trak' box"))?;
+        Ok(Self {
+            mdhd_box,
+            unknown_boxes,
+        })
     }
 }
 
@@ -1021,9 +994,135 @@ impl BaseBox for MdiaBox {
 
 impl IterUnknownBoxes for MdiaBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.unknown_boxes
+        let iter0 = self
+            .unknown_boxes
             .iter()
-            .flat_map(|b| b.iter_unknown_boxes())
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-12] MediaHeaderBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MdhdBox {
+    pub creation_time: Mp4FileTime,
+    pub modification_time: Mp4FileTime,
+    pub timescale: u32,
+    pub duration: u64,
+    pub language: [u8; 3], // ISO-639-2/T language code
+}
+
+impl MdhdBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"mdhd");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        if self.full_box_version() == 1 {
+            self.creation_time.as_secs().encode(writer)?;
+            self.modification_time.as_secs().encode(writer)?;
+            self.timescale.encode(writer)?;
+            self.duration.encode(writer)?;
+        } else {
+            (self.creation_time.as_secs() as u32).encode(writer)?;
+            (self.modification_time.as_secs() as u32).encode(writer)?;
+            self.timescale.encode(writer)?;
+            (self.duration as u32).encode(writer)?;
+        }
+
+        let mut language = 0;
+        for l in &self.language {
+            language = (language << 5)
+                | l.checked_sub(0x60).ok_or_else(|| {
+                    Error::invalid_input(&format!("Invalid language code: {:?}", self.language))
+                })?;
+        }
+        language.encode(writer)?;
+        [0; 2].encode(writer)?;
+
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(reader)?;
+        let mut this = Self::default();
+
+        if full_header.version == 1 {
+            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.timescale = u32::decode(reader)?;
+            this.duration = u64::decode(reader)?;
+        } else {
+            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.modification_time =
+                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.timescale = u32::decode(reader)?;
+            this.duration = u32::decode(reader)? as u64;
+        }
+
+        let language = u16::decode(reader)?;
+        this.language = [
+            ((language >> 10) & 0b11111) as u8,
+            ((language >> 5) & 0b11111) as u8,
+            (language & 0b11111) as u8,
+        ];
+
+        let _ = <[u8; 2]>::decode(reader)?;
+
+        Ok(this)
+    }
+}
+
+impl Encode for MdhdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for MdhdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Default for MdhdBox {
+    fn default() -> Self {
+        Self {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: 0,
+            duration: 0,
+            language: *b"und", // undefined
+        }
+    }
+}
+
+impl BaseBox for MdhdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for MdhdBox {
+    fn full_box_version(&self) -> u8 {
+        if self.creation_time.as_secs() > u32::MAX as u64
+            || self.modification_time.as_secs() > u32::MAX as u64
+            || self.duration > u32::MAX as u64
+        {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
