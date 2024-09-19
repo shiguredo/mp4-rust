@@ -771,6 +771,7 @@ impl IterUnknownBoxes for TkhdBox {
 /// [ISO/IEC 14496-12] EditBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EdtsBox {
+    pub elst_box: Option<ElstBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -778,6 +779,9 @@ impl EdtsBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"edts");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        if let Some(b) = &self.elst_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -785,17 +789,23 @@ impl EdtsBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut elst_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
+                ElstBox::TYPE if elst_box.is_none() => {
+                    elst_box = Some(ElstBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-
-        Ok(Self { unknown_boxes })
+        Ok(Self {
+            elst_box,
+            unknown_boxes,
+        })
     }
 }
 
@@ -831,5 +841,114 @@ impl IterUnknownBoxes for EdtsBox {
             .iter()
             .flat_map(|b| b.iter_unknown_boxes())
             .map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElstEntry {
+    pub edit_duration: u64,
+    pub media_time: i64,
+    pub media_rate: FixedPointNumber<i16, i16>,
+}
+
+/// [ISO/IEC 14496-12] EditListBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElstBox {
+    pub entries: Vec<ElstEntry>,
+}
+
+impl ElstBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"elst");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+
+        let version = self.full_box_version();
+        for entry in &self.entries {
+            if version == 1 {
+                entry.edit_duration.encode(writer)?;
+                entry.media_time.encode(writer)?;
+            } else {
+                (entry.edit_duration as u32).encode(writer)?;
+                (entry.media_time as i32).encode(writer)?;
+            }
+            entry.media_rate.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(reader)?;
+
+        let mut entries = Vec::new();
+        let count = u32::decode(reader)? as usize;
+        for _ in 0..count {
+            let edit_duration;
+            let media_time;
+            if full_header.version == 1 {
+                edit_duration = u64::decode(reader)?;
+                media_time = i64::decode(reader)?;
+            } else {
+                edit_duration = u32::decode(reader)? as u64;
+                media_time = i32::decode(reader)? as i64;
+            }
+            let media_rate = FixedPointNumber::decode(reader)?;
+            entries.push(ElstEntry {
+                edit_duration,
+                media_time,
+                media_rate,
+            });
+        }
+
+        Ok(Self { entries })
+    }
+}
+
+impl Encode for ElstBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for ElstBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for ElstBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for ElstBox {
+    fn full_box_version(&self) -> u8 {
+        let large = self.entries.iter().any(|x| {
+            u32::try_from(x.edit_duration).is_err() || i32::try_from(x.media_time).is_err()
+        });
+        if large {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+impl IterUnknownBoxes for ElstBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
     }
 }
