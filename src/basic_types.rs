@@ -411,18 +411,6 @@ impl Mp4FileTime {
     }
 }
 
-impl Encode for Mp4FileTime {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.0.encode(writer)
-    }
-}
-
-impl Decode for Mp4FileTime {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        Decode::decode(reader).map(Self)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FixedPointNumber<I, F = I> {
     pub integer: I,

@@ -2,7 +2,8 @@ use std::io::{Read, Write};
 
 use crate::{
     io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, Error,
-    FixedPointNumber, IterUnknownBoxes, Mp4FileTime, Result, UnknownBox,
+    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime, Result,
+    UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -367,33 +368,24 @@ pub struct MvhdBox {
 impl MvhdBox {
     pub const TYPE: BoxType = BoxType::Normal([b'm', b'v', b'h', b'd']);
 
-    pub const fn with_mandatory_fields(
-        creation_time: Mp4FileTime,
-        modification_time: Mp4FileTime,
-        timescale: u32,
-        duration: u64,
-        next_track_id: u32,
-    ) -> Self {
-        Self {
-            creation_time,
-            modification_time,
-            timescale,
-            duration,
-            rate: FixedPointNumber::new(1, 0),   // 通常の再生速度
-            volume: FixedPointNumber::new(1, 0), // 最大音量
-            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
-            next_track_id,
-        }
-    }
-
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.creation_time.encode(writer)?;
-        self.modification_time.encode(writer)?;
-        self.timescale.encode(writer)?;
-        self.duration.encode(writer)?;
+        FullBoxHeader::from_box(self).encode(writer)?;
+        if self.full_box_version() == 1 {
+            self.creation_time.as_secs().encode(writer)?;
+            self.modification_time.as_secs().encode(writer)?;
+            self.timescale.encode(writer)?;
+            self.duration.encode(writer)?;
+        } else {
+            (self.creation_time.as_secs() as u32).encode(writer)?;
+            (self.modification_time.as_secs() as u32).encode(writer)?;
+            self.timescale.encode(writer)?;
+            (self.duration as u32).encode(writer)?;
+        }
         self.rate.encode(writer)?;
         self.volume.encode(writer)?;
+        [0; 2 + 4 * 2].encode(writer)?;
         self.matrix.encode(writer)?;
+        [0; 4 * 6].encode(writer)?;
         self.next_track_id.encode(writer)?;
         Ok(())
     }
@@ -413,17 +405,47 @@ impl Decode for MvhdBox {
         header.box_type.expect(Self::TYPE)?;
 
         header.with_box_payload_reader(reader, |reader| {
-            Ok(Self {
-                creation_time: Decode::decode(reader)?,
-                modification_time: Decode::decode(reader)?,
-                timescale: Decode::decode(reader)?,
-                duration: Decode::decode(reader)?,
-                rate: Decode::decode(reader)?,
-                volume: Decode::decode(reader)?,
-                matrix: Decode::decode(reader)?,
-                next_track_id: Decode::decode(reader)?,
-            })
+            let full_header = FullBoxHeader::decode(reader)?;
+            let mut this = Self::default();
+
+            if full_header.version == 1 {
+                this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+                this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+                this.timescale = u32::decode(reader)?;
+                this.duration = u64::decode(reader)?;
+            } else {
+                this.creation_time =
+                    u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.modification_time =
+                    u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.timescale = u32::decode(reader)?;
+                this.duration = u32::decode(reader)? as u64;
+            }
+
+            this.rate = FixedPointNumber::decode(reader)?;
+            this.volume = FixedPointNumber::decode(reader)?;
+            let _ = <[u8; 2 + 4 * 2]>::decode(reader)?;
+            this.matrix = <[i32; 9]>::decode(reader)?;
+            let _ = <[u8; 4 * 6]>::decode(reader)?;
+            this.next_track_id = u32::decode(reader)?;
+
+            Ok(this)
         })
+    }
+}
+
+impl Default for MvhdBox {
+    fn default() -> Self {
+        Self {
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            timescale: 0,
+            duration: 0,
+            rate: FixedPointNumber::new(1, 0),   // 通常の再生速度
+            volume: FixedPointNumber::new(1, 0), // 最大音量
+            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
+            next_track_id: 0,
+        }
     }
 }
 
@@ -434,6 +456,23 @@ impl BaseBox for MvhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for MvhdBox {
+    fn full_box_version(&self) -> u8 {
+        if self.creation_time.as_secs() > u32::MAX as u64
+            || self.modification_time.as_secs() > u32::MAX as u64
+            || self.duration > u32::MAX as u64
+        {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
 
