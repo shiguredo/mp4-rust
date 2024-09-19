@@ -363,9 +363,9 @@ impl IterUnknownBoxes for MoovBox {
             .chain(
                 self.unknown_boxes
                     .iter()
-                    .flat_map(|b| b.iter_unknown_boxes())
-                    .map(|(path, b)| (path.join(Self::TYPE), b)),
+                    .flat_map(|b| b.iter_unknown_boxes()),
             )
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
 
@@ -503,6 +503,7 @@ impl IterUnknownBoxes for MvhdBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrakBox {
     pub tkhd_box: TkhdBox,
+    pub edts_box: Option<EdtsBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -511,6 +512,9 @@ impl TrakBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.tkhd_box.encode(writer)?;
+        if let Some(b) = &self.edts_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -519,12 +523,16 @@ impl TrakBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut tkhd_box = None;
+        let mut edts_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 TkhdBox::TYPE if tkhd_box.is_none() => {
                     tkhd_box = Some(TkhdBox::decode(&mut reader)?)
+                }
+                EdtsBox::TYPE if edts_box.is_none() => {
+                    edts_box = Some(EdtsBox::decode(&mut reader)?)
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -536,6 +544,7 @@ impl TrakBox {
             .ok_or_else(|| Error::invalid_data("Missing mandary 'tkhd' box in 'trak' box"))?;
         Ok(Self {
             tkhd_box,
+            edts_box,
             unknown_boxes,
         })
     }
@@ -569,9 +578,14 @@ impl BaseBox for TrakBox {
 
 impl IterUnknownBoxes for TrakBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.unknown_boxes
+        self.edts_box
             .iter()
             .flat_map(|b| b.iter_unknown_boxes())
+            .chain(
+                self.unknown_boxes
+                    .iter()
+                    .flat_map(|b| b.iter_unknown_boxes()),
+            )
             .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
@@ -735,5 +749,71 @@ impl FullBox for TkhdBox {
 impl IterUnknownBoxes for TkhdBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         std::iter::empty()
+    }
+}
+
+/// [ISO/IEC 14496-12] EditBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EdtsBox {
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl EdtsBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'e', b'd', b't', b's']);
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+
+        Ok(Self { unknown_boxes })
+    }
+}
+
+impl Encode for EdtsBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for EdtsBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for EdtsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for EdtsBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        self.unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes())
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
