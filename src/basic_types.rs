@@ -21,8 +21,8 @@ pub trait BaseBox: Encode + Decode {
 }
 
 pub trait FullBox: BaseBox {
-    fn box_version(&self) -> u8;
-    fn box_flags(&self) -> u32; // u24
+    fn full_box_version(&self) -> u8;
+    fn full_box_flags(&self) -> FullBoxFlags;
 }
 
 pub trait IterUnknownBoxes {
@@ -196,6 +196,66 @@ impl Decode for BoxHeader {
         })?;
 
         Ok(Self { box_type, box_size })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FullBoxHeader {
+    pub version: u8,
+    pub flags: FullBoxFlags,
+}
+
+impl FullBoxHeader {
+    pub fn from_box<B: FullBox>(b: &B) -> Self {
+        Self {
+            version: b.full_box_version(),
+            flags: b.full_box_flags(),
+        }
+    }
+}
+
+impl Encode for FullBoxHeader {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.version.encode(writer)?;
+        self.flags.encode(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for FullBoxHeader {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(Self {
+            version: Decode::decode(reader)?,
+            flags: Decode::decode(reader)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FullBoxFlags(u32);
+
+impl FullBoxFlags {
+    pub const fn new(flags: u32) -> Self {
+        Self(flags)
+    }
+
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl Encode for FullBoxFlags {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.0.to_be_bytes()[..3])?;
+        Ok(())
+    }
+}
+
+impl Decode for FullBoxFlags {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0; 4];
+        reader.read_exact(&mut buf[1..])?;
+        Ok(Self(u32::from_be_bytes(buf)))
     }
 }
 
