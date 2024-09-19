@@ -282,6 +282,7 @@ impl IterUnknownBoxes for MdatBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
+    pub trak_boxes: Vec<TrakBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -290,10 +291,37 @@ impl MoovBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.mvhd_box.encode(writer)?;
+        for b in &self.trak_boxes {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
         Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut mvhd_box = None;
+        let mut trak_boxes = Vec::new();
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                MvhdBox::TYPE => mvhd_box = Some(Decode::decode(&mut reader)?),
+                TrakBox::TYPE => trak_boxes.push(Decode::decode(&mut reader)?),
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+
+        let mvhd_box = mvhd_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'mvhd' box in 'moov' box"))?;
+        Ok(Self {
+            mvhd_box,
+            trak_boxes,
+            unknown_boxes,
+        })
     }
 }
 
@@ -309,27 +337,7 @@ impl Decode for MoovBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
-
-        header.with_box_payload_reader(reader, |mut reader| {
-            let mut mvhd_box = None;
-            let mut unknown_boxes = Vec::new();
-            while reader.limit() > 0 {
-                let (header, mut reader) = BoxHeader::peek(&mut reader)?;
-                match header.box_type {
-                    MvhdBox::TYPE => mvhd_box = Some(Decode::decode(&mut reader)?),
-                    _ => {
-                        unknown_boxes.push(UnknownBox::decode(&mut reader)?);
-                    }
-                }
-            }
-
-            let mvhd_box = mvhd_box
-                .ok_or_else(|| Error::invalid_data("Missing mandary 'mvhd' box in 'moov' box"))?;
-            Ok(Self {
-                mvhd_box,
-                unknown_boxes,
-            })
-        })
+        header.with_box_payload_reader(reader, Self::decode_payload)
     }
 }
 
@@ -345,10 +353,15 @@ impl BaseBox for MoovBox {
 
 impl IterUnknownBoxes for MoovBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.unknown_boxes
+        self.trak_boxes
             .iter()
             .flat_map(|b| b.iter_unknown_boxes())
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+            .chain(
+                self.unknown_boxes
+                    .iter()
+                    .flat_map(|b| b.iter_unknown_boxes())
+                    .map(|(path, b)| (path.join(Self::TYPE), b)),
+            )
     }
 }
 
@@ -389,6 +402,33 @@ impl MvhdBox {
         self.next_track_id.encode(writer)?;
         Ok(())
     }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(reader)?;
+        let mut this = Self::default();
+
+        if full_header.version == 1 {
+            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.timescale = u32::decode(reader)?;
+            this.duration = u64::decode(reader)?;
+        } else {
+            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.modification_time =
+                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.timescale = u32::decode(reader)?;
+            this.duration = u32::decode(reader)? as u64;
+        }
+
+        this.rate = FixedPointNumber::decode(reader)?;
+        this.volume = FixedPointNumber::decode(reader)?;
+        let _ = <[u8; 2 + 4 * 2]>::decode(reader)?;
+        this.matrix = <[i32; 9]>::decode(reader)?;
+        let _ = <[u8; 4 * 6]>::decode(reader)?;
+        this.next_track_id = u32::decode(reader)?;
+
+        Ok(this)
+    }
 }
 
 impl Encode for MvhdBox {
@@ -403,34 +443,7 @@ impl Decode for MvhdBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
-
-        header.with_box_payload_reader(reader, |reader| {
-            let full_header = FullBoxHeader::decode(reader)?;
-            let mut this = Self::default();
-
-            if full_header.version == 1 {
-                this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-                this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-                this.timescale = u32::decode(reader)?;
-                this.duration = u64::decode(reader)?;
-            } else {
-                this.creation_time =
-                    u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-                this.modification_time =
-                    u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-                this.timescale = u32::decode(reader)?;
-                this.duration = u32::decode(reader)? as u64;
-            }
-
-            this.rate = FixedPointNumber::decode(reader)?;
-            this.volume = FixedPointNumber::decode(reader)?;
-            let _ = <[u8; 2 + 4 * 2]>::decode(reader)?;
-            this.matrix = <[i32; 9]>::decode(reader)?;
-            let _ = <[u8; 4 * 6]>::decode(reader)?;
-            this.next_track_id = u32::decode(reader)?;
-
-            Ok(this)
-        })
+        header.with_box_payload_reader(reader, Self::decode_payload)
     }
 }
 
@@ -479,5 +492,71 @@ impl FullBox for MvhdBox {
 impl IterUnknownBoxes for MvhdBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         std::iter::empty()
+    }
+}
+
+/// [ISO/IEC 14496-12] TrackBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrakBox {
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl TrakBox {
+    pub const TYPE: BoxType = BoxType::Normal([b't', b'r', b'a', b'k']);
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+
+        Ok(Self { unknown_boxes })
+    }
+}
+
+impl Encode for TrakBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for TrakBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for TrakBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for TrakBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        self.unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes())
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
