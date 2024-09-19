@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use crate::{
     io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, Error,
     FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime, Result,
-    UnknownBox,
+    UnknownBox, Utf8String,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -929,6 +929,7 @@ impl FullBox for ElstBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MdiaBox {
     pub mdhd_box: MdhdBox,
+    pub hdlr_box: HdlrBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -937,6 +938,7 @@ impl MdiaBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.mdhd_box.encode(writer)?;
+        self.hdlr_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -945,12 +947,16 @@ impl MdiaBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut mdhd_box = None;
+        let mut hdlr_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 MdhdBox::TYPE if mdhd_box.is_none() => {
                     mdhd_box = Some(MdhdBox::decode(&mut reader)?);
+                }
+                HdlrBox::TYPE if hdlr_box.is_none() => {
+                    hdlr_box = Some(HdlrBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -959,8 +965,11 @@ impl MdiaBox {
         }
         let mdhd_box = mdhd_box
             .ok_or_else(|| Error::invalid_data("Missing mandary 'mdhd' box in 'trak' box"))?;
+        let hdlr_box = hdlr_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'hdlr' box in 'trak' box"))?;
         Ok(Self {
             mdhd_box,
+            hdlr_box,
             unknown_boxes,
         })
     }
@@ -1120,6 +1129,74 @@ impl FullBox for MdhdBox {
         } else {
             0
         }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] HandlerBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HdlrBox {
+    pub handler_type: [u8; 4],
+    pub name: Utf8String,
+}
+
+impl HdlrBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"hdlr");
+
+    pub const HANDLER_TYPE_SOUN: [u8; 4] = *b"soun";
+    pub const HANDLER_TYPE_VIDE: [u8; 4] = *b"vide";
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        [0; 4].encode(writer)?;
+        self.handler_type.encode(writer)?;
+        [0; 4 * 3].encode(writer)?;
+        self.name.encode(writer)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _full_header = FullBoxHeader::decode(reader)?;
+        let _ = <[u8; 4]>::decode(reader)?;
+        let handler_type = <[u8; 4]>::decode(reader)?;
+        let _ = <[u8; 4 * 3]>::decode(reader)?;
+        let name = Utf8String::decode(reader)?;
+        Ok(Self { handler_type, name })
+    }
+}
+
+impl Encode for HdlrBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for HdlrBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for HdlrBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for HdlrBox {
+    fn full_box_version(&self) -> u8 {
+        0
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {

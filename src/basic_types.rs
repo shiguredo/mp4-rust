@@ -455,3 +455,45 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
         })
     }
 }
+
+// エンコード時には終端 null が付与される文字列
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Utf8String(String);
+
+impl Utf8String {
+    pub fn new(s: &str) -> Option<Self> {
+        if s.as_bytes().contains(&0) {
+            return None;
+        }
+        Some(Self(s.to_owned()))
+    }
+
+    pub fn get(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Encode for Utf8String {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(self.0.as_bytes())?;
+        writer.write_all(&[0])?;
+        Ok(())
+    }
+}
+
+impl Decode for Utf8String {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut bytes = Vec::new();
+        loop {
+            let b = u8::decode(reader)?;
+            if b == 0 {
+                break;
+            }
+            bytes.push(b);
+        }
+        let s = String::from_utf8(bytes).map_err(|e| {
+            Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
+        })?;
+        Ok(Self(s))
+    }
+}
