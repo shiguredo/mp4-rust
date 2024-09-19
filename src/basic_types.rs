@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    time::Duration,
+};
 
 use crate::{
     boxes::{FtypBox, RootBox},
@@ -318,5 +321,69 @@ impl BaseBox for UnknownBox {
 impl IterUnknownBoxes for UnknownBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         std::iter::once((BoxPath::new(self.box_type), self))
+    }
+}
+
+/// 1904/1/1 からの経過秒数
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Mp4FileTime(u64);
+
+impl Mp4FileTime {
+    pub const fn from_secs(secs: u64) -> Self {
+        Self(secs)
+    }
+
+    pub const fn as_secs(self) -> u64 {
+        self.0
+    }
+
+    pub const fn from_unix_time(unix_time: Duration) -> Self {
+        let delta = 2082844800; // 1904/1/1 から 1970/1/1 までの経過秒数
+        let unix_time_secs = unix_time.as_secs();
+        Self::from_secs(unix_time_secs + delta)
+    }
+}
+
+impl Encode for Mp4FileTime {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.0.encode(writer)
+    }
+}
+
+impl Decode for Mp4FileTime {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        Decode::decode(reader).map(Self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FixedPointNumber<T> {
+    pub integer: T,
+    pub fraction: T,
+}
+
+impl<T: Default> FixedPointNumber<T> {
+    pub fn integer(value: T) -> Self {
+        Self {
+            integer: value,
+            fraction: T::default(),
+        }
+    }
+}
+
+impl<T: Encode> Encode for FixedPointNumber<T> {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.integer.encode(writer)?;
+        self.fraction.encode(writer)?;
+        Ok(())
+    }
+}
+
+impl<T: Decode> Decode for FixedPointNumber<T> {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(Self {
+            integer: T::decode(reader)?,
+            fraction: T::decode(reader)?,
+        })
     }
 }

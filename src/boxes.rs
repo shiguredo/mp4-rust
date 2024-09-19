@@ -2,8 +2,8 @@ use std::io::{Read, Write};
 
 use crate::{
     io::{ExternalBytes, PeekReader},
-    BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, IterUnknownBoxes, Result,
-    UnknownBox,
+    BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, FixedPointNumber,
+    IterUnknownBoxes, Mp4FileTime, Result, UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -335,5 +335,65 @@ impl IterUnknownBoxes for MoovBox {
             .iter()
             .flat_map(|b| b.iter_unknown_boxes())
             .map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-12] MovieHeaderBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MvhdBox {
+    pub creation_time: Mp4FileTime,
+    pub modification_time: Mp4FileTime,
+    pub timescale: u32,
+    pub duration: u64,
+    pub rate: FixedPointNumber<i16>,
+    pub volume: i16,
+    pub matrix: [i32; 9],
+    pub next_track_id: u32,
+}
+
+impl MvhdBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'm', b'v', b'h', b'd']);
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl Encode for MvhdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for MvhdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        header.with_box_payload_reader(reader, |reader| {
+            // let mut unknown_boxes = Vec::new();
+            // while reader.limit() > 0 {
+            //     unknown_boxes.push(UnknownBox::decode(reader)?);
+            // }
+            Ok(Self {})
+        })
+    }
+}
+
+impl BaseBox for MvhdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for MvhdBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
     }
 }
