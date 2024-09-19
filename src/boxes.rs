@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use crate::{
     io::{ExternalBytes, PeekReader},
-    BaseBox, BoxHeader, BoxType, Decode, Encode, Result, UnknownBox,
+    BaseBox, BoxHeader, BoxPath, BoxType, Decode, Encode, IterUnknownBoxes, Result, UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -105,6 +105,12 @@ impl BaseBox for FtypBox {
     }
 }
 
+impl IterUnknownBoxes for FtypBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootBox {
     Free(FreeBox), // free, mdat, moov
@@ -147,6 +153,17 @@ impl BaseBox for RootBox {
     }
 }
 
+impl IterUnknownBoxes for RootBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        match self {
+            RootBox::Free(b) => {
+                Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>
+            }
+            RootBox::Unknown(b) => Box::new(b.iter_unknown_boxes()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FreeBox {
     pub box_type: BoxType,
@@ -184,5 +201,11 @@ impl BaseBox for FreeBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+}
+
+impl IterUnknownBoxes for FreeBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
     }
 }

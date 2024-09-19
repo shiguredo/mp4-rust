@@ -22,15 +22,15 @@ pub trait FullBox: BaseBox {
 }
 
 pub trait IterUnknownBoxes {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)>;
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BoxBacktrace(Vec<BoxType>);
+pub struct BoxPath(Vec<BoxType>);
 
-impl BoxBacktrace {
-    pub const fn empty() -> Self {
-        Self(Vec::new())
+impl BoxPath {
+    pub fn new(box_type: BoxType) -> Self {
+        Self(vec![box_type])
     }
 
     pub fn get(&self) -> &[BoxType] {
@@ -75,7 +75,7 @@ impl<B: BaseBox> Encode for Mp4File<B> {
 }
 
 impl<B: IterUnknownBoxes> IterUnknownBoxes for Mp4File<B> {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)> {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         self.boxes.iter().flat_map(|b| b.iter_unknown_boxes())
     }
 }
@@ -291,8 +291,6 @@ impl Encode for UnknownBox {
 impl Decode for UnknownBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
-        dbg!(header); // TODO: remove
-
         let mut payload = Vec::new();
         header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
         Ok(Self {
@@ -318,7 +316,7 @@ impl BaseBox for UnknownBox {
 }
 
 impl IterUnknownBoxes for UnknownBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxBacktrace, &UnknownBox)> {
-        std::iter::once((BoxBacktrace::empty(), self))
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::once((BoxPath::new(self.box_type), self))
     }
 }
