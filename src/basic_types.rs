@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     boxes::{FtypBox, RootBox},
+    io::PeekReader,
     Decode, Encode, Error, Result,
 };
 
@@ -132,6 +133,12 @@ impl BoxHeader {
             )));
         }
         Ok(value)
+    }
+
+    pub fn peek<R: Read>(reader: R) -> Result<(Self, impl Read)> {
+        let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
+        let header = BoxHeader::decode(&mut reader)?;
+        Ok((header, reader.into_reader()))
     }
 }
 
@@ -357,21 +364,18 @@ impl Decode for Mp4FileTime {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct FixedPointNumber<T> {
-    pub integer: T,
-    pub fraction: T,
+pub struct FixedPointNumber<I, F = I> {
+    pub integer: I,
+    pub fraction: F,
 }
 
-impl<T: Default> FixedPointNumber<T> {
-    pub fn integer(value: T) -> Self {
-        Self {
-            integer: value,
-            fraction: T::default(),
-        }
+impl<I, F> FixedPointNumber<I, F> {
+    pub const fn new(integer: I, fraction: F) -> Self {
+        Self { integer, fraction }
     }
 }
 
-impl<T: Encode> Encode for FixedPointNumber<T> {
+impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.integer.encode(writer)?;
         self.fraction.encode(writer)?;
@@ -379,11 +383,11 @@ impl<T: Encode> Encode for FixedPointNumber<T> {
     }
 }
 
-impl<T: Decode> Decode for FixedPointNumber<T> {
+impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         Ok(Self {
-            integer: T::decode(reader)?,
-            fraction: T::decode(reader)?,
+            integer: I::decode(reader)?,
+            fraction: F::decode(reader)?,
         })
     }
 }

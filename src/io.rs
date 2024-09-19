@@ -79,6 +79,43 @@ impl Encode for u64 {
     }
 }
 
+impl Encode for i8 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.to_be_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for i16 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.to_be_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for i32 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.to_be_bytes())?;
+        Ok(())
+    }
+}
+
+impl Encode for i64 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.to_be_bytes())?;
+        Ok(())
+    }
+}
+
+impl<T: Encode, const N: usize> Encode for [T; N] {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for item in self {
+            item.encode(writer)?;
+        }
+        Ok(())
+    }
+}
+
 pub trait Decode: Sized {
     fn decode<R: Read>(reader: &mut R) -> Result<Self>;
 }
@@ -112,6 +149,48 @@ impl Decode for u64 {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for i8 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for i16 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for i32 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for i64 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0; Self::BITS as usize / 8];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut items = [T::default(); N];
+        for item in &mut items {
+            *item = T::decode(reader)?;
+        }
+        Ok(items)
     }
 }
 

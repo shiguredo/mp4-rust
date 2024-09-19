@@ -1,9 +1,8 @@
 use std::io::{Read, Write};
 
 use crate::{
-    io::{ExternalBytes, PeekReader},
-    BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, FixedPointNumber,
-    IterUnknownBoxes, Mp4FileTime, Result, UnknownBox,
+    io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, Error,
+    FixedPointNumber, IterUnknownBoxes, Mp4FileTime, Result, UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -133,13 +132,12 @@ impl Encode for RootBox {
 
 impl Decode for RootBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
-        let header = BoxHeader::decode(&mut reader)?;
+        let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
-            FreeBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Free),
-            MdatBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Mdat),
-            MoovBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Moov),
-            _ => Decode::decode(&mut reader.into_reader()).map(Self::Unknown),
+            FreeBox::TYPE => Decode::decode(&mut reader).map(Self::Free),
+            MdatBox::TYPE => Decode::decode(&mut reader).map(Self::Mdat),
+            MoovBox::TYPE => Decode::decode(&mut reader).map(Self::Moov),
+            _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
 }
@@ -282,6 +280,7 @@ impl IterUnknownBoxes for MdatBox {
 /// [ISO/IEC 14496-12] MovieBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MoovBox {
+    pub mvhd_box: MvhdBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -289,6 +288,7 @@ impl MoovBox {
     pub const TYPE: BoxType = BoxType::Normal([b'm', b'o', b'o', b'v']);
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.mvhd_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -309,12 +309,25 @@ impl Decode for MoovBox {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
 
-        header.with_box_payload_reader(reader, |reader| {
+        header.with_box_payload_reader(reader, |mut reader| {
+            let mut mvhd_box = None;
             let mut unknown_boxes = Vec::new();
             while reader.limit() > 0 {
-                unknown_boxes.push(UnknownBox::decode(reader)?);
+                let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+                match header.box_type {
+                    MvhdBox::TYPE => mvhd_box = Some(Decode::decode(&mut reader)?),
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                    }
+                }
             }
-            Ok(Self { unknown_boxes })
+
+            let mvhd_box = mvhd_box
+                .ok_or_else(|| Error::invalid_data("Missing mandary 'mvhd' box in 'moov' box"))?;
+            Ok(Self {
+                mvhd_box,
+                unknown_boxes,
+            })
         })
     }
 }
@@ -345,8 +358,8 @@ pub struct MvhdBox {
     pub modification_time: Mp4FileTime,
     pub timescale: u32,
     pub duration: u64,
-    pub rate: FixedPointNumber<i16>,
-    pub volume: i16,
+    pub rate: FixedPointNumber<i16, u16>,
+    pub volume: FixedPointNumber<i8, u8>,
     pub matrix: [i32; 9],
     pub next_track_id: u32,
 }
@@ -354,7 +367,34 @@ pub struct MvhdBox {
 impl MvhdBox {
     pub const TYPE: BoxType = BoxType::Normal([b'm', b'v', b'h', b'd']);
 
+    pub const fn with_mandatory_fields(
+        creation_time: Mp4FileTime,
+        modification_time: Mp4FileTime,
+        timescale: u32,
+        duration: u64,
+        next_track_id: u32,
+    ) -> Self {
+        Self {
+            creation_time,
+            modification_time,
+            timescale,
+            duration,
+            rate: FixedPointNumber::new(1, 0),   // 通常の再生速度
+            volume: FixedPointNumber::new(1, 0), // 最大音量
+            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
+            next_track_id,
+        }
+    }
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.creation_time.encode(writer)?;
+        self.modification_time.encode(writer)?;
+        self.timescale.encode(writer)?;
+        self.duration.encode(writer)?;
+        self.rate.encode(writer)?;
+        self.volume.encode(writer)?;
+        self.matrix.encode(writer)?;
+        self.next_track_id.encode(writer)?;
         Ok(())
     }
 }
@@ -373,11 +413,16 @@ impl Decode for MvhdBox {
         header.box_type.expect(Self::TYPE)?;
 
         header.with_box_payload_reader(reader, |reader| {
-            // let mut unknown_boxes = Vec::new();
-            // while reader.limit() > 0 {
-            //     unknown_boxes.push(UnknownBox::decode(reader)?);
-            // }
-            Ok(Self {})
+            Ok(Self {
+                creation_time: Decode::decode(reader)?,
+                modification_time: Decode::decode(reader)?,
+                timescale: Decode::decode(reader)?,
+                duration: Decode::decode(reader)?,
+                rate: Decode::decode(reader)?,
+                volume: Decode::decode(reader)?,
+                matrix: Decode::decode(reader)?,
+                next_track_id: Decode::decode(reader)?,
+            })
         })
     }
 }
