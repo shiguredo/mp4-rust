@@ -116,6 +116,7 @@ impl IterUnknownBoxes for FtypBox {
 pub enum RootBox {
     Free(FreeBox),
     Mdat(MdatBox),
+    Moov(MoovBox),
     Unknown(UnknownBox),
 }
 
@@ -124,6 +125,7 @@ impl Encode for RootBox {
         match self {
             RootBox::Free(b) => b.encode(writer),
             RootBox::Mdat(b) => b.encode(writer),
+            RootBox::Moov(b) => b.encode(writer),
             RootBox::Unknown(b) => b.encode(writer),
         }
     }
@@ -136,6 +138,7 @@ impl Decode for RootBox {
         match header.box_type {
             FreeBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Free),
             MdatBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Mdat),
+            MoovBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Moov),
             _ => Decode::decode(&mut reader.into_reader()).map(Self::Unknown),
         }
     }
@@ -146,6 +149,7 @@ impl BaseBox for RootBox {
         match self {
             RootBox::Free(b) => b.box_type(),
             RootBox::Mdat(b) => b.box_type(),
+            RootBox::Moov(b) => b.box_type(),
             RootBox::Unknown(b) => b.box_type(),
         }
     }
@@ -154,6 +158,7 @@ impl BaseBox for RootBox {
         match self {
             RootBox::Free(b) => b.box_payload_size(),
             RootBox::Mdat(b) => b.box_payload_size(),
+            RootBox::Moov(b) => b.box_payload_size(),
             RootBox::Unknown(b) => b.box_payload_size(),
         }
     }
@@ -166,6 +171,7 @@ impl IterUnknownBoxes for RootBox {
                 Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>
             }
             RootBox::Mdat(b) => Box::new(b.iter_unknown_boxes()),
+            RootBox::Moov(b) => Box::new(b.iter_unknown_boxes()),
             RootBox::Unknown(b) => Box::new(b.iter_unknown_boxes()),
         }
     }
@@ -270,5 +276,64 @@ impl BaseBox for MdatBox {
 impl IterUnknownBoxes for MdatBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         std::iter::empty()
+    }
+}
+
+/// [ISO/IEC 14496-12] MovieBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MoovBox {
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl MoovBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'm', b'o', b'o', b'v']);
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl Encode for MoovBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for MoovBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        header.with_box_payload_reader(reader, |reader| {
+            let mut unknown_boxes = Vec::new();
+            while reader.limit() > 0 {
+                unknown_boxes.push(UnknownBox::decode(reader)?);
+            }
+            Ok(Self { unknown_boxes })
+        })
+    }
+}
+
+impl BaseBox for MoovBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for MoovBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        self.unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes())
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
