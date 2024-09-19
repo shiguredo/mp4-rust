@@ -2,7 +2,8 @@ use std::io::{Read, Write};
 
 use crate::{
     io::{ExternalBytes, PeekReader},
-    BaseBox, BoxHeader, BoxPath, BoxType, Decode, Encode, IterUnknownBoxes, Result, UnknownBox,
+    BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, IterUnknownBoxes, Result,
+    UnknownBox,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -113,7 +114,8 @@ impl IterUnknownBoxes for FtypBox {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootBox {
-    Free(FreeBox), // free, mdat, moov
+    Free(FreeBox),
+    Mdat(MdatBox),
     Unknown(UnknownBox),
 }
 
@@ -121,6 +123,7 @@ impl Encode for RootBox {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             RootBox::Free(b) => b.encode(writer),
+            RootBox::Mdat(b) => b.encode(writer),
             RootBox::Unknown(b) => b.encode(writer),
         }
     }
@@ -132,6 +135,7 @@ impl Decode for RootBox {
         let header = BoxHeader::decode(&mut reader)?;
         match header.box_type {
             FreeBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Free),
+            MdatBox::TYPE => Decode::decode(&mut reader.into_reader()).map(Self::Mdat),
             _ => Decode::decode(&mut reader.into_reader()).map(Self::Unknown),
         }
     }
@@ -141,6 +145,7 @@ impl BaseBox for RootBox {
     fn box_type(&self) -> BoxType {
         match self {
             RootBox::Free(b) => b.box_type(),
+            RootBox::Mdat(b) => b.box_type(),
             RootBox::Unknown(b) => b.box_type(),
         }
     }
@@ -148,6 +153,7 @@ impl BaseBox for RootBox {
     fn box_payload_size(&self) -> u64 {
         match self {
             RootBox::Free(b) => b.box_payload_size(),
+            RootBox::Mdat(b) => b.box_payload_size(),
             RootBox::Unknown(b) => b.box_payload_size(),
         }
     }
@@ -159,14 +165,15 @@ impl IterUnknownBoxes for RootBox {
             RootBox::Free(b) => {
                 Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>
             }
+            RootBox::Mdat(b) => Box::new(b.iter_unknown_boxes()),
             RootBox::Unknown(b) => Box::new(b.iter_unknown_boxes()),
         }
     }
 }
 
+/// [ISO/IEC 14496-12] FreeSpaceBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FreeBox {
-    pub box_type: BoxType,
     pub payload: Vec<u8>,
 }
 
@@ -185,18 +192,17 @@ impl Encode for FreeBox {
 impl Decode for FreeBox {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
         let mut payload = Vec::new();
         header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
-        Ok(Self {
-            box_type: header.box_type,
-            payload,
-        })
+        Ok(Self { payload })
     }
 }
 
 impl BaseBox for FreeBox {
     fn box_type(&self) -> BoxType {
-        self.box_type
+        Self::TYPE
     }
 
     fn box_payload_size(&self) -> u64 {
@@ -205,6 +211,63 @@ impl BaseBox for FreeBox {
 }
 
 impl IterUnknownBoxes for FreeBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
+    }
+}
+
+/// [ISO/IEC 14496-12] MediaDataBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MdatBox {
+    pub is_variable_size: bool,
+    pub payload: Vec<u8>,
+}
+
+impl MdatBox {
+    pub const TYPE: BoxType = BoxType::Normal([b'm', b'd', b'a', b't']);
+}
+
+impl Encode for MdatBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+}
+
+impl Decode for MdatBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        let mut payload = Vec::new();
+        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
+        Ok(Self {
+            is_variable_size: header.box_size == BoxSize::VARIABLE_SIZE,
+            payload,
+        })
+    }
+}
+
+impl BaseBox for MdatBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_size(&self) -> BoxSize {
+        if self.is_variable_size {
+            BoxSize::VARIABLE_SIZE
+        } else {
+            BoxSize::with_payload_size(Self::TYPE, self.box_payload_size())
+        }
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.payload.len() as u64
+    }
+}
+
+impl IterUnknownBoxes for MdatBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         std::iter::empty()
     }
