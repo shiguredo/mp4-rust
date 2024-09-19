@@ -10,7 +10,23 @@ use crate::{
 pub struct Brand([u8; 4]);
 
 impl Brand {
-    // TODO: Add constants for the predefined brands
+    pub const ISOM: Self = Self::new(*b"isom");
+    pub const ISO2: Self = Self::new(*b"iso2");
+    pub const MP71: Self = Self::new(*b"mp71");
+    pub const ISO3: Self = Self::new(*b"iso3");
+    pub const ISO4: Self = Self::new(*b"iso4");
+    pub const ISO5: Self = Self::new(*b"iso5");
+    pub const ISO6: Self = Self::new(*b"iso6");
+    pub const ISO7: Self = Self::new(*b"iso7");
+    pub const ISO8: Self = Self::new(*b"iso8");
+    pub const ISO9: Self = Self::new(*b"iso9");
+    pub const ISOA: Self = Self::new(*b"isoa");
+    pub const ISOB: Self = Self::new(*b"isob");
+    pub const RELO: Self = Self::new(*b"relo");
+
+    pub const MP41: Self = Self::new(*b"mp41");
+    pub const AVC1: Self = Self::new(*b"avc1");
+    pub const AV01: Self = Self::new(*b"av01");
 
     pub const fn new(brand: [u8; 4]) -> Self {
         Self(brand)
@@ -55,7 +71,7 @@ pub struct FtypBox {
 }
 
 impl FtypBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'f', b't', b'y', b'p']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"ftyp");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.major_brand.encode(writer)?;
@@ -183,7 +199,7 @@ pub struct FreeBox {
 }
 
 impl FreeBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'f', b'r', b'e', b'e']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"free");
 }
 
 impl Encode for FreeBox {
@@ -229,7 +245,7 @@ pub struct MdatBox {
 }
 
 impl MdatBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'm', b'd', b'a', b't']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"mdat");
 }
 
 impl Encode for MdatBox {
@@ -287,7 +303,7 @@ pub struct MoovBox {
 }
 
 impl MoovBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'm', b'o', b'o', b'v']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"moov");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.mvhd_box.encode(writer)?;
@@ -383,7 +399,7 @@ pub struct MvhdBox {
 }
 
 impl MvhdBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'm', b'v', b'h', b'd']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"mvhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
@@ -508,7 +524,7 @@ pub struct TrakBox {
 }
 
 impl TrakBox {
-    pub const TYPE: BoxType = BoxType::Normal([b't', b'r', b'a', b'k']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"trak");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.tkhd_box.encode(writer)?;
@@ -611,7 +627,7 @@ pub struct TkhdBox {
 }
 
 impl TkhdBox {
-    pub const TYPE: BoxType = BoxType::Normal([b't', b'k', b'h', b'd']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"tkhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
@@ -759,7 +775,7 @@ pub struct EdtsBox {
 }
 
 impl EdtsBox {
-    pub const TYPE: BoxType = BoxType::Normal([b'e', b'd', b't', b's']);
+    pub const TYPE: BoxType = BoxType::Normal(*b"edts");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         for b in &self.unknown_boxes {
