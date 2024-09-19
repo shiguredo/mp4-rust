@@ -307,8 +307,12 @@ impl MoovBox {
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
-                MvhdBox::TYPE => mvhd_box = Some(Decode::decode(&mut reader)?),
-                TrakBox::TYPE => trak_boxes.push(Decode::decode(&mut reader)?),
+                MvhdBox::TYPE if mvhd_box.is_none() => {
+                    mvhd_box = Some(Decode::decode(&mut reader)?);
+                }
+                TrakBox::TYPE => {
+                    trak_boxes.push(Decode::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -450,8 +454,8 @@ impl Decode for MvhdBox {
 impl Default for MvhdBox {
     fn default() -> Self {
         Self {
-            creation_time: Mp4FileTime::from_secs(0),
-            modification_time: Mp4FileTime::from_secs(0),
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
             timescale: 0,
             duration: 0,
             rate: FixedPointNumber::new(1, 0),   // 通常の再生速度
@@ -498,6 +502,7 @@ impl IterUnknownBoxes for MvhdBox {
 /// [ISO/IEC 14496-12] TrackBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrakBox {
+    pub tkhd_box: TkhdBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -505,6 +510,7 @@ impl TrakBox {
     pub const TYPE: BoxType = BoxType::Normal([b't', b'r', b'a', b'k']);
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.tkhd_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -512,17 +518,26 @@ impl TrakBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut tkhd_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
+                TkhdBox::TYPE if tkhd_box.is_none() => {
+                    tkhd_box = Some(TkhdBox::decode(&mut reader)?)
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
 
-        Ok(Self { unknown_boxes })
+        let tkhd_box = tkhd_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'tkhd' box in 'trak' box"))?;
+        Ok(Self {
+            tkhd_box,
+            unknown_boxes,
+        })
     }
 }
 
@@ -558,5 +573,167 @@ impl IterUnknownBoxes for TrakBox {
             .iter()
             .flat_map(|b| b.iter_unknown_boxes())
             .map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-12] TrackHeaderBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TkhdBox {
+    pub flag_track_enabled: bool,
+    pub flag_track_in_movie: bool,
+    pub flag_track_in_preview: bool,
+    pub flag_track_size_is_aspect_ratio: bool,
+
+    pub creation_time: Mp4FileTime,
+    pub modification_time: Mp4FileTime,
+    pub track_id: u32,
+    pub duration: u64,
+    pub layer: i16,
+    pub alternate_group: i16,
+    pub volume: FixedPointNumber<i8, u8>,
+    pub matrix: [i32; 9],
+    pub width: FixedPointNumber<i16, u16>,
+    pub height: FixedPointNumber<i16, u16>,
+}
+
+impl TkhdBox {
+    pub const TYPE: BoxType = BoxType::Normal([b't', b'k', b'h', b'd']);
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        if self.full_box_version() == 1 {
+            self.creation_time.as_secs().encode(writer)?;
+            self.modification_time.as_secs().encode(writer)?;
+            self.track_id.encode(writer)?;
+            [0; 4].encode(writer)?;
+            self.duration.encode(writer)?;
+        } else {
+            (self.creation_time.as_secs() as u32).encode(writer)?;
+            (self.modification_time.as_secs() as u32).encode(writer)?;
+            self.track_id.encode(writer)?;
+            [0; 4].encode(writer)?;
+            (self.duration as u32).encode(writer)?;
+        }
+        [0; 4 * 2].encode(writer)?;
+        self.layer.encode(writer)?;
+        self.alternate_group.encode(writer)?;
+        self.volume.encode(writer)?;
+        [0; 2].encode(writer)?;
+        self.matrix.encode(writer)?;
+        self.width.encode(writer)?;
+        self.height.encode(writer)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(reader)?;
+        let mut this = Self::default();
+
+        this.flag_track_enabled = full_header.flags.is_set(0);
+        this.flag_track_in_movie = full_header.flags.is_set(1);
+        this.flag_track_in_preview = full_header.flags.is_set(2);
+        this.flag_track_size_is_aspect_ratio = full_header.flags.is_set(3);
+
+        if full_header.version == 1 {
+            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
+            this.track_id = u32::decode(reader)?;
+            let _ = <[u8; 4]>::decode(reader)?;
+            this.duration = u64::decode(reader)?;
+        } else {
+            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.modification_time =
+                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.track_id = u32::decode(reader)?;
+            let _ = <[u8; 4]>::decode(reader)?;
+            this.duration = u32::decode(reader)? as u64;
+        }
+
+        let _ = <[u8; 4 * 2]>::decode(reader)?;
+        this.layer = i16::decode(reader)?;
+        this.alternate_group = i16::decode(reader)?;
+        this.volume = FixedPointNumber::decode(reader)?;
+        let _ = <[u8; 2]>::decode(reader)?;
+        this.matrix = <[i32; 9]>::decode(reader)?;
+        this.width = FixedPointNumber::decode(reader)?;
+        this.height = FixedPointNumber::decode(reader)?;
+
+        Ok(this)
+    }
+}
+
+impl Encode for TkhdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for TkhdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Default for TkhdBox {
+    fn default() -> Self {
+        Self {
+            flag_track_enabled: false,
+            flag_track_in_movie: false,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: false,
+
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            track_id: 0,
+            duration: 0,
+            layer: 0,
+            alternate_group: 0,
+            volume: FixedPointNumber::new(0, 0),
+            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
+            width: FixedPointNumber::new(0, 0),
+            height: FixedPointNumber::new(0, 0),
+        }
+    }
+}
+
+impl BaseBox for TkhdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for TkhdBox {
+    fn full_box_version(&self) -> u8 {
+        if self.creation_time.as_secs() > u32::MAX as u64
+            || self.modification_time.as_secs() > u32::MAX as u64
+            || self.duration > u32::MAX as u64
+        {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::from_iter([
+            (0, self.flag_track_enabled),
+            (1, self.flag_track_in_movie),
+            (2, self.flag_track_in_preview),
+            (3, self.flag_track_size_is_aspect_ratio),
+        ])
+    }
+}
+
+impl IterUnknownBoxes for TkhdBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        std::iter::empty()
     }
 }

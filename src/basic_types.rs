@@ -235,12 +235,28 @@ impl Decode for FullBoxHeader {
 pub struct FullBoxFlags(u32);
 
 impl FullBoxFlags {
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
     pub const fn new(flags: u32) -> Self {
+        Self(flags)
+    }
+
+    pub fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (usize, bool)>,
+    {
+        let flags = iter.into_iter().filter(|x| x.1).map(|x| 1 << x.0).sum();
         Self(flags)
     }
 
     pub const fn get(self) -> u32 {
         self.0
+    }
+
+    pub const fn is_set(self, i: usize) -> bool {
+        (self.0 & (1 << i)) != 0
     }
 }
 
@@ -392,7 +408,7 @@ impl IterUnknownBoxes for UnknownBox {
 }
 
 /// 1904/1/1 からの経過秒数
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mp4FileTime(u64);
 
 impl Mp4FileTime {
