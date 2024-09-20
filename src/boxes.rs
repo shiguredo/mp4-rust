@@ -282,6 +282,7 @@ impl BaseBox for MdatBox {
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
     pub trak_boxes: Vec<TrakBox>,
+    pub udta_box: Option<UdtaBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -293,6 +294,9 @@ impl MoovBox {
         for b in &self.trak_boxes {
             b.encode(writer)?;
         }
+        if let Some(b) = &self.udta_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -302,6 +306,7 @@ impl MoovBox {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut mvhd_box = None;
         let mut trak_boxes = Vec::new();
+        let mut udta_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -311,6 +316,9 @@ impl MoovBox {
                 }
                 TrakBox::TYPE => {
                     trak_boxes.push(Decode::decode(&mut reader)?);
+                }
+                UdtaBox::TYPE if udta_box.is_none() => {
+                    udta_box = Some(Decode::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -322,6 +330,7 @@ impl MoovBox {
         Ok(Self {
             mvhd_box,
             trak_boxes,
+            udta_box,
             unknown_boxes,
         })
     }
@@ -2755,5 +2764,45 @@ impl FullBox for Co64Box {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] UserDataBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UdtaBox {
+    // 必要になるまではこのボックスの中身は単なるバイト列として扱う
+    pub payload: Vec<u8>,
+}
+
+impl UdtaBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"udta");
+}
+
+impl Encode for UdtaBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+}
+
+impl Decode for UdtaBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        let mut payload = Vec::new();
+        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
+        Ok(Self { payload })
+    }
+}
+
+impl BaseBox for UdtaBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.payload.len() as u64
     }
 }
