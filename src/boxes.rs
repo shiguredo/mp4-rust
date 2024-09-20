@@ -1221,7 +1221,7 @@ impl FullBox for HdlrBox {
 pub struct MinfBox {
     // smhd か vmhd のどちらかが必須
     pub smhd_box: Option<SmhdBox>,
-    // pub vmhd_box:Option<VmhdBox>,
+    pub vmhd_box: Option<VmhdBox>,
     // pub dinf_box: DinfBox,
     // pub stbl_box:StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1234,6 +1234,9 @@ impl MinfBox {
         if let Some(b) = &self.smhd_box {
             b.encode(writer)?;
         }
+        if let Some(b) = &self.vmhd_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1242,12 +1245,16 @@ impl MinfBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut smhd_box = None;
+        let mut vmhd_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 SmhdBox::TYPE if smhd_box.is_none() => {
                     smhd_box = Some(SmhdBox::decode(&mut reader)?);
+                }
+                VmhdBox::TYPE if vmhd_box.is_none() => {
+                    vmhd_box = Some(VmhdBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -1258,6 +1265,7 @@ impl MinfBox {
         //     .ok_or_else(|| Error::invalid_data("Missing mandary 'minf' box in 'trak' box"))?;
         Ok(Self {
             smhd_box,
+            vmhd_box,
             unknown_boxes,
         })
     }
@@ -1359,6 +1367,70 @@ impl BaseBox for SmhdBox {
 }
 
 impl FullBox for SmhdBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] VideoMediaHeaderBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct VmhdBox {
+    pub graphicsmode: u16,
+    pub opcolor: [u16; 3],
+}
+
+impl VmhdBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"vmhd");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        self.graphicsmode.encode(writer)?;
+        self.opcolor.encode(writer)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _full_header = FullBoxHeader::decode(reader)?;
+        let graphicsmode = u16::decode(reader)?;
+        let opcolor = <[u16; 3]>::decode(reader)?;
+        Ok(Self {
+            graphicsmode,
+            opcolor,
+        })
+    }
+}
+
+impl Encode for VmhdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for VmhdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for VmhdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for VmhdBox {
     fn full_box_version(&self) -> u8 {
         0
     }
