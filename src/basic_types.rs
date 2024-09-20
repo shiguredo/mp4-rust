@@ -514,3 +514,24 @@ pub enum Either<A, B> {
     A(A),
     B(B),
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Uint<const BITS: u32>(u8);
+
+impl<const BITS: u32> Uint<BITS> {
+    pub const fn new(v: u8) -> Self {
+        Self(v & (1 << BITS) - 1)
+    }
+
+    pub const fn checked_new(v: u8) -> Option<Self> {
+        if v.leading_zeros() < u8::BITS - BITS {
+            None
+        } else {
+            Some(Self(v))
+        }
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+}

@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use crate::{
     io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Either, Encode,
     Error, FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime,
-    Result, UnknownBox, Utf8String,
+    Result, Uint, UnknownBox, Utf8String,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1963,10 +1963,10 @@ impl Decode for VisualSampleEntryFields {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Avc1Box {
     pub visual: VisualSampleEntryFields,
+    pub avcc_box: AvccBox,
 
     // btrt :: #mp4_btrt_box{} | undefined,
     // pasp :: #mp4_pasp_box{} | undefined,
-    // avcc :: #mp4_avcc_box{}
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1975,6 +1975,7 @@ impl Avc1Box {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.visual.encode(writer)?;
+        self.avcc_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1983,24 +1984,23 @@ impl Avc1Box {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(reader)?;
-        dbg!(&visual);
-        //let mut stsd_box = None;
+        let mut avcc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
-                // StsdBox::TYPE if stsd_box.is_none() => {
-                //     stsd_box = Some(StsdBox::decode(&mut reader)?);
-                // }
+                AvccBox::TYPE if avcc_box.is_none() => {
+                    avcc_box = Some(AvccBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        //let stsd_box = stsd_box.ok_or_else(|| Error::missing_box("stsd", Self::TYPE))?;
+        let avcc_box = avcc_box.ok_or_else(|| Error::missing_box("avcc", Self::TYPE))?;
         Ok(Self {
             visual,
-            //stsd_box,
+            avcc_box,
             unknown_boxes,
         })
     }
@@ -2039,5 +2039,184 @@ impl IterUnknownBoxes for Avc1Box {
             .iter()
             .flat_map(|b| b.iter_unknown_boxes());
         iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-15] AVCSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AvccBox {
+    configuration_version: u8,
+    avc_profile_indication: u8,
+    profile_compatibility: u8,
+    avc_level_indication: u8,
+    length_size_minus_one: Uint<2>,
+    sps_list: Vec<Vec<u8>>,
+    pps_list: Vec<Vec<u8>>,
+    chroma_format: Option<Uint<2>>,
+    bit_depth_luma_minus8: Option<Uint<3>>,
+    bit_depth_chroma_minus8: Option<Uint<3>>,
+    sps_ext_list: Vec<Vec<u8>>,
+}
+
+impl AvccBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"avcC");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.configuration_version.encode(writer)?;
+        self.avc_profile_indication.encode(writer)?;
+        self.profile_compatibility.encode(writer)?;
+        self.avc_level_indication.encode(writer)?;
+        (0b111111_00 | self.length_size_minus_one.get()).encode(writer)?;
+
+        let sps_count = u8::try_from(self.sps_list.len())
+            .ok()
+            .and_then(|n| Uint::<5>::checked_new(n))
+            .ok_or_else(|| Error::invalid_input("Too many SPSs"))?;
+        (0b111_00000 | sps_count.get()).encode(writer)?;
+        for sps in &self.sps_list {
+            let size = u16::try_from(sps.len())
+                .map_err(|e| Error::invalid_input(&format!("Too long SPS: {e}")))?;
+            size.encode(writer)?;
+            writer.write_all(&sps)?;
+        }
+
+        let pps_count =
+            u8::try_from(self.pps_list.len()).map_err(|_| Error::invalid_input("Too many PPSs"))?;
+        pps_count.encode(writer)?;
+        for pps in &self.pps_list {
+            let size = u16::try_from(pps.len())
+                .map_err(|e| Error::invalid_input(&format!("Too long PPS: {e}")))?;
+            size.encode(writer)?;
+            writer.write_all(&pps)?;
+        }
+
+        if !matches!(self.avc_profile_indication, 66 | 77 | 88) {
+            let chroma_format = self.chroma_format.ok_or_else(|| {
+                Error::invalid_input("Missing 'chroma_format' field in 'avcC' boc")
+            })?;
+            let bit_depth_luma_minus8 = self.bit_depth_luma_minus8.ok_or_else(|| {
+                Error::invalid_input("Missing 'bit_depth_luma_minus8' field in 'avcC' boc")
+            })?;
+            let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
+                Error::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' boc")
+            })?;
+            (0b111111_00 | chroma_format.get()).encode(writer)?;
+            (0b11111_000 | bit_depth_luma_minus8.get()).encode(writer)?;
+            (0b11111_000 | bit_depth_chroma_minus8.get()).encode(writer)?;
+
+            let sps_ext_count = u8::try_from(self.sps_ext_list.len())
+                .map_err(|_| Error::invalid_input("Too many SPS EXTs"))?;
+            sps_ext_count.encode(writer)?;
+            for sps_ext in &self.sps_ext_list {
+                let size = u16::try_from(sps_ext.len())
+                    .map_err(|e| Error::invalid_input(&format!("Too long SPS EXT: {e}")))?;
+                size.encode(writer)?;
+                writer.write_all(&sps_ext)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let configuration_version = u8::decode(reader)?;
+        let avc_profile_indication = u8::decode(reader)?;
+        let profile_compatibility = u8::decode(reader)?;
+        let avc_level_indication = u8::decode(reader)?;
+        let length_size_minus_one = Uint::new(u8::decode(reader)?);
+
+        let sps_count = Uint::<5>::new(u8::decode(reader)?).get() as usize;
+        let mut sps_list = Vec::with_capacity(sps_count);
+        for _ in 0..sps_count {
+            let size = u16::decode(reader)? as usize;
+            let mut sps = vec![0; size];
+            reader.read_exact(&mut sps)?;
+            sps_list.push(sps);
+        }
+
+        let pps_count = u8::decode(reader)? as usize;
+        let mut pps_list = Vec::with_capacity(pps_count);
+        for _ in 0..pps_count {
+            let size = u16::decode(reader)? as usize;
+            let mut pps = vec![0; size];
+            reader.read_exact(&mut pps)?;
+            pps_list.push(pps);
+        }
+
+        let mut chroma_format = None;
+        let mut bit_depth_luma_minus8 = None;
+        let mut bit_depth_chroma_minus8 = None;
+        let mut sps_ext_list = Vec::new();
+        if !matches!(avc_profile_indication, 66 | 77 | 88) {
+            chroma_format = Some(Uint::new(u8::decode(reader)?));
+            bit_depth_luma_minus8 = Some(Uint::new(u8::decode(reader)?));
+            bit_depth_chroma_minus8 = Some(Uint::new(u8::decode(reader)?));
+
+            let sps_ext_count = u8::decode(reader)? as usize;
+            for _ in 0..sps_ext_count {
+                let size = u16::decode(reader)? as usize;
+                let mut pps = vec![0; size];
+                reader.read_exact(&mut pps)?;
+                sps_ext_list.push(pps);
+            }
+        }
+
+        Ok(Self {
+            configuration_version,
+            avc_profile_indication,
+            profile_compatibility,
+            avc_level_indication,
+            length_size_minus_one,
+            sps_list,
+            pps_list,
+            chroma_format,
+            bit_depth_luma_minus8,
+            bit_depth_chroma_minus8,
+            sps_ext_list,
+        })
+    }
+}
+
+impl Default for AvccBox {
+    fn default() -> Self {
+        Self {
+            configuration_version: 1,
+            avc_profile_indication: 0,
+            profile_compatibility: 0,
+            avc_level_indication: 0,
+            length_size_minus_one: Uint::new(0),
+            sps_list: Vec::new(),
+            pps_list: Vec::new(),
+            chroma_format: None,
+            bit_depth_luma_minus8: None,
+            bit_depth_chroma_minus8: None,
+            sps_ext_list: Vec::new(),
+        }
+    }
+}
+
+impl Encode for AvccBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for AvccBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for AvccBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 }
