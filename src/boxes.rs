@@ -1443,7 +1443,7 @@ impl FullBox for VmhdBox {
 }
 
 /// [ISO/IEC 14496-12] DataInformationBox class
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DinfBox {
     pub dref_box: DrefBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1533,6 +1533,7 @@ impl DrefBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"dref");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
         let entry_count = (self.url_box.is_some() as usize + self.unknown_boxes.len()) as u32;
         entry_count.encode(writer)?;
         if let Some(b) = &self.url_box {
@@ -1545,6 +1546,7 @@ impl DrefBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
         let entry_count = u32::decode(reader)?;
         let mut url_box = None;
         let mut unknown_boxes = Vec::new();
@@ -1563,6 +1565,15 @@ impl DrefBox {
             url_box,
             unknown_boxes,
         })
+    }
+}
+
+impl Default for DrefBox {
+    fn default() -> Self {
+        Self {
+            url_box: Some(UrlBox::default()),
+            unknown_boxes: Vec::new(),
+        }
     }
 }
 
@@ -1592,6 +1603,16 @@ impl BaseBox for DrefBox {
     }
 }
 
+impl FullBox for DrefBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
 impl IterUnknownBoxes for DrefBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         let iter0 = self
@@ -1599,5 +1620,69 @@ impl IterUnknownBoxes for DrefBox {
             .iter()
             .flat_map(|b| b.iter_unknown_boxes());
         iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-12] DataEntryUrlBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct UrlBox {
+    pub location: Option<Utf8String>,
+}
+
+impl UrlBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"url ");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        if let Some(l) = &self.location {
+            l.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(reader)?;
+        let location = if full_header.flags.is_set(1) {
+            Some(Utf8String::decode(reader)?)
+        } else {
+            None
+        };
+        Ok(Self { location })
+    }
+}
+
+impl Encode for UrlBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for UrlBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for UrlBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for UrlBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(self.location.is_some() as u32)
     }
 }
