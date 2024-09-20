@@ -2818,6 +2818,8 @@ impl BaseBox for UdtaBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpusBox {
     pub audio: AudioSampleEntryFields,
+    pub dops_box: DopsBox,
+    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -2826,6 +2828,7 @@ impl OpusBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.audio.encode(writer)?;
+        self.dops_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -2834,33 +2837,28 @@ impl OpusBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(reader)?;
-        // let mut avcc_box = None;
-        // let mut pasp_box = None;
-        // let mut btrt_box = None;
+        let mut dops_box = None;
+        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
-                // AvccBox::TYPE if avcc_box.is_none() => {
-                //     avcc_box = Some(AvccBox::decode(&mut reader)?);
-                // }
-                // PaspBox::TYPE if pasp_box.is_none() => {
-                //     pasp_box = Some(PaspBox::decode(&mut reader)?);
-                // }
-                // BtrtBox::TYPE if btrt_box.is_none() => {
-                //     btrt_box = Some(BtrtBox::decode(&mut reader)?);
-                // }
+                DopsBox::TYPE if dops_box.is_none() => {
+                    dops_box = Some(DopsBox::decode(&mut reader)?);
+                }
+                BtrtBox::TYPE if btrt_box.is_none() => {
+                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        //let avcc_box = avcc_box.ok_or_else(|| Error::missing_box("avcc", Self::TYPE))?;
+        let dops_box = dops_box.ok_or_else(|| Error::missing_box("dops", Self::TYPE))?;
         Ok(Self {
             audio,
-            // avcc_box,
-            // pasp_box,
-            // btrt_box,
+            dops_box,
+            btrt_box,
             unknown_boxes,
         })
     }
@@ -2951,5 +2949,88 @@ impl Decode for AudioSampleEntryFields {
             samplesize,
             samplerate,
         })
+    }
+}
+
+/// [https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html] OpusSpecificBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DopsBox {
+    pub version: u8,
+    pub output_channel_count: u8,
+    pub pre_skip: u16,
+    pub input_sample_rate: u32,
+    pub output_gain: i16,
+}
+
+impl DopsBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"dOps");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.version.encode(writer)?;
+        self.output_channel_count.encode(writer)?;
+        self.pre_skip.encode(writer)?;
+        self.input_sample_rate.encode(writer)?;
+        self.output_gain.encode(writer)?;
+        0u8.encode(writer)?; // ChannelMappingFamily
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let version = u8::decode(reader)?;
+        let output_channel_count = u8::decode(reader)?;
+        let pre_skip = u16::decode(reader)?;
+        let input_sample_rate = u32::decode(reader)?;
+        let output_gain = i16::decode(reader)?;
+        let channel_mapping_family = u8::decode(reader)?;
+        if channel_mapping_family != 0 {
+            return Err(Error::unsupported(
+                "`ChannelMappingFamily != 0` in 'dOps' box is not supported",
+            ));
+        }
+        Ok(Self {
+            version,
+            output_channel_count,
+            pre_skip,
+            input_sample_rate,
+            output_gain,
+        })
+    }
+}
+
+impl Default for DopsBox {
+    fn default() -> Self {
+        Self {
+            version: 0,
+            output_channel_count: 1,
+            pre_skip: 0,
+            input_sample_rate: 0,
+            output_gain: 0,
+        }
+    }
+}
+
+impl Encode for DopsBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for DopsBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for DopsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 }

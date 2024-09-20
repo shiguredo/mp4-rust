@@ -26,6 +26,10 @@ impl Error {
             "Missing mandatory '{missing_box}' box in '{parent_box}' box"
         ))
     }
+
+    pub(crate) fn unsupported(message: &str) -> Self {
+        Self::from(std::io::Error::new(ErrorKind::Other, message))
+    }
 }
 
 impl From<std::io::Error> for Error {
