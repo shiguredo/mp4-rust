@@ -1219,9 +1219,9 @@ impl FullBox for HdlrBox {
 /// [ISO/IEC 14496-12] MediaInformationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinfBox {
-    // vmhd か smhd のどちらかが必須
+    // smhd か vmhd のどちらかが必須
+    pub smhd_box: Option<SmhdBox>,
     // pub vmhd_box:Option<VmhdBox>,
-    // pub smhd_box:Option<SmhdBox>,
     // pub dinf_box: DinfBox,
     // pub stbl_box:StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1231,6 +1231,9 @@ impl MinfBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"minf");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        if let Some(b) = &self.smhd_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1238,37 +1241,23 @@ impl MinfBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        // let mut mdhd_box = None;
-        // let mut hdlr_box = None;
-        // let mut minf_box = None;
+        let mut smhd_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
-                // MdhdBox::TYPE if mdhd_box.is_none() => {
-                //     mdhd_box = Some(MdhdBox::decode(&mut reader)?);
-                // }
-                // HdlrBox::TYPE if hdlr_box.is_none() => {
-                //     hdlr_box = Some(HdlrBox::decode(&mut reader)?);
-                // }
-                // MinfBox::TYPE if minf_box.is_none() => {
-                //     minf_box = Some(MinfBox::decode(&mut reader)?);
-                // }
+                SmhdBox::TYPE if smhd_box.is_none() => {
+                    smhd_box = Some(SmhdBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        // let mdhd_box = mdhd_box
-        //     .ok_or_else(|| Error::invalid_data("Missing mandary 'mdhd' box in 'trak' box"))?;
-        // let hdlr_box = hdlr_box
-        //     .ok_or_else(|| Error::invalid_data("Missing mandary 'hdlr' box in 'trak' box"))?;
         // let minf_box = minf_box
         //     .ok_or_else(|| Error::invalid_data("Missing mandary 'minf' box in 'trak' box"))?;
         Ok(Self {
-            // mdhd_box,
-            // hdlr_box,
-            // minf_box,
+            smhd_box,
             unknown_boxes,
         })
     }
@@ -1316,5 +1305,65 @@ impl IterUnknownBoxes for MinfBox {
             .chain(iter3)
             .chain(iter4)
             .map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+/// [ISO/IEC 14496-12] SoundMediaHeaderBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SmhdBox {
+    pub balance: i16,
+}
+
+impl SmhdBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"smhd");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        self.balance.encode(writer)?;
+        [0; 2].encode(writer)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _full_header = FullBoxHeader::decode(reader)?;
+        let balance = i16::decode(reader)?;
+        let _ = <[u8; 2]>::decode(reader)?;
+        Ok(Self { balance })
+    }
+}
+
+impl Encode for SmhdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for SmhdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for SmhdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for SmhdBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
