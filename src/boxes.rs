@@ -1767,8 +1767,7 @@ impl IterUnknownBoxes for StblBox {
 /// [ISO/IEC 14496-12] SampleDescriptionBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StsdBox {
-    //pub entries: Vec<SampleEntry>,
-    pub unknown_boxes: Vec<UnknownBox>,
+    pub entries: Vec<SampleEntry>,
 }
 
 impl StsdBox {
@@ -1776,34 +1775,22 @@ impl StsdBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
-        let entry_count = (self.unknown_boxes.len()) as u32;
+        let entry_count = (self.entries.len()) as u32;
         entry_count.encode(writer)?;
-        for b in &self.unknown_boxes {
+        for b in &self.entries {
             b.encode(writer)?;
         }
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(reader)?;
         let entry_count = u32::decode(reader)?;
-        // let mut url_box = None;
-        let mut unknown_boxes = Vec::new();
+        let mut entries = Vec::new();
         for _ in 0..entry_count {
-            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
-            match header.box_type {
-                // UrlBox::TYPE if url_box.is_none() => {
-                //     url_box = Some(UrlBox::decode(&mut reader)?);
-                // }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
-                }
-            }
+            entries.push(SampleEntry::decode(reader)?);
         }
-        Ok(Self {
-            //url_box,
-            unknown_boxes,
-        })
+        Ok(Self { entries })
     }
 }
 
@@ -1845,10 +1832,48 @@ impl FullBox for StsdBox {
 
 impl IterUnknownBoxes for StsdBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
+        let iter0 = self.entries.iter().flat_map(|b| b.iter_unknown_boxes());
         iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SampleEntry {
+    Unknown(UnknownBox),
+}
+
+impl Encode for SampleEntry {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        match self {
+            SampleEntry::Unknown(b) => b.encode(writer),
+        }
+    }
+}
+
+impl Decode for SampleEntry {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(Self::Unknown(Decode::decode(reader)?))
+    }
+}
+
+impl BaseBox for SampleEntry {
+    fn box_type(&self) -> BoxType {
+        match self {
+            SampleEntry::Unknown(b) => b.box_type(),
+        }
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        match self {
+            SampleEntry::Unknown(b) => b.box_payload_size(),
+        }
+    }
+}
+
+impl IterUnknownBoxes for SampleEntry {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        match self {
+            SampleEntry::Unknown(b) => b.iter_unknown_boxes(),
+        }
     }
 }
