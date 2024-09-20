@@ -1088,9 +1088,9 @@ impl MdhdBox {
 
         let language = u16::decode(reader)?;
         this.language = [
-            ((language >> 10) & 0b11111) as u8,
-            ((language >> 5) & 0b11111) as u8,
-            (language & 0b11111) as u8,
+            ((language >> 10) & 0b11111) as u8 + 0x60,
+            ((language >> 5) & 0b11111) as u8 + 0x60,
+            (language & 0b11111) as u8 + 0x60,
         ];
 
         let _ = <[u8; 2]>::decode(reader)?;

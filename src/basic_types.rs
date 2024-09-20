@@ -294,7 +294,11 @@ impl BoxSize {
     }
 
     pub const fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
-        Self(box_type.external_size() as u64 + payload_size)
+        let mut size = 4 + box_type.external_size() as u64 + payload_size;
+        if size > u32::MAX as u64 {
+            size += 8;
+        }
+        Self(size)
     }
 
     pub const fn get(self) -> u64 {
