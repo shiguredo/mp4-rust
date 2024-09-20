@@ -1695,6 +1695,7 @@ pub struct StblBox {
     pub stts_box: SttsBox,
     pub stsc_box: StscBox,
     pub stsz_box: StszBox,
+    pub stco_or_co64_box: Either<StcoBox, Co64Box>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1706,6 +1707,10 @@ impl StblBox {
         self.stts_box.encode(writer)?;
         self.stsc_box.encode(writer)?;
         self.stsz_box.encode(writer)?;
+        match &self.stco_or_co64_box {
+            Either::A(b) => b.encode(writer)?,
+            Either::B(b) => b.encode(writer)?,
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1717,6 +1722,8 @@ impl StblBox {
         let mut stts_box = None;
         let mut stsc_box = None;
         let mut stsz_box = None;
+        let mut stco_box = None;
+        let mut co64_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1733,6 +1740,12 @@ impl StblBox {
                 StszBox::TYPE if stsz_box.is_none() => {
                     stsz_box = Some(StszBox::decode(&mut reader)?);
                 }
+                StcoBox::TYPE if stco_box.is_none() => {
+                    stco_box = Some(StcoBox::decode(&mut reader)?);
+                }
+                Co64Box::TYPE if co64_box.is_none() => {
+                    co64_box = Some(Co64Box::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -1742,11 +1755,16 @@ impl StblBox {
         let stts_box = stts_box.ok_or_else(|| Error::missing_box("stts", Self::TYPE))?;
         let stsc_box = stsc_box.ok_or_else(|| Error::missing_box("stsc", Self::TYPE))?;
         let stsz_box = stsz_box.ok_or_else(|| Error::missing_box("stsz", Self::TYPE))?;
+        let stco_or_co64_box = stco_box
+            .map(Either::A)
+            .or(co64_box.map(Either::B))
+            .ok_or_else(|| Error::missing_box("stco | co64", Self::TYPE))?;
         Ok(Self {
             stsd_box,
             stts_box,
             stsc_box,
             stsz_box,
+            stco_or_co64_box,
             unknown_boxes,
         })
     }
@@ -2601,6 +2619,136 @@ impl BaseBox for StszBox {
 }
 
 impl FullBox for StszBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] ChunkOffsetBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StcoBox {
+    pub chunk_offsets: Vec<u32>,
+}
+
+impl StcoBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stco");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        (self.chunk_offsets.len() as u32).encode(writer)?;
+        for offset in &self.chunk_offsets {
+            offset.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let count = u32::decode(reader)? as usize;
+        let mut chunk_offsets = Vec::with_capacity(count);
+        for _ in 0..count {
+            chunk_offsets.push(u32::decode(reader)?);
+        }
+        Ok(Self { chunk_offsets })
+    }
+}
+
+impl Encode for StcoBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for StcoBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for StcoBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for StcoBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] ChunkLargeOffsetBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Co64Box {
+    pub chunk_offsets: Vec<u64>,
+}
+
+impl Co64Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"co64");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        (self.chunk_offsets.len() as u32).encode(writer)?;
+        for offset in &self.chunk_offsets {
+            offset.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let count = u32::decode(reader)? as usize;
+        let mut chunk_offsets = Vec::with_capacity(count);
+        for _ in 0..count {
+            chunk_offsets.push(u64::decode(reader)?);
+        }
+        Ok(Self { chunk_offsets })
+    }
+}
+
+impl Encode for Co64Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Co64Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Co64Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for Co64Box {
     fn full_box_version(&self) -> u8 {
         0
     }
