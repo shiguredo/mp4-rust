@@ -19,12 +19,8 @@ fn decode_encode_black_h264_video_mp4() -> Result<()> {
     assert_eq!(file, encoded_file);
 
     // エンコード結果のバイト列が正しいことを確認する。
-    // ボックスの順番は入れ替わる可能性があるので、バイト列をソートした上で比較する。
-    let mut input_bytes = input_bytes.to_vec();
-    input_bytes.sort();
-    output_bytes.sort();
     assert_eq!(input_bytes.len(), output_bytes.len());
-    assert_eq!(input_bytes, output_bytes);
+    assert_eq!(&input_bytes[..], output_bytes);
 
     Ok(())
 }

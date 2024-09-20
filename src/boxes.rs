@@ -1450,7 +1450,7 @@ impl FullBox for VmhdBox {
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {
-        FullBoxFlags::new(0)
+        FullBoxFlags::new(1)
     }
 }
 
@@ -1982,7 +1982,7 @@ impl Encode for VisualSampleEntryFields {
         self.frame_count.encode(writer)?;
         self.compressorname.encode(writer)?;
         self.depth.encode(writer)?;
-        [0u8; 2].encode(writer)?;
+        (-1i16).encode(writer)?;
         Ok(())
     }
 }
