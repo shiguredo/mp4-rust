@@ -14,7 +14,11 @@ fn decode_encode_black_h264_video_mp4() -> Result<()> {
     let mut output_bytes = Vec::new();
     file.encode(&mut output_bytes)?;
 
-    // エンコード結果が正しいことを確認する。
+    // エンコード結果をデコードしたら同じ MP4 になっていることを確認する。
+    let encoded_file: Mp4File = Mp4File::decode(&mut &output_bytes[..])?;
+    assert_eq!(file, encoded_file);
+
+    // エンコード結果のバイト列が正しいことを確認する。
     // ボックスの順番は入れ替わる可能性があるので、バイト列をソートした上で比較する。
     let mut input_bytes = input_bytes.to_vec();
     input_bytes.sort();

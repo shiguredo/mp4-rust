@@ -47,7 +47,7 @@ impl BoxPath {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mp4File<B = RootBox> {
     pub ftyp_box: FtypBox,
     pub boxes: Vec<B>,
@@ -262,7 +262,7 @@ impl FullBoxFlags {
 
 impl Encode for FullBoxFlags {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        writer.write_all(&self.0.to_be_bytes()[..3])?;
+        writer.write_all(&self.0.to_be_bytes()[1..])?;
         Ok(())
     }
 }

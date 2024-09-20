@@ -406,9 +406,9 @@ impl MvhdBox {
         }
         self.rate.encode(writer)?;
         self.volume.encode(writer)?;
-        [0; 2 + 4 * 2].encode(writer)?;
+        [0u8; 2 + 4 * 2].encode(writer)?;
         self.matrix.encode(writer)?;
-        [0; 4 * 6].encode(writer)?;
+        [0u8; 4 * 6].encode(writer)?;
         self.next_track_id.encode(writer)?;
         Ok(())
     }
@@ -627,20 +627,20 @@ impl TkhdBox {
             self.creation_time.as_secs().encode(writer)?;
             self.modification_time.as_secs().encode(writer)?;
             self.track_id.encode(writer)?;
-            [0; 4].encode(writer)?;
+            [0u8; 4].encode(writer)?;
             self.duration.encode(writer)?;
         } else {
             (self.creation_time.as_secs() as u32).encode(writer)?;
             (self.modification_time.as_secs() as u32).encode(writer)?;
             self.track_id.encode(writer)?;
-            [0; 4].encode(writer)?;
+            [0u8; 4].encode(writer)?;
             (self.duration as u32).encode(writer)?;
         }
-        [0; 4 * 2].encode(writer)?;
+        [0u8; 4 * 2].encode(writer)?;
         self.layer.encode(writer)?;
         self.alternate_group.encode(writer)?;
         self.volume.encode(writer)?;
-        [0; 2].encode(writer)?;
+        [0u8; 2].encode(writer)?;
         self.matrix.encode(writer)?;
         self.width.encode(writer)?;
         self.height.encode(writer)?;
@@ -703,8 +703,8 @@ impl Decode for TkhdBox {
 impl Default for TkhdBox {
     fn default() -> Self {
         Self {
-            flag_track_enabled: false,
-            flag_track_in_movie: false,
+            flag_track_enabled: true,
+            flag_track_in_movie: true,
             flag_track_in_preview: false,
             flag_track_size_is_aspect_ratio: false,
 
@@ -851,6 +851,7 @@ impl ElstBox {
         FullBoxHeader::from_box(self).encode(writer)?;
 
         let version = self.full_box_version();
+        (self.entries.len() as u32).encode(writer)?;
         for entry in &self.entries {
             if version == 1 {
                 entry.edit_duration.encode(writer)?;
@@ -1056,15 +1057,15 @@ impl MdhdBox {
             (self.duration as u32).encode(writer)?;
         }
 
-        let mut language = 0;
+        let mut language: u16 = 0;
         for l in &self.language {
             language = (language << 5)
                 | l.checked_sub(0x60).ok_or_else(|| {
                     Error::invalid_input(&format!("Invalid language code: {:?}", self.language))
-                })?;
+                })? as u16;
         }
         language.encode(writer)?;
-        [0; 2].encode(writer)?;
+        [0u8; 2].encode(writer)?;
 
         Ok(())
     }
@@ -1169,9 +1170,9 @@ impl HdlrBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
-        [0; 4].encode(writer)?;
+        [0u8; 4].encode(writer)?;
         self.handler_type.encode(writer)?;
-        [0; 4 * 3].encode(writer)?;
+        [0u8; 4 * 3].encode(writer)?;
         self.name.encode(writer)?;
         Ok(())
     }
@@ -1341,7 +1342,7 @@ impl SmhdBox {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         self.balance.encode(writer)?;
-        [0; 2].encode(writer)?;
+        [0u8; 2].encode(writer)?;
         Ok(())
     }
 
@@ -1652,10 +1653,10 @@ impl UrlBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(reader)?;
-        let location = if full_header.flags.is_set(1) {
-            Some(Utf8String::decode(reader)?)
-        } else {
+        let location = if full_header.flags.is_set(0) {
             None
+        } else {
+            Some(Utf8String::decode(reader)?)
         };
         Ok(Self { location })
     }
@@ -1693,7 +1694,7 @@ impl FullBox for UrlBox {
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {
-        FullBoxFlags::new(self.location.is_some() as u32)
+        FullBoxFlags::new(self.location.is_none() as u32)
     }
 }
 
@@ -1970,18 +1971,18 @@ impl Default for VisualSampleEntryFields {
 
 impl Encode for VisualSampleEntryFields {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        [0; 6].encode(writer)?;
+        [0u8; 6].encode(writer)?;
         self.data_reference_index.encode(writer)?;
-        [0; 2 + 2 + 4 * 3].encode(writer)?;
+        [0u8; 2 + 2 + 4 * 3].encode(writer)?;
         self.width.encode(writer)?;
         self.height.encode(writer)?;
         self.horizresolution.encode(writer)?;
         self.vertresolution.encode(writer)?;
-        [0; 4].encode(writer)?;
+        [0u8; 4].encode(writer)?;
         self.frame_count.encode(writer)?;
         self.compressorname.encode(writer)?;
         self.depth.encode(writer)?;
-        [0; 2].encode(writer)?;
+        [0u8; 2].encode(writer)?;
         Ok(())
     }
 }
