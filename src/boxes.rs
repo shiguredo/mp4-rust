@@ -1689,6 +1689,7 @@ impl FullBox for UrlBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StblBox {
     pub stsd_box: StsdBox,
+    pub stts_box: SttsBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1697,6 +1698,7 @@ impl StblBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.stsd_box.encode(writer)?;
+        self.stts_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1705,6 +1707,7 @@ impl StblBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut stsd_box = None;
+        let mut stts_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1712,14 +1715,19 @@ impl StblBox {
                 StsdBox::TYPE if stsd_box.is_none() => {
                     stsd_box = Some(StsdBox::decode(&mut reader)?);
                 }
+                SttsBox::TYPE if stts_box.is_none() => {
+                    stts_box = Some(SttsBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
         let stsd_box = stsd_box.ok_or_else(|| Error::missing_box("stsd", Self::TYPE))?;
+        let stts_box = stts_box.ok_or_else(|| Error::missing_box("stts", Self::TYPE))?;
         Ok(Self {
             stsd_box,
+            stts_box,
             unknown_boxes,
         })
     }
@@ -2336,5 +2344,80 @@ impl BaseBox for BtrtBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SttsEntry {
+    pub sample_count: u32,
+    pub sample_delta: u32,
+}
+
+/// [ISO/IEC 14496-12] TimeToSampleBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SttsBox {
+    pub entries: Vec<SttsEntry>,
+}
+
+impl SttsBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stts");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        (self.entries.len() as u32).encode(writer)?;
+        for entry in &self.entries {
+            entry.sample_count.encode(writer)?;
+            entry.sample_delta.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let count = u32::decode(reader)? as usize;
+        let mut entries = Vec::with_capacity(count);
+        for _ in 0..count {
+            entries.push(SttsEntry {
+                sample_count: u32::decode(reader)?,
+                sample_delta: u32::decode(reader)?,
+            });
+        }
+        Ok(Self { entries })
+    }
+}
+
+impl Encode for SttsBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for SttsBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for SttsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for SttsBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
