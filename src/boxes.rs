@@ -1,9 +1,9 @@
 use std::io::{Read, Write};
 
 use crate::{
-    io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Encode, Error,
-    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime, Result,
-    UnknownBox, Utf8String,
+    io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Either, Encode,
+    Error, FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime,
+    Result, UnknownBox, Utf8String,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1219,9 +1219,7 @@ impl FullBox for HdlrBox {
 /// [ISO/IEC 14496-12] MediaInformationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinfBox {
-    // smhd か vmhd のどちらかが必須
-    pub smhd_box: Option<SmhdBox>,
-    pub vmhd_box: Option<VmhdBox>,
+    pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
     pub dinf_box: DinfBox,
     pub stbl_box: StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1231,11 +1229,9 @@ impl MinfBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"minf");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        if let Some(b) = &self.smhd_box {
-            b.encode(writer)?;
-        }
-        if let Some(b) = &self.vmhd_box {
-            b.encode(writer)?;
+        match &self.smhd_or_vmhd_box {
+            Either::A(b) => b.encode(writer)?,
+            Either::B(b) => b.encode(writer)?,
         }
         self.dinf_box.encode(writer)?;
         self.stbl_box.encode(writer)?;
@@ -1271,13 +1267,18 @@ impl MinfBox {
                 }
             }
         }
+        let smhd_or_vmhd_box = smhd_box
+            .map(Either::A)
+            .or(vmhd_box.map(Either::B))
+            .ok_or_else(|| {
+                Error::invalid_data("Either 'smhd' box or 'vmhd' box is mandatory in 'trak' box")
+            })?;
         let dinf_box = dinf_box
             .ok_or_else(|| Error::invalid_data("Missing mandary 'dinf' box in 'trak' box"))?;
         let stbl_box = stbl_box
             .ok_or_else(|| Error::invalid_data("Missing mandary 'stbl' box in 'trak' box"))?;
         Ok(Self {
-            smhd_box,
-            vmhd_box,
+            smhd_or_vmhd_box,
             dinf_box,
             stbl_box,
             unknown_boxes,

@@ -497,3 +497,9 @@ impl Decode for Utf8String {
         Ok(Self(s))
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Either<A, B> {
+    A(A),
+    B(B),
+}
