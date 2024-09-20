@@ -1839,33 +1839,41 @@ impl IterUnknownBoxes for StsdBox {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SampleEntry {
+    Avc1(Avc1Box),
     Unknown(UnknownBox),
 }
 
 impl Encode for SampleEntry {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
-            SampleEntry::Unknown(b) => b.encode(writer),
+            Self::Avc1(b) => b.encode(writer),
+            Self::Unknown(b) => b.encode(writer),
         }
     }
 }
 
 impl Decode for SampleEntry {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        Ok(Self::Unknown(Decode::decode(reader)?))
+        let (header, mut reader) = BoxHeader::peek(reader)?;
+        match header.box_type {
+            Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
+            _ => Decode::decode(&mut reader).map(Self::Unknown),
+        }
     }
 }
 
 impl BaseBox for SampleEntry {
     fn box_type(&self) -> BoxType {
         match self {
-            SampleEntry::Unknown(b) => b.box_type(),
+            Self::Avc1(b) => b.box_type(),
+            Self::Unknown(b) => b.box_type(),
         }
     }
 
     fn box_payload_size(&self) -> u64 {
         match self {
-            SampleEntry::Unknown(b) => b.box_payload_size(),
+            Self::Avc1(b) => b.box_payload_size(),
+            Self::Unknown(b) => b.box_payload_size(),
         }
     }
 }
@@ -1873,7 +1881,163 @@ impl BaseBox for SampleEntry {
 impl IterUnknownBoxes for SampleEntry {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         match self {
-            SampleEntry::Unknown(b) => b.iter_unknown_boxes(),
+            Self::Avc1(b) => Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>,
+            Self::Unknown(b) => Box::new(b.iter_unknown_boxes()),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VisualSampleEntryFields {
+    data_reference_index: u16,
+    width: u16,
+    height: u16,
+    horizresolution: FixedPointNumber<u16, u16>,
+    vertresolution: FixedPointNumber<u16, u16>,
+    frame_count: u16,
+    compressorname: [u8; 32],
+    depth: u16,
+}
+
+impl Default for VisualSampleEntryFields {
+    fn default() -> Self {
+        Self {
+            data_reference_index: 1,
+            width: 0,
+            height: 0,
+            horizresolution: FixedPointNumber::new(0x48, 0), // 72 dpi
+            vertresolution: FixedPointNumber::new(0x48, 0),  // 72 dpi
+            frame_count: 1,
+            compressorname: [0; 32],
+            depth: 0x0018, // images are in colour with no alpha
+        }
+    }
+}
+
+impl Encode for VisualSampleEntryFields {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        [0; 6].encode(writer)?;
+        self.data_reference_index.encode(writer)?;
+        [0; 2 + 2 + 4 * 3].encode(writer)?;
+        self.width.encode(writer)?;
+        self.height.encode(writer)?;
+        self.horizresolution.encode(writer)?;
+        self.vertresolution.encode(writer)?;
+        [0; 4].encode(writer)?;
+        self.frame_count.encode(writer)?;
+        self.compressorname.encode(writer)?;
+        self.depth.encode(writer)?;
+        [0; 2].encode(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for VisualSampleEntryFields {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let _ = <[u8; 6]>::decode(reader)?;
+        let data_reference_index = u16::decode(reader)?;
+        let _ = <[u8; 2 + 2 + 4 * 3]>::decode(reader)?;
+        let width = u16::decode(reader)?;
+        let height = u16::decode(reader)?;
+        let horizresolution = FixedPointNumber::decode(reader)?;
+        let vertresolution = FixedPointNumber::decode(reader)?;
+        let _ = <[u8; 4]>::decode(reader)?;
+        let frame_count = u16::decode(reader)?;
+        let compressorname = <[u8; 32]>::decode(reader)?;
+        let depth = u16::decode(reader)?;
+        let _ = <[u8; 2]>::decode(reader)?;
+        Ok(Self {
+            data_reference_index,
+            width,
+            height,
+            horizresolution,
+            vertresolution,
+            frame_count,
+            compressorname,
+            depth,
+        })
+    }
+}
+
+/// [ISO/IEC 14496-15] AVCSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Avc1Box {
+    pub visual: VisualSampleEntryFields,
+
+    // btrt :: #mp4_btrt_box{} | undefined,
+    // pasp :: #mp4_pasp_box{} | undefined,
+    // avcc :: #mp4_avcc_box{}
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Avc1Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"avc1");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.visual.encode(writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let visual = VisualSampleEntryFields::decode(reader)?;
+        dbg!(&visual);
+        //let mut stsd_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                // StsdBox::TYPE if stsd_box.is_none() => {
+                //     stsd_box = Some(StsdBox::decode(&mut reader)?);
+                // }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        //let stsd_box = stsd_box.ok_or_else(|| Error::missing_box("stsd", Self::TYPE))?;
+        Ok(Self {
+            visual,
+            //stsd_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Avc1Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Avc1Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Avc1Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for Avc1Box {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        let iter0 = self
+            .unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
