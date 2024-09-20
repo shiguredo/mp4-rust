@@ -1706,6 +1706,7 @@ pub struct StblBox {
     pub stsc_box: StscBox,
     pub stsz_box: StszBox,
     pub stco_or_co64_box: Either<StcoBox, Co64Box>,
+    pub sgpd_box: Option<SgpdBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1721,6 +1722,9 @@ impl StblBox {
             Either::A(b) => b.encode(writer)?,
             Either::B(b) => b.encode(writer)?,
         }
+        if let Some(b) = &self.sgpd_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1734,6 +1738,7 @@ impl StblBox {
         let mut stsz_box = None;
         let mut stco_box = None;
         let mut co64_box = None;
+        let mut sgpd_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1756,6 +1761,9 @@ impl StblBox {
                 Co64Box::TYPE if co64_box.is_none() => {
                     co64_box = Some(Co64Box::decode(&mut reader)?);
                 }
+                SgpdBox::TYPE if sgpd_box.is_none() => {
+                    sgpd_box = Some(SgpdBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -1775,6 +1783,7 @@ impl StblBox {
             stsc_box,
             stsz_box,
             stco_or_co64_box,
+            sgpd_box,
             unknown_boxes,
         })
     }
@@ -2771,6 +2780,54 @@ impl FullBox for Co64Box {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] SampleGroupDescriptionBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SgpdBox {
+    // 必要になるまではこのボックスの中身は単なるバイト列として扱う
+    pub payload: Vec<u8>,
+}
+
+impl SgpdBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"sgpd");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let mut payload = Vec::new();
+        reader.read_to_end(&mut payload)?;
+        Ok(Self { payload })
+    }
+}
+
+impl Encode for SgpdBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for SgpdBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for SgpdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 }
 
