@@ -2943,6 +2943,9 @@ impl OpusBox {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.audio.encode(writer)?;
         self.dops_box.encode(writer)?;
+        if let Some(b) = &self.btrt_box {
+            b.encode(writer)?;
+        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
