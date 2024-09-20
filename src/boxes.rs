@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    num::NonZeroU32,
+};
 
 use crate::{
     io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Either, Encode,
@@ -1691,6 +1694,7 @@ pub struct StblBox {
     pub stsd_box: StsdBox,
     pub stts_box: SttsBox,
     pub stsc_box: StscBox,
+    pub stsz_box: StszBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1701,6 +1705,7 @@ impl StblBox {
         self.stsd_box.encode(writer)?;
         self.stts_box.encode(writer)?;
         self.stsc_box.encode(writer)?;
+        self.stsz_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1711,6 +1716,7 @@ impl StblBox {
         let mut stsd_box = None;
         let mut stts_box = None;
         let mut stsc_box = None;
+        let mut stsz_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1724,6 +1730,9 @@ impl StblBox {
                 StscBox::TYPE if stsc_box.is_none() => {
                     stsc_box = Some(StscBox::decode(&mut reader)?);
                 }
+                StszBox::TYPE if stsz_box.is_none() => {
+                    stsz_box = Some(StszBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -1732,10 +1741,12 @@ impl StblBox {
         let stsd_box = stsd_box.ok_or_else(|| Error::missing_box("stsd", Self::TYPE))?;
         let stts_box = stts_box.ok_or_else(|| Error::missing_box("stts", Self::TYPE))?;
         let stsc_box = stsc_box.ok_or_else(|| Error::missing_box("stsc", Self::TYPE))?;
+        let stsz_box = stsz_box.ok_or_else(|| Error::missing_box("stsz", Self::TYPE))?;
         Ok(Self {
             stsd_box,
             stts_box,
             stsc_box,
+            stsz_box,
             unknown_boxes,
         })
     }
@@ -2355,14 +2366,14 @@ impl BaseBox for BtrtBox {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SttsEntry {
     pub sample_count: u32,
     pub sample_delta: u32,
 }
 
 /// [ISO/IEC 14496-12] TimeToSampleBox class
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SttsBox {
     pub entries: Vec<SttsEntry>,
 }
@@ -2430,7 +2441,7 @@ impl FullBox for SttsBox {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StscEntry {
     pub first_chunk: u32,
     pub sample_per_chunk: u32,
@@ -2438,7 +2449,7 @@ pub struct StscEntry {
 }
 
 /// [ISO/IEC 14496-12] SampleToChunkBox class
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StscBox {
     pub entries: Vec<StscEntry>,
 }
@@ -2499,6 +2510,97 @@ impl BaseBox for StscBox {
 }
 
 impl FullBox for StscBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] SampleSizeBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StszBox {
+    Fixed {
+        sample_size: NonZeroU32,
+        sample_count: u32,
+    },
+    Variable {
+        entry_sizes: Vec<u32>,
+    },
+}
+
+impl StszBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stsz");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        match self {
+            StszBox::Fixed {
+                sample_size,
+                sample_count,
+            } => {
+                sample_size.get().encode(writer)?;
+                sample_count.encode(writer)?;
+            }
+            StszBox::Variable { entry_sizes } => {
+                0u32.encode(writer)?;
+                (entry_sizes.len() as u32).encode(writer)?;
+                for size in entry_sizes {
+                    size.encode(writer)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let sample_size = u32::decode(reader)?;
+        let sample_count = u32::decode(reader)?;
+        if let Some(sample_size) = NonZeroU32::new(sample_size) {
+            Ok(Self::Fixed {
+                sample_size,
+                sample_count,
+            })
+        } else {
+            let mut entry_sizes = Vec::with_capacity(sample_count as usize);
+            for _ in 0..sample_count {
+                entry_sizes.push(u32::decode(reader)?);
+            }
+            Ok(Self::Variable { entry_sizes })
+        }
+    }
+}
+
+impl Encode for StszBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for StszBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for StszBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for StszBox {
     fn full_box_version(&self) -> u8 {
         0
     }
