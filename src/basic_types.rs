@@ -359,6 +359,17 @@ impl std::fmt::Debug for BoxType {
     }
 }
 
+impl std::fmt::Display for BoxType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let BoxType::Normal(ty) = self {
+            if let Ok(ty) = std::str::from_utf8(&ty[..]) {
+                return write!(f, "{ty}");
+            }
+        }
+        write!(f, "{:?}", self.as_bytes())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownBox {
     pub box_type: BoxType,

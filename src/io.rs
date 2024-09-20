@@ -3,6 +3,8 @@ use std::{
     io::{Cursor, ErrorKind, Read, Write},
 };
 
+use crate::BoxType;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Error {
@@ -17,6 +19,12 @@ impl Error {
 
     pub(crate) fn invalid_input(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidInput, message))
+    }
+
+    pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
+        Self::invalid_data(&format!(
+            "Missing mandatory '{missing_box}' box in '{parent_box}' box"
+        ))
     }
 }
 
