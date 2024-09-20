@@ -1690,6 +1690,7 @@ impl FullBox for UrlBox {
 pub struct StblBox {
     pub stsd_box: StsdBox,
     pub stts_box: SttsBox,
+    pub stsc_box: StscBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1699,6 +1700,7 @@ impl StblBox {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.stsd_box.encode(writer)?;
         self.stts_box.encode(writer)?;
+        self.stsc_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1708,6 +1710,7 @@ impl StblBox {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut stsd_box = None;
         let mut stts_box = None;
+        let mut stsc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1718,6 +1721,9 @@ impl StblBox {
                 SttsBox::TYPE if stts_box.is_none() => {
                     stts_box = Some(SttsBox::decode(&mut reader)?);
                 }
+                StscBox::TYPE if stsc_box.is_none() => {
+                    stsc_box = Some(StscBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -1725,9 +1731,11 @@ impl StblBox {
         }
         let stsd_box = stsd_box.ok_or_else(|| Error::missing_box("stsd", Self::TYPE))?;
         let stts_box = stts_box.ok_or_else(|| Error::missing_box("stts", Self::TYPE))?;
+        let stsc_box = stsc_box.ok_or_else(|| Error::missing_box("stsc", Self::TYPE))?;
         Ok(Self {
             stsd_box,
             stts_box,
+            stsc_box,
             unknown_boxes,
         })
     }
@@ -2413,6 +2421,84 @@ impl BaseBox for SttsBox {
 }
 
 impl FullBox for SttsBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct StscEntry {
+    pub first_chunk: u32,
+    pub sample_per_chunk: u32,
+    pub sample_description_index: u32,
+}
+
+/// [ISO/IEC 14496-12] SampleToChunkBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct StscBox {
+    pub entries: Vec<StscEntry>,
+}
+
+impl StscBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stsc");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        (self.entries.len() as u32).encode(writer)?;
+        for entry in &self.entries {
+            entry.first_chunk.encode(writer)?;
+            entry.sample_per_chunk.encode(writer)?;
+            entry.sample_description_index.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let count = u32::decode(reader)? as usize;
+        let mut entries = Vec::with_capacity(count);
+        for _ in 0..count {
+            entries.push(StscEntry {
+                first_chunk: u32::decode(reader)?,
+                sample_per_chunk: u32::decode(reader)?,
+                sample_description_index: u32::decode(reader)?,
+            });
+        }
+        Ok(Self { entries })
+    }
+}
+
+impl Encode for StscBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for StscBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for StscBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl FullBox for StscBox {
     fn full_box_version(&self) -> u8 {
         0
     }
