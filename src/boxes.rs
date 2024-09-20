@@ -1222,7 +1222,7 @@ pub struct MinfBox {
     // smhd か vmhd のどちらかが必須
     pub smhd_box: Option<SmhdBox>,
     pub vmhd_box: Option<VmhdBox>,
-    // pub dinf_box: DinfBox,
+    pub dinf_box: DinfBox,
     // pub stbl_box:StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
@@ -1237,6 +1237,7 @@ impl MinfBox {
         if let Some(b) = &self.vmhd_box {
             b.encode(writer)?;
         }
+        self.dinf_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1246,6 +1247,7 @@ impl MinfBox {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let mut smhd_box = None;
         let mut vmhd_box = None;
+        let mut dinf_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1256,16 +1258,20 @@ impl MinfBox {
                 VmhdBox::TYPE if vmhd_box.is_none() => {
                     vmhd_box = Some(VmhdBox::decode(&mut reader)?);
                 }
+                DinfBox::TYPE if dinf_box.is_none() => {
+                    dinf_box = Some(DinfBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        // let minf_box = minf_box
-        //     .ok_or_else(|| Error::invalid_data("Missing mandary 'minf' box in 'trak' box"))?;
+        let dinf_box = dinf_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'dinf' box in 'trak' box"))?;
         Ok(Self {
             smhd_box,
             vmhd_box,
+            dinf_box,
             unknown_boxes,
         })
     }
@@ -1299,19 +1305,15 @@ impl BaseBox for MinfBox {
 
 impl IterUnknownBoxes for MinfBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = std::iter::empty();
+        let iter0 = self.dinf_box.iter_unknown_boxes();
         let iter1 = std::iter::empty();
-        let iter2 = std::iter::empty();
-        let iter3 = std::iter::empty();
-        let iter4 = self
+        let iter2 = self
             .unknown_boxes
             .iter()
             .flat_map(|b| b.iter_unknown_boxes());
         iter0
             .chain(iter1)
             .chain(iter2)
-            .chain(iter3)
-            .chain(iter4)
             .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
@@ -1437,5 +1439,81 @@ impl FullBox for VmhdBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] MediaInformationBox class
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct DinfBox {
+    // pub stbl_box:StblBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl DinfBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"dinf");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        //let mut smhd_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                // SmhdBox::TYPE if smhd_box.is_none() => {
+                //     smhd_box = Some(SmhdBox::decode(&mut reader)?);
+                // }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        // let dinf_box = dinf_box
+        //     .ok_or_else(|| Error::invalid_data("Missing mandary 'dinf' box in 'trak' box"))?;
+        Ok(Self { unknown_boxes })
+    }
+}
+
+impl Encode for DinfBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for DinfBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for DinfBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for DinfBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        let iter0 = std::iter::empty();
+        let iter1 = self
+            .unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0
+            .chain(iter1)
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
