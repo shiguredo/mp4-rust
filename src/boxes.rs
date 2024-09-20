@@ -1223,7 +1223,7 @@ pub struct MinfBox {
     pub smhd_box: Option<SmhdBox>,
     pub vmhd_box: Option<VmhdBox>,
     pub dinf_box: DinfBox,
-    // pub stbl_box:StblBox,
+    pub stbl_box: StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1238,6 +1238,7 @@ impl MinfBox {
             b.encode(writer)?;
         }
         self.dinf_box.encode(writer)?;
+        self.stbl_box.encode(writer)?;
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -1248,6 +1249,7 @@ impl MinfBox {
         let mut smhd_box = None;
         let mut vmhd_box = None;
         let mut dinf_box = None;
+        let mut stbl_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
@@ -1261,6 +1263,9 @@ impl MinfBox {
                 DinfBox::TYPE if dinf_box.is_none() => {
                     dinf_box = Some(DinfBox::decode(&mut reader)?);
                 }
+                StblBox::TYPE if stbl_box.is_none() => {
+                    stbl_box = Some(StblBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
@@ -1268,10 +1273,13 @@ impl MinfBox {
         }
         let dinf_box = dinf_box
             .ok_or_else(|| Error::invalid_data("Missing mandary 'dinf' box in 'trak' box"))?;
+        let stbl_box = stbl_box
+            .ok_or_else(|| Error::invalid_data("Missing mandary 'stbl' box in 'trak' box"))?;
         Ok(Self {
             smhd_box,
             vmhd_box,
             dinf_box,
+            stbl_box,
             unknown_boxes,
         })
     }
@@ -1306,7 +1314,7 @@ impl BaseBox for MinfBox {
 impl IterUnknownBoxes for MinfBox {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         let iter0 = self.dinf_box.iter_unknown_boxes();
-        let iter1 = std::iter::empty();
+        let iter1 = self.stbl_box.iter_unknown_boxes();
         let iter2 = self
             .unknown_boxes
             .iter()
@@ -1684,5 +1692,81 @@ impl FullBox for UrlBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(self.location.is_some() as u32)
+    }
+}
+
+/// [ISO/IEC 14496-12] SampleTableBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StblBox {
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl StblBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stbl");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        //self.dref_box.encode(writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        //let mut dref_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                // DrefBox::TYPE if dref_box.is_none() => {
+                //     dref_box = Some(DrefBox::decode(&mut reader)?);
+                // }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        // let dref_box = dref_box
+        //     .ok_or_else(|| Error::invalid_data("Missing mandary 'dref' box in 'trak' box"))?;
+        Ok(Self { unknown_boxes })
+    }
+}
+
+impl Encode for StblBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for StblBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for StblBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for StblBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        let iter0 = std::iter::empty();
+        let iter1 = self
+            .unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0
+            .chain(iter1)
+            .map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
