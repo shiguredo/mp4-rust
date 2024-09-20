@@ -1895,6 +1895,7 @@ impl IterUnknownBoxes for StsdBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SampleEntry {
     Avc1(Avc1Box),
+    Opus(OpusBox),
     Unknown(UnknownBox),
 }
 
@@ -1902,6 +1903,7 @@ impl Encode for SampleEntry {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             Self::Avc1(b) => b.encode(writer),
+            Self::Opus(b) => b.encode(writer),
             Self::Unknown(b) => b.encode(writer),
         }
     }
@@ -1912,6 +1914,7 @@ impl Decode for SampleEntry {
         let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
             Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
+            OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
@@ -1921,6 +1924,7 @@ impl BaseBox for SampleEntry {
     fn box_type(&self) -> BoxType {
         match self {
             Self::Avc1(b) => b.box_type(),
+            Self::Opus(b) => b.box_type(),
             Self::Unknown(b) => b.box_type(),
         }
     }
@@ -1928,6 +1932,7 @@ impl BaseBox for SampleEntry {
     fn box_payload_size(&self) -> u64 {
         match self {
             Self::Avc1(b) => b.box_payload_size(),
+            Self::Opus(b) => b.box_payload_size(),
             Self::Unknown(b) => b.box_payload_size(),
         }
     }
@@ -1937,6 +1942,7 @@ impl IterUnknownBoxes for SampleEntry {
     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
         match self {
             Self::Avc1(b) => Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>,
+            Self::Opus(b) => Box::new(b.iter_unknown_boxes()),
             Self::Unknown(b) => Box::new(b.iter_unknown_boxes()),
         }
     }
@@ -2805,5 +2811,145 @@ impl BaseBox for UdtaBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+}
+
+/// [https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html] OpusSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpusBox {
+    pub audio: AudioSampleEntryFields,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl OpusBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"Opus");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.audio.encode(writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let audio = AudioSampleEntryFields::decode(reader)?;
+        // let mut avcc_box = None;
+        // let mut pasp_box = None;
+        // let mut btrt_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                // AvccBox::TYPE if avcc_box.is_none() => {
+                //     avcc_box = Some(AvccBox::decode(&mut reader)?);
+                // }
+                // PaspBox::TYPE if pasp_box.is_none() => {
+                //     pasp_box = Some(PaspBox::decode(&mut reader)?);
+                // }
+                // BtrtBox::TYPE if btrt_box.is_none() => {
+                //     btrt_box = Some(BtrtBox::decode(&mut reader)?);
+                // }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        //let avcc_box = avcc_box.ok_or_else(|| Error::missing_box("avcc", Self::TYPE))?;
+        Ok(Self {
+            audio,
+            // avcc_box,
+            // pasp_box,
+            // btrt_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for OpusBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for OpusBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for OpusBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+}
+
+impl IterUnknownBoxes for OpusBox {
+    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+        let iter0 = self
+            .unknown_boxes
+            .iter()
+            .flat_map(|b| b.iter_unknown_boxes());
+        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioSampleEntryFields {
+    pub data_reference_index: u16,
+    pub channelcount: u16,
+    pub samplesize: u16,
+    pub samplerate: FixedPointNumber<u16, u16>,
+}
+
+impl Default for AudioSampleEntryFields {
+    fn default() -> Self {
+        Self {
+            data_reference_index: 1,
+            channelcount: 1,
+            samplesize: 16,
+            samplerate: FixedPointNumber::new(0, 0),
+        }
+    }
+}
+
+impl Encode for AudioSampleEntryFields {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        [0u8; 6].encode(writer)?;
+        self.data_reference_index.encode(writer)?;
+        [0u8; 4 * 2].encode(writer)?;
+        self.channelcount.encode(writer)?;
+        self.samplesize.encode(writer)?;
+        [0u8; 2].encode(writer)?;
+        [0u8; 2].encode(writer)?;
+        self.samplerate.encode(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for AudioSampleEntryFields {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let _ = <[u8; 6]>::decode(reader)?;
+        let data_reference_index = u16::decode(reader)?;
+        let _ = <[u8; 4 * 2]>::decode(reader)?;
+        let channelcount = u16::decode(reader)?;
+        let samplesize = u16::decode(reader)?;
+        let _ = <[u8; 2]>::decode(reader)?;
+        let _ = <[u8; 2]>::decode(reader)?;
+        let samplerate = FixedPointNumber::decode(reader)?;
+        Ok(Self {
+            data_reference_index,
+            channelcount,
+            samplesize,
+            samplerate,
+        })
     }
 }
