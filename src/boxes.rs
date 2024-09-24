@@ -174,10 +174,6 @@ impl BaseBox for FtypBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -285,10 +281,6 @@ impl BaseBox for FreeBox {
         self.payload.len() as u64
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -342,10 +334,6 @@ impl BaseBox for MdatBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -426,10 +414,6 @@ impl BaseBox for MoovBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -548,10 +532,6 @@ impl BaseBox for MvhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -655,10 +635,6 @@ impl BaseBox for TrakBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -805,10 +781,6 @@ impl BaseBox for TkhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -900,10 +872,6 @@ impl BaseBox for EdtsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -999,10 +967,6 @@ impl BaseBox for ElstBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1106,10 +1070,6 @@ impl BaseBox for MdiaBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1230,10 +1190,6 @@ impl BaseBox for MdhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -1311,10 +1267,6 @@ impl BaseBox for HdlrBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1423,10 +1375,6 @@ impl BaseBox for MinfBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
@@ -1485,10 +1433,6 @@ impl BaseBox for SmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1557,10 +1501,6 @@ impl BaseBox for VmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1641,10 +1581,6 @@ impl BaseBox for DinfBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1736,10 +1672,6 @@ impl BaseBox for DrefBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
@@ -1810,10 +1742,6 @@ impl BaseBox for UrlBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1947,10 +1875,6 @@ impl BaseBox for StblBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
@@ -2018,10 +1942,6 @@ impl BaseBox for StsdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2266,10 +2186,6 @@ impl BaseBox for Avc1Box {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
@@ -2459,10 +2375,6 @@ impl BaseBox for AvccBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -2553,10 +2465,6 @@ impl BaseBox for Vp08Box {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2655,10 +2563,6 @@ impl BaseBox for Vp09Box {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2766,10 +2670,6 @@ impl BaseBox for VpccBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -2834,10 +2734,6 @@ impl BaseBox for PaspBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -2893,10 +2789,6 @@ impl BaseBox for BtrtBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2966,10 +2858,6 @@ impl BaseBox for SttsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3052,10 +2940,6 @@ impl BaseBox for StscBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3153,10 +3037,6 @@ impl BaseBox for StszBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -3224,10 +3104,6 @@ impl BaseBox for StcoBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3299,10 +3175,6 @@ impl BaseBox for Co64Box {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_unknown_box(&self) -> bool {
-        false
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
     }
@@ -3370,10 +3242,6 @@ impl BaseBox for StssBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3467,10 +3335,6 @@ impl BaseBox for OpusBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3615,10 +3479,6 @@ impl BaseBox for DopsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {

@@ -19,7 +19,9 @@ pub trait BaseBox {
 
     fn box_payload_size(&self) -> u64;
 
-    fn is_unknown_box(&self) -> bool;
+    fn is_unknown_box(&self) -> bool {
+        false
+    }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>>;
 }
