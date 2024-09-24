@@ -1,7 +1,4 @@
-use shiguredo_mp4::{
-    boxes::{SbgpBox, SgpdBox, UdtaBox},
-    BoxType, Decode, Encode, Mp4File, Result,
-};
+use shiguredo_mp4::{BoxType, Decode, Encode, Mp4File, Result};
 
 #[test]
 fn decode_encode_black_h264_video_mp4() -> Result<()> {
@@ -80,8 +77,10 @@ fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
 
     while let Some(b) = stack.pop() {
         if b.is_opaque_payload()
-            && !matches!(b.box_type(), SbgpBox::TYPE | SgpdBox::TYPE | UdtaBox::TYPE)
-            && !matches!(b.box_type().as_bytes(), b"fiel")
+            && !matches!(
+                b.box_type().as_bytes(),
+                b"fiel" | b"sbgp" | b"sgpd" | b"udta"
+            )
         {
             unknowns.push(b.box_type());
         }
