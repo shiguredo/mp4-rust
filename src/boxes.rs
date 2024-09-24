@@ -2207,11 +2207,9 @@ impl AvccBox {
         self.avc_level_indication.encode(writer)?;
         (0b111111_00 | self.length_size_minus_one.get()).encode(writer)?;
 
-        let sps_count = u8::try_from(self.sps_list.len())
-            .ok()
-            .and_then(|n| Uint::<5>::checked_new(n))
-            .ok_or_else(|| Error::invalid_input("Too many SPSs"))?;
-        (0b111_00000 | sps_count.get()).encode(writer)?;
+        let sps_count =
+            u8::try_from(self.sps_list.len()).map_err(|_| Error::invalid_input("Too many SPSs"))?;
+        (0b111_00000 | sps_count).encode(writer)?;
         for sps in &self.sps_list {
             let size = u16::try_from(sps.len())
                 .map_err(|e| Error::invalid_input(&format!("Too long SPS: {e}")))?;
@@ -2262,9 +2260,9 @@ impl AvccBox {
         let avc_profile_indication = u8::decode(reader)?;
         let profile_compatibility = u8::decode(reader)?;
         let avc_level_indication = u8::decode(reader)?;
-        let length_size_minus_one = Uint::new(u8::decode(reader)?);
+        let length_size_minus_one = Uint::from_u8(u8::decode(reader)?);
 
-        let sps_count = Uint::<5>::new(u8::decode(reader)?).get() as usize;
+        let sps_count = Uint::<5>::from_u8(u8::decode(reader)?).get() as usize;
         let mut sps_list = Vec::with_capacity(sps_count);
         for _ in 0..sps_count {
             let size = u16::decode(reader)? as usize;
@@ -2287,9 +2285,9 @@ impl AvccBox {
         let mut bit_depth_chroma_minus8 = None;
         let mut sps_ext_list = Vec::new();
         if !matches!(avc_profile_indication, 66 | 77 | 88) {
-            chroma_format = Some(Uint::new(u8::decode(reader)?));
-            bit_depth_luma_minus8 = Some(Uint::new(u8::decode(reader)?));
-            bit_depth_chroma_minus8 = Some(Uint::new(u8::decode(reader)?));
+            chroma_format = Some(Uint::from_u8(u8::decode(reader)?));
+            bit_depth_luma_minus8 = Some(Uint::from_u8(u8::decode(reader)?));
+            bit_depth_chroma_minus8 = Some(Uint::from_u8(u8::decode(reader)?));
 
             let sps_ext_count = u8::decode(reader)? as usize;
             for _ in 0..sps_ext_count {
@@ -2323,7 +2321,7 @@ impl Default for AvccBox {
             avc_profile_indication: 0,
             profile_compatibility: 0,
             avc_level_indication: 0,
-            length_size_minus_one: Uint::new(0),
+            length_size_minus_one: Uint::from_u8(0),
             sps_list: Vec::new(),
             pps_list: Vec::new(),
             chroma_format: None,
@@ -2525,9 +2523,9 @@ impl BaseBox for Vp09Box {
 pub struct VpccBox {
     pub profile: u8,
     pub level: u8,
-    pub bit_depth: Uint<4>,
-    pub chroma_subsampling: Uint<3>,
-    pub video_full_range_flag: bool,
+    pub bit_depth: Uint<4, 4>,
+    pub chroma_subsampling: Uint<3, 1>,
+    pub video_full_range_flag: Uint<1>,
     pub colour_primaries: u8,
     pub transfer_characteristics: u8,
     pub matrix_coefficients: u8,
@@ -2541,10 +2539,10 @@ impl VpccBox {
         FullBoxHeader::from_box(self).encode(writer)?;
         self.profile.encode(writer)?;
         self.level.encode(writer)?;
-        ((self.bit_depth.get() << 4)
-            | (self.chroma_subsampling.get() << 1)
-            | self.video_full_range_flag as u8)
-            .encode(writer)?;
+        (self.bit_depth.to_u8()
+            | self.chroma_subsampling.to_u8()
+            | self.video_full_range_flag.to_u8())
+        .encode(writer)?;
         self.colour_primaries.encode(writer)?;
         self.transfer_characteristics.encode(writer)?;
         self.matrix_coefficients.encode(writer)?;
@@ -2566,9 +2564,9 @@ impl VpccBox {
         let level = u8::decode(reader)?;
 
         let b = u8::decode(reader)?;
-        let bit_depth = Uint::new(b >> 4);
-        let chroma_subsampling = Uint::new(b >> 1);
-        let video_full_range_flag = (b & 1) != 0;
+        let bit_depth = Uint::from_u8(b);
+        let chroma_subsampling = Uint::from_u8(b);
+        let video_full_range_flag = Uint::from_u8(b);
         let colour_primaries = u8::decode(reader)?;
         let transfer_characteristics = u8::decode(reader)?;
         let matrix_coefficients = u8::decode(reader)?;
@@ -2710,16 +2708,16 @@ impl BaseBox for Av01Box {
 /// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Av1cBox {
-    pub seq_profile: Uint<3>,
-    pub seq_level_idx_0: Uint<5>,
-    pub seq_tier_0: Uint<1>,
-    pub high_bitdepth: Uint<1>,
-    pub twelve_bit: Uint<1>,
-    pub monochrome: Uint<1>,
-    pub chroma_subsampling_x: Uint<1>,
-    pub chroma_subsampling_y: Uint<1>,
-    pub chroma_sample_position: Uint<2>,
-    pub initial_presentation_delay_minus_one: Option<Uint<4>>,
+    pub seq_profile: Uint<3, 5>,
+    pub seq_level_idx_0: Uint<5, 0>,
+    pub seq_tier_0: Uint<1, 7>,
+    pub high_bitdepth: Uint<1, 6>,
+    pub twelve_bit: Uint<1, 5>,
+    pub monochrome: Uint<1, 4>,
+    pub chroma_subsampling_x: Uint<1, 3>,
+    pub chroma_subsampling_y: Uint<1, 2>,
+    pub chroma_sample_position: Uint<2, 0>,
+    pub initial_presentation_delay_minus_one: Option<Uint<4, 0>>,
     pub config_obus: Vec<u8>,
 }
 
@@ -2731,17 +2729,17 @@ impl Av1cBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         ((Self::MARKER << 7) | Self::VERSION).encode(writer)?;
-        ((self.seq_profile.get() << 5) | self.seq_level_idx_0.get()).encode(writer)?;
-        ((self.seq_tier_0.get() << 7)
-            | (self.high_bitdepth.get() << 6)
-            | (self.twelve_bit.get() << 5)
-            | (self.monochrome.get() << 4)
-            | (self.chroma_subsampling_x.get() << 3)
-            | (self.chroma_subsampling_y.get() << 2)
-            | self.chroma_sample_position.get())
+        (self.seq_profile.to_u8() | self.seq_level_idx_0.to_u8()).encode(writer)?;
+        (self.seq_tier_0.to_u8()
+            | self.high_bitdepth.to_u8()
+            | self.twelve_bit.to_u8()
+            | self.monochrome.to_u8()
+            | self.chroma_subsampling_x.to_u8()
+            | self.chroma_subsampling_y.to_u8()
+            | self.chroma_sample_position.to_u8())
         .encode(writer)?;
         if let Some(v) = self.initial_presentation_delay_minus_one {
-            (0b1_0000 | v.get()).encode(writer)?;
+            (0b1_0000 | v.to_u8()).encode(writer)?;
         } else {
             0u8.encode(writer)?;
         }
@@ -2762,21 +2760,21 @@ impl Av1cBox {
         }
 
         let b = u8::decode(reader)?;
-        let seq_profile = Uint::new(b >> 5);
-        let seq_level_idx_0 = Uint::new(b);
+        let seq_profile = Uint::from_u8(b);
+        let seq_level_idx_0 = Uint::from_u8(b);
 
         let b = u8::decode(reader)?;
-        let seq_tier_0 = Uint::new(b >> 7);
-        let high_bitdepth = Uint::new(b >> 6);
-        let twelve_bit = Uint::new(b >> 5);
-        let monochrome = Uint::new(b >> 4);
-        let chroma_subsampling_x = Uint::new(b >> 3);
-        let chroma_subsampling_y = Uint::new(b >> 2);
-        let chroma_sample_position = Uint::new(b);
+        let seq_tier_0 = Uint::from_u8(b);
+        let high_bitdepth = Uint::from_u8(b);
+        let twelve_bit = Uint::from_u8(b);
+        let monochrome = Uint::from_u8(b);
+        let chroma_subsampling_x = Uint::from_u8(b);
+        let chroma_subsampling_y = Uint::from_u8(b);
+        let chroma_sample_position = Uint::from_u8(b);
 
         let b = u8::decode(reader)?;
-        let initial_presentation_delay_minus_one = if Uint::<1>::new(b >> 4).get() == 1 {
-            Some(Uint::new(b))
+        let initial_presentation_delay_minus_one = if Uint::<1, 4>::from_u8(b).get() == 1 {
+            Some(Uint::from_u8(b))
         } else {
             None
         };
