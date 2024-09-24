@@ -360,60 +360,6 @@ impl std::fmt::Display for BoxType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnknownBox {
-    pub box_type: BoxType,
-    pub box_size: BoxSize,
-    pub payload: Vec<u8>,
-}
-
-impl Encode for UnknownBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
-        writer.write_all(&self.payload)?;
-        Ok(())
-    }
-}
-
-impl Decode for UnknownBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
-        let mut payload = Vec::new();
-        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
-        Ok(Self {
-            box_type: header.box_type,
-            box_size: header.box_size,
-            payload,
-        })
-    }
-}
-
-impl BaseBox for UnknownBox {
-    fn box_type(&self) -> BoxType {
-        self.box_type
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.box_size
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.payload.len() as u64
-    }
-
-    fn is_opaque_payload(&self) -> bool {
-        true
-    }
-
-    fn actual_box(&self) -> &dyn BaseBox {
-        self
-    }
-
-    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
-    }
-}
-
 /// 1904/1/1 からの経過秒数
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mp4FileTime(u64);

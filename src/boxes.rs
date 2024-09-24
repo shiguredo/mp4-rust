@@ -5,9 +5,62 @@ use std::{
 
 use crate::{
     io::ExternalBytes, BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error,
-    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, UnknownBox,
-    Utf8String,
+    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnknownBox {
+    pub box_type: BoxType,
+    pub box_size: BoxSize,
+    pub payload: Vec<u8>,
+}
+
+impl Encode for UnknownBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+}
+
+impl Decode for UnknownBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        let mut payload = Vec::new();
+        header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
+        Ok(Self {
+            box_type: header.box_type,
+            box_size: header.box_size,
+            payload,
+        })
+    }
+}
+
+impl BaseBox for UnknownBox {
+    fn box_type(&self) -> BoxType {
+        self.box_type
+    }
+
+    fn box_size(&self) -> BoxSize {
+        self.box_size
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.payload.len() as u64
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        true
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Brand([u8; 4]);
