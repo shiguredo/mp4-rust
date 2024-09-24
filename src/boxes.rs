@@ -1962,9 +1962,10 @@ impl FullBox for StsdBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SampleEntry {
     Avc1(Avc1Box),
-    Opus(OpusBox),
     Vp08(Vp08Box),
     Vp09(Vp09Box),
+    Av01(Av01Box),
+    Opus(OpusBox),
     Unknown(UnknownBox),
 }
 
@@ -1972,9 +1973,10 @@ impl SampleEntry {
     fn inner_box(&self) -> &dyn BaseBox {
         match self {
             Self::Avc1(b) => b,
-            Self::Opus(b) => b,
             Self::Vp08(b) => b,
             Self::Vp09(b) => b,
+            Self::Av01(b) => b,
+            Self::Opus(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -1984,9 +1986,10 @@ impl Encode for SampleEntry {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             Self::Avc1(b) => b.encode(writer),
-            Self::Opus(b) => b.encode(writer),
             Self::Vp08(b) => b.encode(writer),
             Self::Vp09(b) => b.encode(writer),
+            Self::Av01(b) => b.encode(writer),
+            Self::Opus(b) => b.encode(writer),
             Self::Unknown(b) => b.encode(writer),
         }
     }
@@ -1997,9 +2000,10 @@ impl Decode for SampleEntry {
         let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
             Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
-            OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
             Vp08Box::TYPE => Decode::decode(&mut reader).map(Self::Vp08),
             Vp09Box::TYPE => Decode::decode(&mut reader).map(Self::Vp09),
+            Av01Box::TYPE => Decode::decode(&mut reader).map(Self::Av01),
+            OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
@@ -2682,6 +2686,227 @@ impl FullBox for VpccBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
+    }
+}
+
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Av01Box {
+    pub visual: VisualSampleEntryFields,
+    pub av1c_box: Av1cBox,
+    pub pasp_box: Option<PaspBox>,
+    pub btrt_box: Option<BtrtBox>,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Av01Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"av01");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.visual.encode(writer)?;
+        self.av1c_box.encode(writer)?;
+        if let Some(b) = &self.pasp_box {
+            b.encode(writer)?;
+        }
+        if let Some(b) = &self.btrt_box {
+            b.encode(writer)?;
+        }
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let visual = VisualSampleEntryFields::decode(reader)?;
+        let mut av1c_box = None;
+        let mut pasp_box = None;
+        let mut btrt_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                Av1cBox::TYPE if av1c_box.is_none() => {
+                    av1c_box = Some(Av1cBox::decode(&mut reader)?);
+                }
+                PaspBox::TYPE if pasp_box.is_none() => {
+                    pasp_box = Some(PaspBox::decode(&mut reader)?);
+                }
+                BtrtBox::TYPE if btrt_box.is_none() => {
+                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        let av1c_box = av1c_box.ok_or_else(|| Error::missing_box("av1c", Self::TYPE))?;
+        Ok(Self {
+            visual,
+            av1c_box,
+            pasp_box,
+            btrt_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Av01Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Av01Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Av01Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.av1c_box).map(as_box_object))
+                .chain(self.pasp_box.iter().map(as_box_object))
+                .chain(self.btrt_box.iter().map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Av1cBox {
+    pub seq_profile: Uint<3>,
+    pub seq_level_idx_0: Uint<5>,
+    pub seq_tier_0: Uint<1>,
+    pub high_bitdepth: Uint<1>,
+    pub twelve_bit: Uint<1>,
+    pub monochrome: Uint<1>,
+    pub chroma_subsampling_x: Uint<1>,
+    pub chroma_subsampling_y: Uint<1>,
+    pub chroma_sample_position: Uint<2>,
+    pub initial_presentation_delay_minus_one: Option<Uint<4>>,
+    pub config_obus: Vec<u8>,
+}
+
+impl Av1cBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"av1C");
+
+    const MARKER: u8 = 1;
+    const VERSION: u8 = 1;
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        ((Self::MARKER << 7) | Self::VERSION).encode(writer)?;
+        ((self.seq_profile.get() << 5) | self.seq_level_idx_0.get()).encode(writer)?;
+        ((self.seq_tier_0.get() << 7)
+            | (self.high_bitdepth.get() << 6)
+            | (self.twelve_bit.get() << 5)
+            | (self.monochrome.get() << 4)
+            | (self.chroma_subsampling_x.get() << 3)
+            | (self.chroma_subsampling_y.get() << 2)
+            | self.chroma_sample_position.get())
+        .encode(writer)?;
+        if let Some(v) = self.initial_presentation_delay_minus_one {
+            (0b1_0000 | v.get()).encode(writer)?;
+        } else {
+            0u8.encode(writer)?;
+        }
+        writer.write_all(&self.config_obus)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let b = u8::decode(reader)?;
+        if (b >> 7) != Self::MARKER {
+            return Err(Error::invalid_data("Unexpected av1C marker"));
+        }
+        if (b & 0b0111_1111) != Self::VERSION {
+            return Err(Error::invalid_data(&format!(
+                "Unsupported av1C version: {}",
+                b & 0b0111_1111
+            )));
+        }
+
+        let b = u8::decode(reader)?;
+        let seq_profile = Uint::new(b >> 5);
+        let seq_level_idx_0 = Uint::new(b);
+
+        let b = u8::decode(reader)?;
+        let seq_tier_0 = Uint::new(b >> 7);
+        let high_bitdepth = Uint::new(b >> 6);
+        let twelve_bit = Uint::new(b >> 5);
+        let monochrome = Uint::new(b >> 4);
+        let chroma_subsampling_x = Uint::new(b >> 3);
+        let chroma_subsampling_y = Uint::new(b >> 2);
+        let chroma_sample_position = Uint::new(b);
+
+        let b = u8::decode(reader)?;
+        let initial_presentation_delay_minus_one = if Uint::<1>::new(b >> 4).get() == 1 {
+            Some(Uint::new(b))
+        } else {
+            None
+        };
+
+        let mut config_obus = Vec::new();
+        reader.read_to_end(&mut config_obus)?;
+
+        Ok(Self {
+            seq_profile,
+            seq_level_idx_0,
+            seq_tier_0,
+            high_bitdepth,
+            twelve_bit,
+            monochrome,
+            chroma_subsampling_x,
+            chroma_subsampling_y,
+            chroma_sample_position,
+            initial_presentation_delay_minus_one,
+            config_obus,
+        })
+    }
+}
+
+impl Encode for Av1cBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Av1cBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Av1cBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -3402,7 +3627,6 @@ impl Decode for AudioSampleEntryFields {
 /// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSpecificBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DopsBox {
-    pub version: u8,
     pub output_channel_count: u8,
     pub pre_skip: u16,
     pub input_sample_rate: u32,
@@ -3411,9 +3635,10 @@ pub struct DopsBox {
 
 impl DopsBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"dOps");
+    const VERSION: u8 = 0;
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.version.encode(writer)?;
+        Self::VERSION.encode(writer)?;
         self.output_channel_count.encode(writer)?;
         self.pre_skip.encode(writer)?;
         self.input_sample_rate.encode(writer)?;
@@ -3424,6 +3649,12 @@ impl DopsBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let version = u8::decode(reader)?;
+        if version != Self::VERSION {
+            return Err(Error::invalid_data(&format!(
+                "Unsupported dOps version: {version}"
+            )));
+        }
+
         let output_channel_count = u8::decode(reader)?;
         let pre_skip = u16::decode(reader)?;
         let input_sample_rate = u32::decode(reader)?;
@@ -3435,7 +3666,6 @@ impl DopsBox {
             ));
         }
         Ok(Self {
-            version,
             output_channel_count,
             pre_skip,
             input_sample_rate,
@@ -3447,7 +3677,6 @@ impl DopsBox {
 impl Default for DopsBox {
     fn default() -> Self {
         Self {
-            version: 0,
             output_channel_count: 1,
             pre_skip: 0,
             input_sample_rate: 0,
