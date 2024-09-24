@@ -1962,6 +1962,7 @@ impl FullBox for StsdBox {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SampleEntry {
     Avc1(Avc1Box),
+    Hev1(Hev1Box),
     Vp08(Vp08Box),
     Vp09(Vp09Box),
     Av01(Av01Box),
@@ -1973,6 +1974,7 @@ impl SampleEntry {
     fn inner_box(&self) -> &dyn BaseBox {
         match self {
             Self::Avc1(b) => b,
+            Self::Hev1(b) => b,
             Self::Vp08(b) => b,
             Self::Vp09(b) => b,
             Self::Av01(b) => b,
@@ -1986,6 +1988,7 @@ impl Encode for SampleEntry {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             Self::Avc1(b) => b.encode(writer),
+            Self::Hev1(b) => b.encode(writer),
             Self::Vp08(b) => b.encode(writer),
             Self::Vp09(b) => b.encode(writer),
             Self::Av01(b) => b.encode(writer),
@@ -2000,6 +2003,7 @@ impl Decode for SampleEntry {
         let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
             Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
+            Hev1Box::TYPE => Decode::decode(&mut reader).map(Self::Hev1),
             Vp08Box::TYPE => Decode::decode(&mut reader).map(Self::Vp08),
             Vp09Box::TYPE => Decode::decode(&mut reader).map(Self::Vp09),
             Av01Box::TYPE => Decode::decode(&mut reader).map(Self::Av01),
@@ -2184,24 +2188,25 @@ impl BaseBox for Avc1Box {
 /// [ISO/IEC 14496-15] AVCConfigurationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AvccBox {
-    pub configuration_version: u8,
     pub avc_profile_indication: u8,
     pub profile_compatibility: u8,
     pub avc_level_indication: u8,
-    pub length_size_minus_one: Uint<2>,
+    pub length_size_minus_one: Uint<u8, 2>,
     pub sps_list: Vec<Vec<u8>>,
     pub pps_list: Vec<Vec<u8>>,
-    pub chroma_format: Option<Uint<2>>,
-    pub bit_depth_luma_minus8: Option<Uint<3>>,
-    pub bit_depth_chroma_minus8: Option<Uint<3>>,
+    pub chroma_format: Option<Uint<u8, 2>>,
+    pub bit_depth_luma_minus8: Option<Uint<u8, 3>>,
+    pub bit_depth_chroma_minus8: Option<Uint<u8, 3>>,
     pub sps_ext_list: Vec<Vec<u8>>,
 }
 
 impl AvccBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"avcC");
 
+    const CONFIGURATION_VERSION: u8 = 1;
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.configuration_version.encode(writer)?;
+        Self::CONFIGURATION_VERSION.encode(writer)?;
         self.avc_profile_indication.encode(writer)?;
         self.profile_compatibility.encode(writer)?;
         self.avc_level_indication.encode(writer)?;
@@ -2257,12 +2262,18 @@ impl AvccBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let configuration_version = u8::decode(reader)?;
+        if configuration_version != Self::CONFIGURATION_VERSION {
+            return Err(Error::invalid_data(&format!(
+                "Unsupported avcC configuration version: {configuration_version}"
+            )));
+        }
+
         let avc_profile_indication = u8::decode(reader)?;
         let profile_compatibility = u8::decode(reader)?;
         let avc_level_indication = u8::decode(reader)?;
-        let length_size_minus_one = Uint::from_u8(u8::decode(reader)?);
+        let length_size_minus_one = Uint::from_bits(u8::decode(reader)?);
 
-        let sps_count = Uint::<5>::from_u8(u8::decode(reader)?).get() as usize;
+        let sps_count = Uint::<u8, 5>::from_bits(u8::decode(reader)?).get() as usize;
         let mut sps_list = Vec::with_capacity(sps_count);
         for _ in 0..sps_count {
             let size = u16::decode(reader)? as usize;
@@ -2285,9 +2296,9 @@ impl AvccBox {
         let mut bit_depth_chroma_minus8 = None;
         let mut sps_ext_list = Vec::new();
         if !matches!(avc_profile_indication, 66 | 77 | 88) {
-            chroma_format = Some(Uint::from_u8(u8::decode(reader)?));
-            bit_depth_luma_minus8 = Some(Uint::from_u8(u8::decode(reader)?));
-            bit_depth_chroma_minus8 = Some(Uint::from_u8(u8::decode(reader)?));
+            chroma_format = Some(Uint::from_bits(u8::decode(reader)?));
+            bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode(reader)?));
+            bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode(reader)?));
 
             let sps_ext_count = u8::decode(reader)? as usize;
             for _ in 0..sps_ext_count {
@@ -2299,7 +2310,6 @@ impl AvccBox {
         }
 
         Ok(Self {
-            configuration_version,
             avc_profile_indication,
             profile_compatibility,
             avc_level_indication,
@@ -2317,11 +2327,10 @@ impl AvccBox {
 impl Default for AvccBox {
     fn default() -> Self {
         Self {
-            configuration_version: 1,
             avc_profile_indication: 0,
             profile_compatibility: 0,
             avc_level_indication: 0,
-            length_size_minus_one: Uint::from_u8(0),
+            length_size_minus_one: Uint::from_bits(0),
             sps_list: Vec::new(),
             pps_list: Vec::new(),
             chroma_format: None,
@@ -2349,6 +2358,270 @@ impl Decode for AvccBox {
 }
 
 impl BaseBox for AvccBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
+/// [ISO/IEC 14496-15] HEVCSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hev1Box {
+    pub visual: VisualSampleEntryFields,
+    pub hvcc_box: HvccBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Hev1Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"hev1");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.visual.encode(writer)?;
+        self.hvcc_box.encode(writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let visual = VisualSampleEntryFields::decode(reader)?;
+        let mut hvcc_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                HvccBox::TYPE if hvcc_box.is_none() => {
+                    hvcc_box = Some(HvccBox::decode(&mut reader)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        let hvcc_box = hvcc_box.ok_or_else(|| Error::missing_box("hvcc", Self::TYPE))?;
+        Ok(Self {
+            visual,
+            hvcc_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Hev1Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Hev1Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Hev1Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.hvcc_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HvccNalUintArray {
+    pub array_completeness: Uint<u8, 1, 7>,
+    pub nal_unit_type: Uint<u8, 6, 0>,
+    pub nalus: Vec<Vec<u8>>,
+}
+
+/// [ISO/IEC 14496-15] HVCConfigurationBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HvccBox {
+    pub general_profile_space: Uint<u8, 2, 6>,
+    pub general_tier_flag: Uint<u8, 1, 5>,
+    pub general_profile_idc: Uint<u8, 5, 0>,
+    pub general_profile_compatibility_flags: u32,
+    pub general_constraint_indicator_flags: Uint<u64, 48>,
+    pub general_level_idc: u8,
+    pub min_spatial_segmentation_idc: Uint<u16, 12>,
+    pub parallelism_type: Uint<u8, 2>,
+    pub chroma_format_idc: Uint<u8, 2>,
+    pub bit_depth_luma_minus8: Uint<u8, 3>,
+    pub bit_depth_chroma_minus8: Uint<u8, 3>,
+    pub avg_frame_rate: u16,
+    pub constant_frame_rate: Uint<u8, 2, 6>,
+    pub num_temporal_layers: Uint<u8, 3, 3>,
+    pub temporal_id_nested: Uint<u8, 1, 2>,
+    pub length_size_minus_one: Uint<u8, 2, 0>,
+    pub nalu_arrays: Vec<HvccNalUintArray>,
+}
+
+impl HvccBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"hvcC");
+
+    const CONFIGURATION_VERSION: u8 = 1;
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        Self::CONFIGURATION_VERSION.encode(writer)?;
+        (self.general_profile_space.to_bits()
+            | self.general_tier_flag.to_bits()
+            | self.general_profile_idc.to_bits())
+        .encode(writer)?;
+        self.general_profile_compatibility_flags.encode(writer)?;
+        writer.write_all(&self.general_constraint_indicator_flags.get().to_be_bytes()[2..])?;
+        self.general_level_idc.encode(writer)?;
+        (0b1111_0000 | self.min_spatial_segmentation_idc.to_bits()).encode(writer)?;
+        (0b1111_1000 | self.parallelism_type.to_bits()).encode(writer)?;
+        (0b1111_1000 | self.chroma_format_idc.to_bits()).encode(writer)?;
+        (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(writer)?;
+        (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(writer)?;
+        self.avg_frame_rate.encode(writer)?;
+        (self.constant_frame_rate.to_bits()
+            | self.num_temporal_layers.to_bits()
+            | self.temporal_id_nested.to_bits()
+            | self.length_size_minus_one.to_bits())
+        .encode(writer)?;
+        u8::try_from(self.nalu_arrays.len())
+            .map_err(|_| {
+                Error::invalid_input(&format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
+            })?
+            .encode(writer)?;
+        for nalu_array in &self.nalu_arrays {
+            (nalu_array.array_completeness.to_bits() | nalu_array.nal_unit_type.to_bits())
+                .encode(writer)?;
+            u16::try_from(nalu_array.nalus.len())
+                .map_err(|_| {
+                    Error::invalid_input(&format!("Too many NALUs: {}", self.nalu_arrays.len()))
+                })?
+                .encode(writer)?;
+            for nalu in &nalu_array.nalus {
+                u16::try_from(nalu.len())
+                    .map_err(|_| {
+                        Error::invalid_input(&format!("Too large NALU: {}", self.nalu_arrays.len()))
+                    })?
+                    .encode(writer)?;
+                writer.write_all(nalu)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let configuration_version = u8::decode(reader)?;
+        if configuration_version != Self::CONFIGURATION_VERSION {
+            return Err(Error::invalid_data(&format!(
+                "Unsupported avcC version: {configuration_version}"
+            )));
+        }
+
+        let b = u8::decode(reader)?;
+        let general_profile_space = Uint::from_bits(b);
+        let general_tier_flag = Uint::from_bits(b);
+        let general_profile_idc = Uint::from_bits(b);
+
+        let general_profile_compatibility_flags = u32::decode(reader)?;
+
+        let mut buf = [0; 8];
+        reader.read_exact(&mut buf[2..])?;
+        let general_constraint_indicator_flags = Uint::from_bits(u64::from_be_bytes(buf));
+
+        let general_level_idc = u8::decode(reader)?;
+        let min_spatial_segmentation_idc = Uint::from_bits(u16::decode(reader)?);
+        let parallelism_type = Uint::from_bits(u8::decode(reader)?);
+        let chroma_format_idc = Uint::from_bits(u8::decode(reader)?);
+        let bit_depth_luma_minus8 = Uint::from_bits(u8::decode(reader)?);
+        let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode(reader)?);
+        let avg_frame_rate = u16::decode(reader)?;
+
+        let b = u8::decode(reader)?;
+        let constant_frame_rate = Uint::from_bits(b);
+        let num_temporal_layers = Uint::from_bits(b);
+        let temporal_id_nested = Uint::from_bits(b);
+        let length_size_minus_one = Uint::from_bits(b);
+
+        let num_of_arrays = u8::decode(reader)?;
+        let mut nalu_arrays = Vec::new();
+        for _ in 0..num_of_arrays {
+            let b = u8::decode(reader)?;
+            let array_completeness = Uint::from_bits(b);
+            let nal_unit_type = Uint::from_bits(b);
+
+            let num_nalus = u16::decode(reader)?;
+            let mut nalus = Vec::new();
+            for _ in 0..num_nalus {
+                let nal_unit_length = u16::decode(reader)? as usize;
+                let mut nal_unit = vec![0; nal_unit_length];
+                reader.read_exact(&mut nal_unit)?;
+                nalus.push(nal_unit);
+            }
+            nalu_arrays.push(HvccNalUintArray {
+                array_completeness,
+                nal_unit_type,
+                nalus,
+            });
+        }
+
+        Ok(Self {
+            general_profile_space,
+            general_tier_flag,
+            general_profile_idc,
+            general_profile_compatibility_flags,
+            general_constraint_indicator_flags,
+            general_level_idc,
+            min_spatial_segmentation_idc,
+            parallelism_type,
+            chroma_format_idc,
+            bit_depth_luma_minus8,
+            bit_depth_chroma_minus8,
+            avg_frame_rate,
+            constant_frame_rate,
+            num_temporal_layers,
+            temporal_id_nested,
+            length_size_minus_one,
+            nalu_arrays,
+        })
+    }
+}
+
+impl Encode for HvccBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for HvccBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for HvccBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
     }
@@ -2523,9 +2796,9 @@ impl BaseBox for Vp09Box {
 pub struct VpccBox {
     pub profile: u8,
     pub level: u8,
-    pub bit_depth: Uint<4, 4>,
-    pub chroma_subsampling: Uint<3, 1>,
-    pub video_full_range_flag: Uint<1>,
+    pub bit_depth: Uint<u8, 4, 4>,
+    pub chroma_subsampling: Uint<u8, 3, 1>,
+    pub video_full_range_flag: Uint<u8, 1>,
     pub colour_primaries: u8,
     pub transfer_characteristics: u8,
     pub matrix_coefficients: u8,
@@ -2539,9 +2812,9 @@ impl VpccBox {
         FullBoxHeader::from_box(self).encode(writer)?;
         self.profile.encode(writer)?;
         self.level.encode(writer)?;
-        (self.bit_depth.to_u8()
-            | self.chroma_subsampling.to_u8()
-            | self.video_full_range_flag.to_u8())
+        (self.bit_depth.to_bits()
+            | self.chroma_subsampling.to_bits()
+            | self.video_full_range_flag.to_bits())
         .encode(writer)?;
         self.colour_primaries.encode(writer)?;
         self.transfer_characteristics.encode(writer)?;
@@ -2564,9 +2837,9 @@ impl VpccBox {
         let level = u8::decode(reader)?;
 
         let b = u8::decode(reader)?;
-        let bit_depth = Uint::from_u8(b);
-        let chroma_subsampling = Uint::from_u8(b);
-        let video_full_range_flag = Uint::from_u8(b);
+        let bit_depth = Uint::from_bits(b);
+        let chroma_subsampling = Uint::from_bits(b);
+        let video_full_range_flag = Uint::from_bits(b);
         let colour_primaries = u8::decode(reader)?;
         let transfer_characteristics = u8::decode(reader)?;
         let matrix_coefficients = u8::decode(reader)?;
@@ -2708,16 +2981,16 @@ impl BaseBox for Av01Box {
 /// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Av1cBox {
-    pub seq_profile: Uint<3, 5>,
-    pub seq_level_idx_0: Uint<5, 0>,
-    pub seq_tier_0: Uint<1, 7>,
-    pub high_bitdepth: Uint<1, 6>,
-    pub twelve_bit: Uint<1, 5>,
-    pub monochrome: Uint<1, 4>,
-    pub chroma_subsampling_x: Uint<1, 3>,
-    pub chroma_subsampling_y: Uint<1, 2>,
-    pub chroma_sample_position: Uint<2, 0>,
-    pub initial_presentation_delay_minus_one: Option<Uint<4, 0>>,
+    pub seq_profile: Uint<u8, 3, 5>,
+    pub seq_level_idx_0: Uint<u8, 5, 0>,
+    pub seq_tier_0: Uint<u8, 1, 7>,
+    pub high_bitdepth: Uint<u8, 1, 6>,
+    pub twelve_bit: Uint<u8, 1, 5>,
+    pub monochrome: Uint<u8, 1, 4>,
+    pub chroma_subsampling_x: Uint<u8, 1, 3>,
+    pub chroma_subsampling_y: Uint<u8, 1, 2>,
+    pub chroma_sample_position: Uint<u8, 2, 0>,
+    pub initial_presentation_delay_minus_one: Option<Uint<u8, 4, 0>>,
     pub config_obus: Vec<u8>,
 }
 
@@ -2729,17 +3002,17 @@ impl Av1cBox {
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         ((Self::MARKER << 7) | Self::VERSION).encode(writer)?;
-        (self.seq_profile.to_u8() | self.seq_level_idx_0.to_u8()).encode(writer)?;
-        (self.seq_tier_0.to_u8()
-            | self.high_bitdepth.to_u8()
-            | self.twelve_bit.to_u8()
-            | self.monochrome.to_u8()
-            | self.chroma_subsampling_x.to_u8()
-            | self.chroma_subsampling_y.to_u8()
-            | self.chroma_sample_position.to_u8())
+        (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits()).encode(writer)?;
+        (self.seq_tier_0.to_bits()
+            | self.high_bitdepth.to_bits()
+            | self.twelve_bit.to_bits()
+            | self.monochrome.to_bits()
+            | self.chroma_subsampling_x.to_bits()
+            | self.chroma_subsampling_y.to_bits()
+            | self.chroma_sample_position.to_bits())
         .encode(writer)?;
         if let Some(v) = self.initial_presentation_delay_minus_one {
-            (0b1_0000 | v.to_u8()).encode(writer)?;
+            (0b1_0000 | v.to_bits()).encode(writer)?;
         } else {
             0u8.encode(writer)?;
         }
@@ -2760,21 +3033,21 @@ impl Av1cBox {
         }
 
         let b = u8::decode(reader)?;
-        let seq_profile = Uint::from_u8(b);
-        let seq_level_idx_0 = Uint::from_u8(b);
+        let seq_profile = Uint::from_bits(b);
+        let seq_level_idx_0 = Uint::from_bits(b);
 
         let b = u8::decode(reader)?;
-        let seq_tier_0 = Uint::from_u8(b);
-        let high_bitdepth = Uint::from_u8(b);
-        let twelve_bit = Uint::from_u8(b);
-        let monochrome = Uint::from_u8(b);
-        let chroma_subsampling_x = Uint::from_u8(b);
-        let chroma_subsampling_y = Uint::from_u8(b);
-        let chroma_sample_position = Uint::from_u8(b);
+        let seq_tier_0 = Uint::from_bits(b);
+        let high_bitdepth = Uint::from_bits(b);
+        let twelve_bit = Uint::from_bits(b);
+        let monochrome = Uint::from_bits(b);
+        let chroma_subsampling_x = Uint::from_bits(b);
+        let chroma_subsampling_y = Uint::from_bits(b);
+        let chroma_sample_position = Uint::from_bits(b);
 
         let b = u8::decode(reader)?;
-        let initial_presentation_delay_minus_one = if Uint::<1, 4>::from_u8(b).get() == 1 {
-            Some(Uint::from_u8(b))
+        let initial_presentation_delay_minus_one = if Uint::<u8, 1, 4>::from_bits(b).get() == 1 {
+            Some(Uint::from_bits(b))
         } else {
             None
         };

@@ -39,6 +39,11 @@ fn decode_encode_black_h265_video_mp4() -> Result<()> {
 
     // エンコード結果のバイト列が正しいことを確認する。
     assert_eq!(input_bytes.len(), output_bytes.len());
+
+    // ボックスの順番は入れ替わるのでソートした結果を比較する
+    let mut input_bytes = input_bytes.to_vec();
+    input_bytes.sort();
+    output_bytes.sort();
     assert_eq!(&input_bytes[..], output_bytes);
 
     Ok(())

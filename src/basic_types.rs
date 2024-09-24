@@ -1,5 +1,6 @@
 use std::{
     io::{Read, Write},
+    ops::{BitAnd, Shl, Shr, Sub},
     time::Duration,
 };
 
@@ -493,18 +494,26 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Uint<const BITS: u32, const OFFSET: u32 = 0>(u8);
+pub struct Uint<T, const BITS: u32, const OFFSET: u32 = 0>(T);
 
-impl<const BITS: u32, const OFFSET: u32> Uint<BITS, OFFSET> {
-    pub const fn from_u8(v: u8) -> Self {
-        Self((v >> OFFSET) & (1 << BITS) - 1)
+impl<T, const BITS: u32, const OFFSET: u32> Uint<T, BITS, OFFSET>
+where
+    T: Shr<u32, Output = T>
+        + Shl<u32, Output = T>
+        + BitAnd<Output = T>
+        + Sub<Output = T>
+        + From<u8>,
+{
+    // TODO: rename
+    pub fn from_bits(v: T) -> Self {
+        Self((v >> OFFSET) & (T::from(1) << BITS) - T::from(1))
     }
 
-    pub const fn to_u8(self) -> u8 {
+    pub fn to_bits(self) -> T {
         self.0 << OFFSET
     }
 
-    pub const fn get(self) -> u8 {
+    pub fn get(self) -> T {
         self.0
     }
 }
