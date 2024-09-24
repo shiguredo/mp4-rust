@@ -2108,8 +2108,6 @@ impl Decode for VisualSampleEntryFields {
 pub struct Avc1Box {
     pub visual: VisualSampleEntryFields,
     pub avcc_box: AvccBox,
-    pub pasp_box: Option<PaspBox>,
-    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -2119,12 +2117,6 @@ impl Avc1Box {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.visual.encode(writer)?;
         self.avcc_box.encode(writer)?;
-        if let Some(b) = &self.pasp_box {
-            b.encode(writer)?;
-        }
-        if let Some(b) = &self.btrt_box {
-            b.encode(writer)?;
-        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -2134,20 +2126,12 @@ impl Avc1Box {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(reader)?;
         let mut avcc_box = None;
-        let mut pasp_box = None;
-        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 AvccBox::TYPE if avcc_box.is_none() => {
                     avcc_box = Some(AvccBox::decode(&mut reader)?);
-                }
-                PaspBox::TYPE if pasp_box.is_none() => {
-                    pasp_box = Some(PaspBox::decode(&mut reader)?);
-                }
-                BtrtBox::TYPE if btrt_box.is_none() => {
-                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -2158,8 +2142,6 @@ impl Avc1Box {
         Ok(Self {
             visual,
             avcc_box,
-            pasp_box,
-            btrt_box,
             unknown_boxes,
         })
     }
@@ -2194,8 +2176,6 @@ impl BaseBox for Avc1Box {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.avcc_box).map(as_box_object))
-                .chain(self.pasp_box.iter().map(as_box_object))
-                .chain(self.btrt_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2389,8 +2369,6 @@ impl BaseBox for AvccBox {
 pub struct Vp08Box {
     pub visual: VisualSampleEntryFields,
     pub vpcc_box: VpccBox,
-    pub pasp_box: Option<PaspBox>,
-    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -2400,12 +2378,6 @@ impl Vp08Box {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.visual.encode(writer)?;
         self.vpcc_box.encode(writer)?;
-        if let Some(b) = &self.pasp_box {
-            b.encode(writer)?;
-        }
-        if let Some(b) = &self.btrt_box {
-            b.encode(writer)?;
-        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -2415,20 +2387,12 @@ impl Vp08Box {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(reader)?;
         let mut vpcc_box = None;
-        let mut pasp_box = None;
-        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 VpccBox::TYPE if vpcc_box.is_none() => {
                     vpcc_box = Some(VpccBox::decode(&mut reader)?);
-                }
-                PaspBox::TYPE if pasp_box.is_none() => {
-                    pasp_box = Some(PaspBox::decode(&mut reader)?);
-                }
-                BtrtBox::TYPE if btrt_box.is_none() => {
-                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -2439,8 +2403,6 @@ impl Vp08Box {
         Ok(Self {
             visual,
             vpcc_box,
-            pasp_box,
-            btrt_box,
             unknown_boxes,
         })
     }
@@ -2475,8 +2437,6 @@ impl BaseBox for Vp08Box {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.vpcc_box).map(as_box_object))
-                .chain(self.pasp_box.iter().map(as_box_object))
-                .chain(self.btrt_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2487,8 +2447,6 @@ impl BaseBox for Vp08Box {
 pub struct Vp09Box {
     pub visual: VisualSampleEntryFields,
     pub vpcc_box: VpccBox,
-    pub pasp_box: Option<PaspBox>,
-    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -2498,12 +2456,6 @@ impl Vp09Box {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.visual.encode(writer)?;
         self.vpcc_box.encode(writer)?;
-        if let Some(b) = &self.pasp_box {
-            b.encode(writer)?;
-        }
-        if let Some(b) = &self.btrt_box {
-            b.encode(writer)?;
-        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -2513,20 +2465,12 @@ impl Vp09Box {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(reader)?;
         let mut vpcc_box = None;
-        let mut pasp_box = None;
-        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 VpccBox::TYPE if vpcc_box.is_none() => {
                     vpcc_box = Some(VpccBox::decode(&mut reader)?);
-                }
-                PaspBox::TYPE if pasp_box.is_none() => {
-                    pasp_box = Some(PaspBox::decode(&mut reader)?);
-                }
-                BtrtBox::TYPE if btrt_box.is_none() => {
-                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -2537,8 +2481,6 @@ impl Vp09Box {
         Ok(Self {
             visual,
             vpcc_box,
-            pasp_box,
-            btrt_box,
             unknown_boxes,
         })
     }
@@ -2573,8 +2515,6 @@ impl BaseBox for Vp09Box {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.vpcc_box).map(as_box_object))
-                .chain(self.pasp_box.iter().map(as_box_object))
-                .chain(self.btrt_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2694,8 +2634,6 @@ impl FullBox for VpccBox {
 pub struct Av01Box {
     pub visual: VisualSampleEntryFields,
     pub av1c_box: Av1cBox,
-    pub pasp_box: Option<PaspBox>,
-    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -2705,12 +2643,6 @@ impl Av01Box {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.visual.encode(writer)?;
         self.av1c_box.encode(writer)?;
-        if let Some(b) = &self.pasp_box {
-            b.encode(writer)?;
-        }
-        if let Some(b) = &self.btrt_box {
-            b.encode(writer)?;
-        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -2720,20 +2652,12 @@ impl Av01Box {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(reader)?;
         let mut av1c_box = None;
-        let mut pasp_box = None;
-        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 Av1cBox::TYPE if av1c_box.is_none() => {
                     av1c_box = Some(Av1cBox::decode(&mut reader)?);
-                }
-                PaspBox::TYPE if pasp_box.is_none() => {
-                    pasp_box = Some(PaspBox::decode(&mut reader)?);
-                }
-                BtrtBox::TYPE if btrt_box.is_none() => {
-                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -2744,8 +2668,6 @@ impl Av01Box {
         Ok(Self {
             visual,
             av1c_box,
-            pasp_box,
-            btrt_box,
             unknown_boxes,
         })
     }
@@ -2780,8 +2702,6 @@ impl BaseBox for Av01Box {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.av1c_box).map(as_box_object))
-                .chain(self.pasp_box.iter().map(as_box_object))
-                .chain(self.btrt_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2897,117 +2817,6 @@ impl Decode for Av1cBox {
 }
 
 impl BaseBox for Av1cBox {
-    fn box_type(&self) -> BoxType {
-        Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
-    }
-}
-
-/// [ISO/IEC 14496-12] PixelAspectRatioBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PaspBox {
-    pub h_spacing: u32,
-    pub v_spacing: u32,
-}
-
-impl PaspBox {
-    pub const TYPE: BoxType = BoxType::Normal(*b"pasp");
-
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.h_spacing.encode(writer)?;
-        self.v_spacing.encode(writer)?;
-        Ok(())
-    }
-
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        Ok(Self {
-            h_spacing: u32::decode(reader)?,
-            v_spacing: u32::decode(reader)?,
-        })
-    }
-}
-
-impl Encode for PaspBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
-impl Decode for PaspBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
-        header.box_type.expect(Self::TYPE)?;
-        header.with_box_payload_reader(reader, Self::decode_payload)
-    }
-}
-
-impl BaseBox for PaspBox {
-    fn box_type(&self) -> BoxType {
-        Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
-    }
-
-    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
-    }
-}
-
-/// [ISO/IEC 14496-12] BitRateBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BtrtBox {
-    pub buffer_size_db: u32,
-    pub max_bitrate: u32,
-    pub avg_bitrate: u32,
-}
-
-impl BtrtBox {
-    pub const TYPE: BoxType = BoxType::Normal(*b"btrt");
-
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.buffer_size_db.encode(writer)?;
-        self.max_bitrate.encode(writer)?;
-        self.avg_bitrate.encode(writer)?;
-        Ok(())
-    }
-
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        Ok(Self {
-            buffer_size_db: u32::decode(reader)?,
-            max_bitrate: u32::decode(reader)?,
-            avg_bitrate: u32::decode(reader)?,
-        })
-    }
-}
-
-impl Encode for BtrtBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
-impl Decode for BtrtBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
-        header.box_type.expect(Self::TYPE)?;
-        header.with_box_payload_reader(reader, Self::decode_payload)
-    }
-}
-
-impl BaseBox for BtrtBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
     }
@@ -3489,7 +3298,6 @@ impl FullBox for StssBox {
 pub struct OpusBox {
     pub audio: AudioSampleEntryFields,
     pub dops_box: DopsBox,
-    pub btrt_box: Option<BtrtBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -3499,9 +3307,6 @@ impl OpusBox {
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.audio.encode(writer)?;
         self.dops_box.encode(writer)?;
-        if let Some(b) = &self.btrt_box {
-            b.encode(writer)?;
-        }
         for b in &self.unknown_boxes {
             b.encode(writer)?;
         }
@@ -3511,16 +3316,12 @@ impl OpusBox {
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(reader)?;
         let mut dops_box = None;
-        let mut btrt_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
                 DopsBox::TYPE if dops_box.is_none() => {
                     dops_box = Some(DopsBox::decode(&mut reader)?);
-                }
-                BtrtBox::TYPE if btrt_box.is_none() => {
-                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
@@ -3531,7 +3332,6 @@ impl OpusBox {
         Ok(Self {
             audio,
             dops_box,
-            btrt_box,
             unknown_boxes,
         })
     }
@@ -3566,7 +3366,6 @@ impl BaseBox for OpusBox {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.dops_box).map(as_box_object))
-                .chain(self.btrt_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
