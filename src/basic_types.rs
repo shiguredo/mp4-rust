@@ -22,6 +22,8 @@ pub trait BaseBox {
     fn actual_box(&self) -> &dyn BaseBox;
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>>;
+
+    // TODO: add fn is_opaque_payload()
 }
 
 pub trait FullBox: BaseBox {
@@ -516,27 +518,45 @@ impl Decode for Utf8String {
     }
 }
 
-// TODO: impl BaseBox
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Either<A, B> {
     A(A),
     B(B),
 }
 
-impl<A, B> Either<A, B> {
-    pub fn as_a(&self) -> Option<&A> {
-        if let Self::A(a) = self {
-            Some(a)
-        } else {
-            None
+impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
+    fn box_type(&self) -> BoxType {
+        match self {
+            Self::A(x) => x.box_type(),
+            Self::B(x) => x.box_type(),
         }
     }
 
-    pub fn as_b(&self) -> Option<&B> {
-        if let Self::B(b) = self {
-            Some(b)
-        } else {
-            None
+    fn box_size(&self) -> BoxSize {
+        match self {
+            Self::A(x) => x.box_size(),
+            Self::B(x) => x.box_size(),
+        }
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        match self {
+            Self::A(x) => x.box_payload_size(),
+            Self::B(x) => x.box_payload_size(),
+        }
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        match self {
+            Self::A(x) => x.actual_box(),
+            Self::B(x) => x.actual_box(),
+        }
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        match self {
+            Self::A(x) => x.children(),
+            Self::B(x) => x.children(),
         }
     }
 }

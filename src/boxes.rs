@@ -1394,8 +1394,7 @@ impl BaseBox for MinfBox {
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
-                .chain(self.smhd_or_vmhd_box.as_a().map(BaseBox::actual_box))
-                .chain(self.smhd_or_vmhd_box.as_b().map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.smhd_or_vmhd_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.dinf_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.stbl_box).map(BaseBox::actual_box))
                 .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
@@ -1932,8 +1931,7 @@ impl BaseBox for StblBox {
                 .chain(std::iter::once(&self.stts_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.stsc_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.stsz_box).map(BaseBox::actual_box))
-                .chain(self.stco_or_co64_box.as_a().map(BaseBox::actual_box))
-                .chain(self.stco_or_co64_box.as_b().map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.stco_or_co64_box).map(BaseBox::actual_box))
                 .chain(self.sgpd_box.iter().map(BaseBox::actual_box))
                 .chain(self.sbgp_box.iter().map(BaseBox::actual_box))
                 .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
