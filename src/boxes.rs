@@ -1921,6 +1921,7 @@ pub struct StblBox {
     pub stsc_box: StscBox,
     pub stsz_box: StszBox,
     pub stco_or_co64_box: Either<StcoBox, Co64Box>,
+    pub stss_box: Option<StssBox>,
     pub sgpd_box: Option<SgpdBox>,
     pub sbgp_box: Option<SbgpBox>,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1937,6 +1938,9 @@ impl StblBox {
         match &self.stco_or_co64_box {
             Either::A(b) => b.encode(writer)?,
             Either::B(b) => b.encode(writer)?,
+        }
+        if let Some(b) = &self.stss_box {
+            b.encode(writer)?;
         }
         if let Some(b) = &self.sgpd_box {
             b.encode(writer)?;
@@ -1957,6 +1961,7 @@ impl StblBox {
         let mut stsz_box = None;
         let mut stco_box = None;
         let mut co64_box = None;
+        let mut stss_box = None;
         let mut sgpd_box = None;
         let mut sbgp_box = None;
         let mut unknown_boxes = Vec::new();
@@ -1980,6 +1985,9 @@ impl StblBox {
                 }
                 Co64Box::TYPE if co64_box.is_none() => {
                     co64_box = Some(Co64Box::decode(&mut reader)?);
+                }
+                StssBox::TYPE if stss_box.is_none() => {
+                    stss_box = Some(StssBox::decode(&mut reader)?);
                 }
                 SgpdBox::TYPE if sgpd_box.is_none() => {
                     sgpd_box = Some(SgpdBox::decode(&mut reader)?);
@@ -2006,6 +2014,7 @@ impl StblBox {
             stsc_box,
             stsz_box,
             stco_or_co64_box,
+            stss_box,
             sgpd_box,
             sbgp_box,
             unknown_boxes,
@@ -2054,6 +2063,7 @@ impl BaseBox for StblBox {
                 .chain(std::iter::once(&self.stsc_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.stsz_box).map(BaseBox::actual_box))
                 .chain(std::iter::once(&self.stco_or_co64_box).map(BaseBox::actual_box))
+                .chain(self.stss_box.iter().map(BaseBox::actual_box))
                 .chain(self.sgpd_box.iter().map(BaseBox::actual_box))
                 .chain(self.sbgp_box.iter().map(BaseBox::actual_box))
                 .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
@@ -3118,6 +3128,83 @@ impl BaseBox for Co64Box {
 }
 
 impl FullBox for Co64Box {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] SyncSampleBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StssBox {
+    pub sample_numbers: Vec<u32>,
+}
+
+impl StssBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"stss");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        (self.sample_numbers.len() as u32).encode(writer)?;
+        for offset in &self.sample_numbers {
+            offset.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(reader)?;
+        let count = u32::decode(reader)? as usize;
+        let mut sample_numbers = Vec::with_capacity(count);
+        for _ in 0..count {
+            sample_numbers.push(u32::decode(reader)?);
+        }
+        Ok(Self { sample_numbers })
+    }
+}
+
+impl Encode for StssBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for StssBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for StssBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
+impl FullBox for StssBox {
     fn full_box_version(&self) -> u8 {
         0
     }
