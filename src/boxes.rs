@@ -2492,9 +2492,9 @@ impl HvccBox {
         self.general_profile_compatibility_flags.encode(writer)?;
         writer.write_all(&self.general_constraint_indicator_flags.get().to_be_bytes()[2..])?;
         self.general_level_idc.encode(writer)?;
-        (0b1111_0000 | self.min_spatial_segmentation_idc.to_bits()).encode(writer)?;
-        (0b1111_1000 | self.parallelism_type.to_bits()).encode(writer)?;
-        (0b1111_1000 | self.chroma_format_idc.to_bits()).encode(writer)?;
+        (0b1111_0000_0000_0000 | self.min_spatial_segmentation_idc.to_bits()).encode(writer)?;
+        (0b1111_1100 | self.parallelism_type.to_bits()).encode(writer)?;
+        (0b1111_1100 | self.chroma_format_idc.to_bits()).encode(writer)?;
         (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(writer)?;
         (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(writer)?;
         self.avg_frame_rate.encode(writer)?;
