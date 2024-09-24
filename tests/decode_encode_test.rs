@@ -128,7 +128,7 @@ fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
         if b.is_unknown_box()
             && !matches!(
                 b.box_type().as_bytes(),
-                b"btrt" | b"fiel" | b"pasp" | b"sbgp" | b"sgpd" | b"udta"
+                b"btrt" | b"ctts" | b"fiel" | b"pasp" | b"sbgp" | b"sdtp" | b"sgpd" | b"udta"
             )
         {
             unknowns.push(b.box_type());
