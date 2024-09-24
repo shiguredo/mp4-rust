@@ -21,10 +21,11 @@ pub trait BaseBox {
 
     fn is_unknown_box(&self) -> bool;
 
-    // TODO: remove
-    fn actual_box(&self) -> &dyn BaseBox;
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>>;
+}
+
+pub(crate) fn as_box_object<T: BaseBox>(t: &T) -> &dyn BaseBox {
+    t
 }
 
 pub trait FullBox: BaseBox {
@@ -41,8 +42,8 @@ pub struct Mp4File<B = RootBox> {
 impl<B: BaseBox> Mp4File<B> {
     pub fn iter(&self) -> impl Iterator<Item = &dyn BaseBox> {
         std::iter::empty()
-            .chain(std::iter::once(&self.ftyp_box).map(BaseBox::actual_box))
-            .chain(self.boxes.iter().map(BaseBox::actual_box))
+            .chain(std::iter::once(&self.ftyp_box).map(as_box_object))
+            .chain(self.boxes.iter().map(as_box_object))
     }
 }
 
@@ -458,32 +459,34 @@ pub enum Either<A, B> {
     B(B),
 }
 
+impl<A: BaseBox, B: BaseBox> Either<A, B> {
+    fn inner_box(&self) -> &dyn BaseBox {
+        match self {
+            Self::A(x) => x,
+            Self::B(x) => x,
+        }
+    }
+}
+
 impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
     fn box_type(&self) -> BoxType {
-        self.actual_box().box_type()
+        self.inner_box().box_type()
     }
 
     fn box_size(&self) -> BoxSize {
-        self.actual_box().box_size()
+        self.inner_box().box_size()
     }
 
     fn box_payload_size(&self) -> u64 {
-        self.actual_box().box_payload_size()
+        self.inner_box().box_payload_size()
     }
 
     fn is_unknown_box(&self) -> bool {
-        self.actual_box().is_unknown_box()
-    }
-
-    fn actual_box(&self) -> &dyn BaseBox {
-        match self {
-            Self::A(x) => x.actual_box(),
-            Self::B(x) => x.actual_box(),
-        }
+        self.inner_box().is_unknown_box()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        self.actual_box().children()
+        self.inner_box().children()
     }
 }
 
