@@ -21,6 +21,7 @@ pub trait BaseBox {
 
     fn is_opaque_payload(&self) -> bool;
 
+    // TODO: remove
     fn actual_box(&self) -> &dyn BaseBox;
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>>;

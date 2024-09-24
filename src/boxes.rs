@@ -2153,6 +2153,8 @@ impl FullBox for StsdBox {
 pub enum SampleEntry {
     Avc1(Avc1Box),
     Opus(OpusBox),
+    Vp08(Vp08Box),
+    Vp09(Vp09Box),
     Unknown(UnknownBox),
 }
 
@@ -2161,6 +2163,8 @@ impl Encode for SampleEntry {
         match self {
             Self::Avc1(b) => b.encode(writer),
             Self::Opus(b) => b.encode(writer),
+            Self::Vp08(b) => b.encode(writer),
+            Self::Vp09(b) => b.encode(writer),
             Self::Unknown(b) => b.encode(writer),
         }
     }
@@ -2172,6 +2176,8 @@ impl Decode for SampleEntry {
         match header.box_type {
             Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
             OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
+            Vp08Box::TYPE => Decode::decode(&mut reader).map(Self::Vp08),
+            Vp09Box::TYPE => Decode::decode(&mut reader).map(Self::Vp09),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
@@ -2182,6 +2188,8 @@ impl BaseBox for SampleEntry {
         match self {
             Self::Avc1(b) => b.actual_box(),
             Self::Opus(b) => b.actual_box(),
+            Self::Vp08(b) => b.actual_box(),
+            Self::Vp09(b) => b.actual_box(),
             Self::Unknown(b) => b.actual_box(),
         }
     }
@@ -2385,7 +2393,7 @@ impl BaseBox for Avc1Box {
     }
 }
 
-/// [ISO/IEC 14496-15] AVCSampleEntry class
+/// [ISO/IEC 14496-15] AVCConfigurationBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AvccBox {
     pub configuration_version: u8,
@@ -2573,6 +2581,335 @@ impl BaseBox for AvccBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
+    }
+}
+
+/// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vp08Box {
+    pub visual: VisualSampleEntryFields,
+    pub vpcc_box: VpccBox,
+    pub pasp_box: Option<PaspBox>,
+    pub btrt_box: Option<BtrtBox>,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Vp08Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"vp08");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.visual.encode(writer)?;
+        self.vpcc_box.encode(writer)?;
+        if let Some(b) = &self.pasp_box {
+            b.encode(writer)?;
+        }
+        if let Some(b) = &self.btrt_box {
+            b.encode(writer)?;
+        }
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let visual = VisualSampleEntryFields::decode(reader)?;
+        let mut vpcc_box = None;
+        let mut pasp_box = None;
+        let mut btrt_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                VpccBox::TYPE if vpcc_box.is_none() => {
+                    vpcc_box = Some(VpccBox::decode(&mut reader)?);
+                }
+                PaspBox::TYPE if pasp_box.is_none() => {
+                    pasp_box = Some(PaspBox::decode(&mut reader)?);
+                }
+                BtrtBox::TYPE if btrt_box.is_none() => {
+                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        let vpcc_box = vpcc_box.ok_or_else(|| Error::missing_box("vpcC", Self::TYPE))?;
+        Ok(Self {
+            visual,
+            vpcc_box,
+            pasp_box,
+            btrt_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Vp08Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Vp08Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Vp08Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.vpcc_box).map(BaseBox::actual_box))
+                .chain(self.pasp_box.iter().map(BaseBox::actual_box))
+                .chain(self.btrt_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
+    }
+}
+
+/// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vp09Box {
+    pub visual: VisualSampleEntryFields,
+    pub vpcc_box: VpccBox,
+    pub pasp_box: Option<PaspBox>,
+    pub btrt_box: Option<BtrtBox>,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Vp09Box {
+    pub const TYPE: BoxType = BoxType::Normal(*b"vp09");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.visual.encode(writer)?;
+        self.vpcc_box.encode(writer)?;
+        if let Some(b) = &self.pasp_box {
+            b.encode(writer)?;
+        }
+        if let Some(b) = &self.btrt_box {
+            b.encode(writer)?;
+        }
+        for b in &self.unknown_boxes {
+            b.encode(writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let visual = VisualSampleEntryFields::decode(reader)?;
+        let mut vpcc_box = None;
+        let mut pasp_box = None;
+        let mut btrt_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                VpccBox::TYPE if vpcc_box.is_none() => {
+                    vpcc_box = Some(VpccBox::decode(&mut reader)?);
+                }
+                PaspBox::TYPE if pasp_box.is_none() => {
+                    pasp_box = Some(PaspBox::decode(&mut reader)?);
+                }
+                BtrtBox::TYPE if btrt_box.is_none() => {
+                    btrt_box = Some(BtrtBox::decode(&mut reader)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        let vpcc_box = vpcc_box.ok_or_else(|| Error::missing_box("vpcC", Self::TYPE))?;
+        Ok(Self {
+            visual,
+            vpcc_box,
+            pasp_box,
+            btrt_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Vp09Box {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Vp09Box {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Vp09Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.vpcc_box).map(BaseBox::actual_box))
+                .chain(self.pasp_box.iter().map(BaseBox::actual_box))
+                .chain(self.btrt_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
+    }
+}
+
+/// [<https://www.webmproject.org/vp9/mp4/>] VPCodecConfigurationBox class
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VpccBox {
+    pub profile: u8,
+    pub level: u8,
+    pub bit_depth: Uint<4>,
+    pub chroma_subsampling: Uint<3>,
+    pub video_full_range_flag: bool,
+    pub colour_primaries: u8,
+    pub transfer_characteristics: u8,
+    pub matrix_coefficients: u8,
+    pub codec_initialization_data: Vec<u8>,
+}
+
+impl VpccBox {
+    pub const TYPE: BoxType = BoxType::Normal(*b"vpcC");
+
+    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(writer)?;
+        self.profile.encode(writer)?;
+        self.level.encode(writer)?;
+        ((self.bit_depth.get() << 4)
+            | (self.chroma_subsampling.get() << 1)
+            | self.video_full_range_flag as u8)
+            .encode(writer)?;
+        self.colour_primaries.encode(writer)?;
+        self.transfer_characteristics.encode(writer)?;
+        self.matrix_coefficients.encode(writer)?;
+        (self.codec_initialization_data.len() as u16).encode(writer)?;
+        writer.write_all(&self.codec_initialization_data)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
+        let header = FullBoxHeader::decode(reader)?;
+        if header.version != 1 {
+            return Err(Error::invalid_data(&format!(
+                "Unexpected full box header version: box=vpcC, version={}",
+                header.version
+            )));
+        }
+
+        let profile = u8::decode(reader)?;
+        let level = u8::decode(reader)?;
+
+        let b = u8::decode(reader)?;
+        let bit_depth = Uint::new(b >> 4);
+        let chroma_subsampling = Uint::new(b >> 1);
+        let video_full_range_flag = (b & 1) != 0;
+        let colour_primaries = u8::decode(reader)?;
+        let transfer_characteristics = u8::decode(reader)?;
+        let matrix_coefficients = u8::decode(reader)?;
+        let mut codec_initialization_data = vec![0; u16::decode(reader)? as usize];
+        reader.read_exact(&mut codec_initialization_data)?;
+
+        Ok(Self {
+            profile,
+            level,
+            bit_depth,
+            chroma_subsampling,
+            video_full_range_flag,
+            colour_primaries,
+            transfer_characteristics,
+            matrix_coefficients,
+            codec_initialization_data,
+        })
+    }
+}
+
+impl Encode for VpccBox {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        BoxHeader::from_box(self).encode(writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for VpccBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for VpccBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
+impl FullBox for VpccBox {
+    fn full_box_version(&self) -> u8 {
+        1
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
 
