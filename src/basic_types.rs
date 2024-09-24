@@ -31,24 +31,6 @@ pub trait FullBox: BaseBox {
     fn full_box_flags(&self) -> FullBoxFlags;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BoxPath(Vec<BoxType>);
-
-impl BoxPath {
-    pub fn new(box_type: BoxType) -> Self {
-        Self(vec![box_type])
-    }
-
-    pub fn get(&self) -> &[BoxType] {
-        &self.0
-    }
-
-    pub fn join(mut self, parent: BoxType) -> Self {
-        self.0.push(parent);
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mp4File<B = RootBox> {
     pub ftyp_box: FtypBox,
