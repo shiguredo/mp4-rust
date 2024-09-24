@@ -10,10 +10,18 @@ use crate::{
     Result, Uint, Utf8String,
 };
 
+/// ペイロードの解釈方法が不明なボックスを保持するための構造体
+///
+/// ペイロードは単なるバイト列として扱われる
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownBox {
+    /// ボックス種別
     pub box_type: BoxType,
+
+    /// ボックスサイズ
     pub box_size: BoxSize,
+
+    /// ペイロード
     pub payload: Vec<u8>,
 }
 
@@ -60,32 +68,67 @@ impl BaseBox for UnknownBox {
     }
 }
 
+/// [`FtypBox`] で使われるブランド定義
+///
+/// ブランドは、対象の MP4 ファイルを読み込んで処理する際に必要となる要件（登場する可能性があるボックス群やハンドリングすべきフラグなど）を指定する
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Brand([u8; 4]);
 
 impl Brand {
+    /// [ISO/IEC 14496-12] `isom` ブランド
     pub const ISOM: Self = Self::new(*b"isom");
+
+    /// [ISO/IEC 14496-12] `avc1` ブランド
+    pub const AVC1: Self = Self::new(*b"avc1");
+
+    /// [ISO/IEC 14496-12] `iso2` ブランド
     pub const ISO2: Self = Self::new(*b"iso2");
+
+    /// [ISO/IEC 14496-12] `mp71` ブランド
     pub const MP71: Self = Self::new(*b"mp71");
+
+    /// [ISO/IEC 14496-12] `iso3` ブランド
     pub const ISO3: Self = Self::new(*b"iso3");
+
+    /// [ISO/IEC 14496-12] `iso4` ブランド
     pub const ISO4: Self = Self::new(*b"iso4");
+
+    /// [ISO/IEC 14496-12] `iso5` ブランド
     pub const ISO5: Self = Self::new(*b"iso5");
+
+    /// [ISO/IEC 14496-12] `iso6` ブランド
     pub const ISO6: Self = Self::new(*b"iso6");
+
+    /// [ISO/IEC 14496-12] `iso7` ブランド
     pub const ISO7: Self = Self::new(*b"iso7");
+
+    /// [ISO/IEC 14496-12] `iso8` ブランド
     pub const ISO8: Self = Self::new(*b"iso8");
+
+    /// [ISO/IEC 14496-12] `iso9` ブランド
     pub const ISO9: Self = Self::new(*b"iso9");
+
+    /// [ISO/IEC 14496-12] `isoa` ブランド
     pub const ISOA: Self = Self::new(*b"isoa");
+
+    /// [ISO/IEC 14496-12] `isob` ブランド
     pub const ISOB: Self = Self::new(*b"isob");
+
+    /// [ISO/IEC 14496-12] `relo` ブランド
     pub const RELO: Self = Self::new(*b"relo");
 
+    /// [ISO/IEC 14496-14] `mp41` ブランド
     pub const MP41: Self = Self::new(*b"mp41");
-    pub const AVC1: Self = Self::new(*b"avc1");
+
+    /// [<https://aomediacodec.github.io/av1-isobmff/>] `av01` ブランド
     pub const AV01: Self = Self::new(*b"av01");
 
+    /// バイト列を渡して、対応するブランドを作成する
     pub const fn new(brand: [u8; 4]) -> Self {
         Self(brand)
     }
 
+    /// このブランドを表すバイト列を取得する
     pub const fn get(self) -> [u8; 4] {
         self.0
     }
@@ -118,6 +161,7 @@ impl Decode for Brand {
 
 /// [ISO/IEC 14496-12] FileTypeBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct FtypBox {
     pub major_brand: Brand,
     pub minor_version: u32,
@@ -125,6 +169,7 @@ pub struct FtypBox {
 }
 
 impl FtypBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"ftyp");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -180,7 +225,9 @@ impl BaseBox for FtypBox {
     }
 }
 
+/// [`Mp4File`](crate::Mp4File) のトップレベルに位置するボックス群のデフォルト実装
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum RootBox {
     Free(FreeBox),
     Mdat(MdatBox),
@@ -246,11 +293,13 @@ impl BaseBox for RootBox {
 
 /// [ISO/IEC 14496-12] FreeSpaceBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct FreeBox {
     pub payload: Vec<u8>,
 }
 
 impl FreeBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"free");
 }
 
@@ -290,11 +339,15 @@ impl BaseBox for FreeBox {
 /// [ISO/IEC 14496-12] MediaDataBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MdatBox {
+    /// ペイロードが可変長かどうか
     pub is_variable_size: bool,
+
+    /// ペイロード
     pub payload: Vec<u8>,
 }
 
 impl MdatBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdat");
 }
 
@@ -344,6 +397,7 @@ impl BaseBox for MdatBox {
 
 /// [ISO/IEC 14496-12] MovieBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
     pub trak_boxes: Vec<TrakBox>,
@@ -351,6 +405,7 @@ pub struct MoovBox {
 }
 
 impl MoovBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"moov");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -427,8 +482,9 @@ impl BaseBox for MoovBox {
     }
 }
 
-/// [ISO/IEC 14496-12] MovieHeaderBox class
+/// [ISO/IEC 14496-12] MovieHeaderBox class (親: [`MoovBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct MvhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
@@ -441,6 +497,7 @@ pub struct MvhdBox {
 }
 
 impl MvhdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mvhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -555,8 +612,9 @@ impl FullBox for MvhdBox {
     }
 }
 
-/// [ISO/IEC 14496-12] TrackBox class
+/// [ISO/IEC 14496-12] TrackBox class (親: [`MoovBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct TrakBox {
     pub tkhd_box: TkhdBox,
     pub edts_box: Option<EdtsBox>,
@@ -565,6 +623,7 @@ pub struct TrakBox {
 }
 
 impl TrakBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"trak");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -649,8 +708,9 @@ impl BaseBox for TrakBox {
     }
 }
 
-/// [ISO/IEC 14496-12] TrackHeaderBox class
+/// [ISO/IEC 14496-12] TrackHeaderBox class (親: [`TrakBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct TkhdBox {
     pub flag_track_enabled: bool,
     pub flag_track_in_movie: bool,
@@ -670,6 +730,7 @@ pub struct TkhdBox {
 }
 
 impl TkhdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"tkhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -809,14 +870,16 @@ impl FullBox for TkhdBox {
     }
 }
 
-/// [ISO/IEC 14496-12] EditBox class
+/// [ISO/IEC 14496-12] EditBox class (親: [`TrakBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct EdtsBox {
     pub elst_box: Option<ElstBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
 impl EdtsBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"edts");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -884,20 +947,24 @@ impl BaseBox for EdtsBox {
     }
 }
 
+/// [`ElstBox`] に含まれるエントリー
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct ElstEntry {
     pub edit_duration: u64,
     pub media_time: i64,
     pub media_rate: FixedPointNumber<i16, i16>,
 }
 
-/// [ISO/IEC 14496-12] EditListBox class
+/// [ISO/IEC 14496-12] EditListBox class (親: [`EdtsBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct ElstBox {
     pub entries: Vec<ElstEntry>,
 }
 
 impl ElstBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"elst");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -992,8 +1059,9 @@ impl FullBox for ElstBox {
     }
 }
 
-/// [ISO/IEC 14496-12] MediaBox class
+/// [ISO/IEC 14496-12] MediaBox class (親: [`TrakBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct MdiaBox {
     pub mdhd_box: MdhdBox,
     pub hdlr_box: HdlrBox,
@@ -1002,6 +1070,7 @@ pub struct MdiaBox {
 }
 
 impl MdiaBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdia");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1084,17 +1153,21 @@ impl BaseBox for MdiaBox {
     }
 }
 
-/// [ISO/IEC 14496-12] MediaHeaderBox class
+/// [ISO/IEC 14496-12] MediaHeaderBox class (親: [`MdiaBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct MdhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
     pub timescale: u32,
     pub duration: u64,
-    pub language: [u8; 3], // ISO-639-2/T language code
+
+    /// ISO-639-2/T language code
+    pub language: [u8; 3],
 }
 
 impl MdhdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1213,17 +1286,22 @@ impl FullBox for MdhdBox {
     }
 }
 
-/// [ISO/IEC 14496-12] HandlerBox class
+/// [ISO/IEC 14496-12] HandlerBox class (親: [`MdiaBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct HdlrBox {
     pub handler_type: [u8; 4],
     pub name: Utf8String,
 }
 
 impl HdlrBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"hdlr");
 
+    /// 音声用のハンドラー種別
     pub const HANDLER_TYPE_SOUN: [u8; 4] = *b"soun";
+
+    /// 映像用のハンドラー種別
     pub const HANDLER_TYPE_VIDE: [u8; 4] = *b"vide";
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1285,8 +1363,9 @@ impl FullBox for HdlrBox {
     }
 }
 
-/// [ISO/IEC 14496-12] MediaInformationBox class
+/// [ISO/IEC 14496-12] MediaInformationBox class (親: [`MdiaBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct MinfBox {
     pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
     pub dinf_box: DinfBox,
@@ -1295,6 +1374,7 @@ pub struct MinfBox {
 }
 
 impl MinfBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"minf");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
