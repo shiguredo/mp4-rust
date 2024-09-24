@@ -1,3 +1,5 @@
+//! MP4 のボックスのエンコードおよびデコードを行うためのライブラリ
+#![warn(missing_docs)]
 mod basic_types;
 pub mod boxes;
 mod io;

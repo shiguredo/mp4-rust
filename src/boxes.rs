@@ -1,3 +1,4 @@
+//! ボックス群
 use std::{
     io::{Read, Write},
     num::NonZeroU32,
