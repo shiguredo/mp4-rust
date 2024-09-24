@@ -463,7 +463,7 @@ impl BaseBox for MoovBox {
             std::iter::once(self.mvhd_box.actual_box())
                 .chain(self.trak_boxes.iter().map(BaseBox::actual_box))
                 .chain(self.udta_box.iter().map(BaseBox::actual_box))
-                .chain(self.trak_boxes.iter().map(BaseBox::actual_box)),
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
         )
     }
 }

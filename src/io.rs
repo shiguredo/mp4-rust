@@ -8,6 +8,7 @@ use crate::BoxType;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Error {
+    // TODO: add box_type field
     pub io_error: std::io::Error,
     pub backtrace: Backtrace,
 }
