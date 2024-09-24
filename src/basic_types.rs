@@ -19,7 +19,7 @@ pub trait BaseBox {
 
     fn box_payload_size(&self) -> u64;
 
-    fn is_opaque_payload(&self) -> bool;
+    fn is_unknown_box(&self) -> bool;
 
     // TODO: remove
     fn actual_box(&self) -> &dyn BaseBox;
@@ -471,8 +471,8 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
         self.actual_box().box_payload_size()
     }
 
-    fn is_opaque_payload(&self) -> bool {
-        self.actual_box().is_opaque_payload()
+    fn is_unknown_box(&self) -> bool {
+        self.actual_box().is_unknown_box()
     }
 
     fn actual_box(&self) -> &dyn BaseBox {

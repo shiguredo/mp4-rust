@@ -76,7 +76,7 @@ fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
     let mut unknowns = Vec::new();
 
     while let Some(b) = stack.pop() {
-        if b.is_opaque_payload()
+        if b.is_unknown_box()
             && !matches!(
                 b.box_type().as_bytes(),
                 b"fiel" | b"sbgp" | b"sgpd" | b"udta"

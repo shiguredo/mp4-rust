@@ -49,7 +49,7 @@ impl BaseBox for UnknownBox {
         self.payload.len() as u64
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         true
     }
 
@@ -177,7 +177,7 @@ impl BaseBox for FtypBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -243,8 +243,8 @@ impl BaseBox for RootBox {
         self.actual_box().box_payload_size()
     }
 
-    fn is_opaque_payload(&self) -> bool {
-        self.actual_box().is_opaque_payload()
+    fn is_unknown_box(&self) -> bool {
+        self.actual_box().is_unknown_box()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -290,7 +290,7 @@ impl BaseBox for FreeBox {
         self.payload.len() as u64
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -353,7 +353,7 @@ impl BaseBox for MdatBox {
         self.payload.len() as u64
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -441,7 +441,7 @@ impl BaseBox for MoovBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -564,7 +564,7 @@ impl BaseBox for MvhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -677,7 +677,7 @@ impl BaseBox for TrakBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -829,7 +829,7 @@ impl BaseBox for TkhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -930,7 +930,7 @@ impl BaseBox for EdtsBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1033,7 +1033,7 @@ impl BaseBox for ElstBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1144,7 +1144,7 @@ impl BaseBox for MdiaBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1270,7 +1270,7 @@ impl BaseBox for MdhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1357,7 +1357,7 @@ impl BaseBox for HdlrBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1471,7 +1471,7 @@ impl BaseBox for MinfBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1539,7 +1539,7 @@ impl BaseBox for SmhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1615,7 +1615,7 @@ impl BaseBox for VmhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1703,7 +1703,7 @@ impl BaseBox for DinfBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1800,7 +1800,7 @@ impl BaseBox for DrefBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -1880,7 +1880,7 @@ impl BaseBox for UrlBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2019,7 +2019,7 @@ impl BaseBox for StblBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2096,7 +2096,7 @@ impl BaseBox for StsdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2176,8 +2176,8 @@ impl BaseBox for SampleEntry {
         self.actual_box().box_payload_size()
     }
 
-    fn is_opaque_payload(&self) -> bool {
-        self.actual_box().is_opaque_payload()
+    fn is_unknown_box(&self) -> bool {
+        self.actual_box().is_unknown_box()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2348,7 +2348,7 @@ impl BaseBox for Avc1Box {
         self
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2541,7 +2541,7 @@ impl BaseBox for AvccBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2645,7 +2645,7 @@ impl BaseBox for Vp08Box {
         self
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2751,7 +2751,7 @@ impl BaseBox for Vp09Box {
         self
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2864,7 +2864,7 @@ impl BaseBox for VpccBox {
         self
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2932,7 +2932,7 @@ impl BaseBox for PaspBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -2997,7 +2997,7 @@ impl BaseBox for BtrtBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3074,7 +3074,7 @@ impl BaseBox for SttsBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3164,7 +3164,7 @@ impl BaseBox for StscBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3267,7 +3267,7 @@ impl BaseBox for StszBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3344,7 +3344,7 @@ impl BaseBox for StcoBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3421,7 +3421,7 @@ impl BaseBox for Co64Box {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3498,7 +3498,7 @@ impl BaseBox for StssBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3599,7 +3599,7 @@ impl BaseBox for OpusBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
@@ -3751,7 +3751,7 @@ impl BaseBox for DopsBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
-    fn is_opaque_payload(&self) -> bool {
+    fn is_unknown_box(&self) -> bool {
         false
     }
 
