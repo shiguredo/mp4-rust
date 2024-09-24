@@ -2928,7 +2928,7 @@ impl BaseBox for UdtaBox {
     }
 }
 
-/// [https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html] OpusSampleEntry class
+/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpusBox {
     pub audio: AudioSampleEntryFields,
@@ -3069,7 +3069,7 @@ impl Decode for AudioSampleEntryFields {
     }
 }
 
-/// [https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html] OpusSpecificBox class
+/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSpecificBox class
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DopsBox {
     pub version: u8,

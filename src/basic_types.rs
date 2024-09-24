@@ -10,7 +10,7 @@ use crate::{
 };
 
 // 単なる `Box` だと Rust の標準ライブラリのそれと名前が衝突するので変えておく
-pub trait BaseBox: Encode + Decode {
+pub trait BaseBox {
     fn box_type(&self) -> BoxType;
 
     fn box_size(&self) -> BoxSize {
@@ -53,7 +53,7 @@ pub struct Mp4File<B = RootBox> {
     pub boxes: Vec<B>,
 }
 
-impl<B: BaseBox> Decode for Mp4File<B> {
+impl<B: BaseBox + Decode> Decode for Mp4File<B> {
     fn decode<R: Read>(mut reader: &mut R) -> Result<Self> {
         let ftyp_box = FtypBox::decode(reader)?;
 
@@ -67,7 +67,7 @@ impl<B: BaseBox> Decode for Mp4File<B> {
     }
 }
 
-impl<B: BaseBox> Encode for Mp4File<B> {
+impl<B: BaseBox + Encode> Encode for Mp4File<B> {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.ftyp_box.encode(writer)?;
 
