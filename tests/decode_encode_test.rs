@@ -1,4 +1,7 @@
-use shiguredo_mp4::{Decode, Encode, IterUnknownBoxes, Mp4File, Result};
+use shiguredo_mp4::{
+    boxes::{SbgpBox, SgpdBox, UdtaBox},
+    BoxType, Decode, Encode, Mp4File, Result,
+};
 
 #[test]
 fn decode_encode_black_h264_video_mp4() -> Result<()> {
@@ -6,10 +9,7 @@ fn decode_encode_black_h264_video_mp4() -> Result<()> {
     let file: Mp4File = Mp4File::decode(&mut &input_bytes[..])?;
 
     // デコード時に未処理のボックスがないことを確認する。
-    assert_eq!(
-        file.iter_unknown_boxes().map(|x| x.0).collect::<Vec<_>>(),
-        Vec::new()
-    );
+    assert_eq!(collect_unknown_box_types(&file), Vec::new());
 
     let mut output_bytes = Vec::new();
     file.encode(&mut output_bytes)?;
@@ -31,10 +31,7 @@ fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
     let file: Mp4File = Mp4File::decode(&mut &input_bytes[..])?;
 
     // デコード時に未処理のボックスがないことを確認する。
-    assert_eq!(
-        file.iter_unknown_boxes().map(|x| x.0).collect::<Vec<_>>(),
-        Vec::new()
-    );
+    assert_eq!(collect_unknown_box_types(&file), Vec::new());
 
     let mut output_bytes = Vec::new();
     file.encode(&mut output_bytes)?;
@@ -48,4 +45,20 @@ fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
     assert_eq!(&input_bytes[..], output_bytes);
 
     Ok(())
+}
+
+fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
+    let mut stack = mp4.iter().collect::<Vec<_>>();
+    let mut unknowns = Vec::new();
+
+    while let Some(b) = stack.pop() {
+        if b.is_opaque_payload()
+            && !matches!(b.box_type(), SbgpBox::TYPE | SgpdBox::TYPE | UdtaBox::TYPE)
+        {
+            unknowns.push(b.box_type());
+        }
+        stack.extend(b.children());
+    }
+
+    unknowns
 }

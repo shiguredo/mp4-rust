@@ -37,6 +37,14 @@ pub struct Mp4File<B = RootBox> {
     pub boxes: Vec<B>,
 }
 
+impl<B: BaseBox> Mp4File<B> {
+    pub fn iter(&self) -> impl Iterator<Item = &dyn BaseBox> {
+        std::iter::empty()
+            .chain(std::iter::once(&self.ftyp_box).map(BaseBox::actual_box))
+            .chain(self.boxes.iter().map(BaseBox::actual_box))
+    }
+}
+
 impl<B: BaseBox + Decode> Decode for Mp4File<B> {
     fn decode<R: Read>(mut reader: &mut R) -> Result<Self> {
         let ftyp_box = FtypBox::decode(reader)?;
@@ -61,13 +69,6 @@ impl<B: BaseBox + Encode> Encode for Mp4File<B> {
         Ok(())
     }
 }
-
-// TODO
-// impl<B: IterUnknownBoxes> IterUnknownBoxes for Mp4File<B> {
-//     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-//         self.boxes.iter().flat_map(|b| b.iter_unknown_boxes())
-//     }
-// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoxHeader {
