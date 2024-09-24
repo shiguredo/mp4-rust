@@ -4,9 +4,9 @@ use std::{
 };
 
 use crate::{
-    io::ExternalBytes, BaseBox, BoxHeader, BoxPath, BoxSize, BoxType, Decode, Either, Encode,
-    Error, FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, IterUnknownBoxes, Mp4FileTime,
-    Result, Uint, UnknownBox, Utf8String,
+    io::ExternalBytes, BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error,
+    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, UnknownBox,
+    Utf8String,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -123,6 +123,14 @@ impl BaseBox for FtypBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,15 +182,22 @@ impl BaseBox for RootBox {
             RootBox::Unknown(b) => b.box_payload_size(),
         }
     }
-}
 
-impl IterUnknownBoxes for RootBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+    fn actual_box(&self) -> &dyn BaseBox {
         match self {
-            RootBox::Free(_) => Box::new(std::iter::empty()) as Box<dyn '_ + Iterator<Item = _>>,
-            RootBox::Mdat(_) => Box::new(std::iter::empty()),
-            RootBox::Moov(b) => Box::new(b.iter_unknown_boxes()),
-            RootBox::Unknown(b) => Box::new(b.iter_unknown_boxes()),
+            RootBox::Free(b) => b.actual_box(),
+            RootBox::Mdat(b) => b.actual_box(),
+            RootBox::Moov(b) => b.actual_box(),
+            RootBox::Unknown(b) => b.actual_box(),
+        }
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        match self {
+            RootBox::Free(b) => b.children(),
+            RootBox::Mdat(b) => b.children(),
+            RootBox::Moov(b) => b.children(),
+            RootBox::Unknown(b) => b.children(),
         }
     }
 }
@@ -223,6 +238,14 @@ impl BaseBox for FreeBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -274,6 +297,14 @@ impl BaseBox for MdatBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -360,18 +391,18 @@ impl BaseBox for MoovBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for MoovBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.trak_boxes.iter().flat_map(|b| b.iter_unknown_boxes());
-        let iter1 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::once(self.mvhd_box.actual_box())
+                .chain(self.trak_boxes.iter().map(BaseBox::actual_box))
+                .chain(self.udta_box.iter().map(BaseBox::actual_box))
+                .chain(self.trak_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -480,6 +511,14 @@ impl BaseBox for MvhdBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 impl FullBox for MvhdBox {
@@ -581,20 +620,19 @@ impl BaseBox for TrakBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for TrakBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.edts_box.iter().flat_map(|b| b.iter_unknown_boxes());
-        let iter1 = self.mdia_box.iter_unknown_boxes();
-        let iter2 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .chain(iter2)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.tkhd_box).map(BaseBox::actual_box))
+                .chain(self.edts_box.iter().map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.mdia_box).map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -730,6 +768,14 @@ impl BaseBox for TkhdBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 impl FullBox for TkhdBox {
@@ -819,15 +865,17 @@ impl BaseBox for EdtsBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for EdtsBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(self.elst_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -915,6 +963,14 @@ impl BaseBox for ElstBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -1015,18 +1071,19 @@ impl BaseBox for MdiaBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for MdiaBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.minf_box.iter_unknown_boxes();
-        let iter1 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.mdhd_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.hdlr_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.minf_box).map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -1136,6 +1193,14 @@ impl BaseBox for MdhdBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 impl FullBox for MdhdBox {
@@ -1210,6 +1275,14 @@ impl BaseBox for HdlrBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -1313,20 +1386,20 @@ impl BaseBox for MinfBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for MinfBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.dinf_box.iter_unknown_boxes();
-        let iter1 = self.stbl_box.iter_unknown_boxes();
-        let iter2 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .chain(iter2)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(self.smhd_or_vmhd_box.as_a().map(BaseBox::actual_box))
+                .chain(self.smhd_or_vmhd_box.as_b().map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.dinf_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.stbl_box).map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -1377,6 +1450,14 @@ impl BaseBox for SmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -1441,6 +1522,14 @@ impl BaseBox for VmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -1518,18 +1607,17 @@ impl BaseBox for DinfBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for DinfBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.dref_box.iter_unknown_boxes();
-        let iter1 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.dref_box).map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -1612,6 +1700,18 @@ impl BaseBox for DrefBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(self.url_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
+    }
 }
 
 impl FullBox for DrefBox {
@@ -1621,16 +1721,6 @@ impl FullBox for DrefBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
-    }
-}
-
-impl IterUnknownBoxes for DrefBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
 
@@ -1685,6 +1775,14 @@ impl BaseBox for UrlBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -1822,18 +1920,24 @@ impl BaseBox for StblBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for StblBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.stsd_box.iter_unknown_boxes();
-        let iter1 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0
-            .chain(iter1)
-            .map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.stsd_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.stts_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.stsc_box).map(BaseBox::actual_box))
+                .chain(std::iter::once(&self.stsz_box).map(BaseBox::actual_box))
+                .chain(self.stco_or_co64_box.as_a().map(BaseBox::actual_box))
+                .chain(self.stco_or_co64_box.as_b().map(BaseBox::actual_box))
+                .chain(self.sgpd_box.iter().map(BaseBox::actual_box))
+                .chain(self.sbgp_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -1891,6 +1995,14 @@ impl BaseBox for StsdBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(self.entries.iter().map(BaseBox::actual_box))
+    }
 }
 
 impl FullBox for StsdBox {
@@ -1900,13 +2012,6 @@ impl FullBox for StsdBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
-    }
-}
-
-impl IterUnknownBoxes for StsdBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self.entries.iter().flat_map(|b| b.iter_unknown_boxes());
-        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
     }
 }
 
@@ -1954,14 +2059,20 @@ impl BaseBox for SampleEntry {
             Self::Unknown(b) => b.box_payload_size(),
         }
     }
-}
 
-impl IterUnknownBoxes for SampleEntry {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+    fn actual_box(&self) -> &dyn BaseBox {
         match self {
-            Self::Avc1(b) => Box::new(b.iter_unknown_boxes()) as Box<dyn '_ + Iterator<Item = _>>,
-            Self::Opus(b) => Box::new(b.iter_unknown_boxes()),
-            Self::Unknown(b) => Box::new(b.iter_unknown_boxes()),
+            Self::Avc1(b) => b.actual_box(),
+            Self::Opus(b) => b.actual_box(),
+            Self::Unknown(b) => b.actual_box(),
+        }
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        match self {
+            Self::Avc1(b) => b.children(),
+            Self::Opus(b) => b.children(),
+            Self::Unknown(b) => b.children(),
         }
     }
 }
@@ -2124,15 +2235,19 @@ impl BaseBox for Avc1Box {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for Avc1Box {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.avcc_box).map(BaseBox::actual_box))
+                .chain(self.pasp_box.iter().map(BaseBox::actual_box))
+                .chain(self.btrt_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -2313,6 +2428,14 @@ impl BaseBox for AvccBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 /// [ISO/IEC 14496-12] PixelAspectRatioBox class
@@ -2362,6 +2485,14 @@ impl BaseBox for PaspBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -2415,6 +2546,14 @@ impl BaseBox for BtrtBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -2480,6 +2619,14 @@ impl BaseBox for SttsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -2558,6 +2705,14 @@ impl BaseBox for StscBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -2650,6 +2805,14 @@ impl BaseBox for StszBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 impl FullBox for StszBox {
@@ -2714,6 +2877,14 @@ impl BaseBox for StcoBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -2780,6 +2951,14 @@ impl BaseBox for Co64Box {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 impl FullBox for Co64Box {
@@ -2838,6 +3017,14 @@ impl BaseBox for SgpdBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 /// [ISO/IEC 14496-12] SampleToGroupBox class
@@ -2886,6 +3073,14 @@ impl BaseBox for SbgpBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
 }
 
 /// [ISO/IEC 14496-12] UserDataBox class
@@ -2925,6 +3120,14 @@ impl BaseBox for UdtaBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -3005,15 +3208,18 @@ impl BaseBox for OpusBox {
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
-}
 
-impl IterUnknownBoxes for OpusBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        let iter0 = self
-            .unknown_boxes
-            .iter()
-            .flat_map(|b| b.iter_unknown_boxes());
-        iter0.map(|(path, b)| (path.join(Self::TYPE), b))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.dops_box).map(BaseBox::actual_box))
+                .chain(self.btrt_box.iter().map(BaseBox::actual_box))
+                .chain(self.unknown_boxes.iter().map(BaseBox::actual_box)),
+        )
     }
 }
 
@@ -3149,5 +3355,13 @@ impl BaseBox for DopsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }

@@ -18,15 +18,15 @@ pub trait BaseBox {
     }
 
     fn box_payload_size(&self) -> u64;
+
+    fn actual_box(&self) -> &dyn BaseBox;
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>>;
 }
 
 pub trait FullBox: BaseBox {
     fn full_box_version(&self) -> u8;
     fn full_box_flags(&self) -> FullBoxFlags;
-}
-
-pub trait IterUnknownBoxes {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -78,11 +78,12 @@ impl<B: BaseBox + Encode> Encode for Mp4File<B> {
     }
 }
 
-impl<B: IterUnknownBoxes> IterUnknownBoxes for Mp4File<B> {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        self.boxes.iter().flat_map(|b| b.iter_unknown_boxes())
-    }
-}
+// TODO
+// impl<B: IterUnknownBoxes> IterUnknownBoxes for Mp4File<B> {
+//     fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
+//         self.boxes.iter().flat_map(|b| b.iter_unknown_boxes())
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoxHeader {
@@ -414,11 +415,13 @@ impl BaseBox for UnknownBox {
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
     }
-}
 
-impl IterUnknownBoxes for UnknownBox {
-    fn iter_unknown_boxes(&self) -> impl '_ + Iterator<Item = (BoxPath, &UnknownBox)> {
-        std::iter::once((BoxPath::new(self.box_type), self))
+    fn actual_box(&self) -> &dyn BaseBox {
+        self
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
     }
 }
 
@@ -513,10 +516,29 @@ impl Decode for Utf8String {
     }
 }
 
+// TODO: impl BaseBox
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Either<A, B> {
     A(A),
     B(B),
+}
+
+impl<A, B> Either<A, B> {
+    pub fn as_a(&self) -> Option<&A> {
+        if let Self::A(a) = self {
+            Some(a)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_b(&self) -> Option<&B> {
+        if let Self::B(b) = self {
+            Some(b)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
