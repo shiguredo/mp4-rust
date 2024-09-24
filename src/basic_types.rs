@@ -360,13 +360,18 @@ impl BoxSize {
     }
 }
 
+/// [`BaseBox`] の種別
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BoxType {
+    /// 四文字で表現される通常のボックス種別
     Normal([u8; 4]),
+
+    /// UUID 形式のボックス種別
     Uuid([u8; 16]),
 }
 
 impl BoxType {
+    /// 種別を表すバイト列を返す
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             BoxType::Normal(ty) => &ty[..],
@@ -374,6 +379,7 @@ impl BoxType {
         }
     }
 
+    /// [`BoxHeader`] 内のボックス種別フィールドをエンコードする際に必要となるバイト数を返す
     pub const fn external_size(self) -> usize {
         if matches!(self, Self::Normal(_)) {
             4
@@ -382,6 +388,7 @@ impl BoxType {
         }
     }
 
+    /// 自分が `expected` と同じ種別であるかをチェックする
     pub fn expect(self, expected: Self) -> Result<()> {
         if self == expected {
             Ok(())
@@ -420,19 +427,22 @@ impl std::fmt::Display for BoxType {
     }
 }
 
-/// 1904/1/1 からの経過秒数
+/// MP4 ファイル内で使われる時刻形式（1904/1/1 からの経過秒数）
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Mp4FileTime(u64);
 
 impl Mp4FileTime {
+    /// 1904/1/1 からの経過秒数を引数にとって [`Mp4FileTime`] インスタンスを作成する
     pub const fn from_secs(secs: u64) -> Self {
         Self(secs)
     }
 
+    /// 1904/1/1 からの経過秒数を返す
     pub const fn as_secs(self) -> u64 {
         self.0
     }
 
+    /// [`std::time::UNIX_EPOCH`] を起点とした経過時間を受け取って、対応する [`Mp4FileTime`] インスタンスを作成する
     pub const fn from_unix_time(unix_time: Duration) -> Self {
         let delta = 2082844800; // 1904/1/1 から 1970/1/1 までの経過秒数
         let unix_time_secs = unix_time.as_secs();
@@ -440,13 +450,18 @@ impl Mp4FileTime {
     }
 }
 
+/// 固定小数点数
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FixedPointNumber<I, F = I> {
+    /// 整数部
     pub integer: I,
+
+    /// 小数部
     pub fraction: F,
 }
 
 impl<I, F> FixedPointNumber<I, F> {
+    /// 整数部と小数部を受け取って固定小数点数を返す
     pub const fn new(integer: I, fraction: F) -> Self {
         Self { integer, fraction }
     }
@@ -469,11 +484,14 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
     }
 }
 
-// エンコード時には終端 null が付与される文字列
+/// null 終端の UTF-8 文字列
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Utf8String(String);
 
 impl Utf8String {
+    /// 終端の null を含まない文字列を受け取って [`Utf8String`] インスタンスを作成する
+    ///
+    /// 引数の文字列内の null 文字が含まれている場合には [`None`] が返される
     pub fn new(s: &str) -> Option<Self> {
         if s.as_bytes().contains(&0) {
             return None;
@@ -481,6 +499,7 @@ impl Utf8String {
         Some(Self(s.to_owned()))
     }
 
+    /// このインスタンスが保持する、null 終端部分を含まない文字列を返す
     pub fn get(&self) -> &str {
         &self.0
     }
@@ -511,7 +530,9 @@ impl Decode for Utf8String {
     }
 }
 
+/// `A` か `B` のどちらかの値を保持する列挙型
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum Either<A, B> {
     A(A),
     B(B),
@@ -548,6 +569,11 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
     }
 }
 
+/// 任意のビット数の非負の整数を表現するための型
+///
+/// - `T`: 数値の内部的な型。 最低限 `BITS` 分の数値を表現可能な型である必要がある。
+/// - `BITS`: 数値のビット数
+/// - `OFFSET`: 一つの `T` に複数の [`Uint`] 値がパックされる場合の、この数値のオフセット位置（ビット数）
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Uint<T, const BITS: u32, const OFFSET: u32 = 0>(T);
 
@@ -559,15 +585,19 @@ where
         + Sub<Output = T>
         + From<u8>,
 {
-    // TODO: rename
+    /// `T` が保持するビット列の `OFFSET` 位置から `BITS` 分のビット列に対応する整数値を返す
     pub fn from_bits(v: T) -> Self {
         Self((v >> OFFSET) & (T::from(1) << BITS) - T::from(1))
     }
 
+    /// このインスタンスに対応する `T` 内のビット列を返す
+    ///
+    /// なお `OFFSET` が `0` の場合には、このメソッドは [`Uint::get()`] と等価である
     pub fn to_bits(self) -> T {
         self.0 << OFFSET
     }
 
+    /// このインスタンスが表現する整数値を返す
     pub fn get(self) -> T {
         self.0
     }
