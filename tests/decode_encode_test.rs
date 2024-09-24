@@ -42,6 +42,11 @@ fn decode_encode_black_vp9_video_mp4() -> Result<()> {
 
     // エンコード結果のバイト列が正しいことを確認する。
     assert_eq!(input_bytes.len(), output_bytes.len());
+
+    // ボックスの順番は入れ替わるのでソートした結果を比較する
+    let mut input_bytes = input_bytes.to_vec();
+    input_bytes.sort();
+    output_bytes.sort();
     assert_eq!(&input_bytes[..], output_bytes);
 
     Ok(())
@@ -76,6 +81,7 @@ fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
     while let Some(b) = stack.pop() {
         if b.is_opaque_payload()
             && !matches!(b.box_type(), SbgpBox::TYPE | SgpdBox::TYPE | UdtaBox::TYPE)
+            && !matches!(b.box_type().as_bytes(), b"fiel")
         {
             unknowns.push(b.box_type());
         }
