@@ -124,6 +124,10 @@ impl BaseBox for FtypBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -165,24 +169,6 @@ impl Decode for RootBox {
 }
 
 impl BaseBox for RootBox {
-    fn box_type(&self) -> BoxType {
-        match self {
-            RootBox::Free(b) => b.box_type(),
-            RootBox::Mdat(b) => b.box_type(),
-            RootBox::Moov(b) => b.box_type(),
-            RootBox::Unknown(b) => b.box_type(),
-        }
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        match self {
-            RootBox::Free(b) => b.box_payload_size(),
-            RootBox::Mdat(b) => b.box_payload_size(),
-            RootBox::Moov(b) => b.box_payload_size(),
-            RootBox::Unknown(b) => b.box_payload_size(),
-        }
-    }
-
     fn actual_box(&self) -> &dyn BaseBox {
         match self {
             RootBox::Free(b) => b.actual_box(),
@@ -192,13 +178,24 @@ impl BaseBox for RootBox {
         }
     }
 
+    fn box_type(&self) -> BoxType {
+        self.actual_box().box_type()
+    }
+
+    fn box_size(&self) -> BoxSize {
+        self.actual_box().box_size()
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.actual_box().box_payload_size()
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        self.actual_box().is_opaque_payload()
+    }
+
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        match self {
-            RootBox::Free(b) => b.children(),
-            RootBox::Mdat(b) => b.children(),
-            RootBox::Moov(b) => b.children(),
-            RootBox::Unknown(b) => b.children(),
-        }
+        self.actual_box().children()
     }
 }
 
@@ -238,6 +235,10 @@ impl BaseBox for FreeBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -297,6 +298,10 @@ impl BaseBox for MdatBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -390,6 +395,10 @@ impl BaseBox for MoovBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -512,6 +521,10 @@ impl BaseBox for MvhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -619,6 +632,10 @@ impl BaseBox for TrakBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -769,6 +786,10 @@ impl BaseBox for TkhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -864,6 +885,10 @@ impl BaseBox for EdtsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -963,6 +988,10 @@ impl BaseBox for ElstBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1070,6 +1099,10 @@ impl BaseBox for MdiaBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1194,6 +1227,10 @@ impl BaseBox for MdhdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -1275,6 +1312,10 @@ impl BaseBox for HdlrBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1387,6 +1428,10 @@ impl BaseBox for MinfBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -1449,6 +1494,10 @@ impl BaseBox for SmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1521,6 +1570,10 @@ impl BaseBox for VmhdBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1605,6 +1658,10 @@ impl BaseBox for DinfBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1700,6 +1757,10 @@ impl BaseBox for DrefBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -1774,6 +1835,10 @@ impl BaseBox for UrlBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -1920,6 +1985,10 @@ impl BaseBox for StblBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -1994,6 +2063,10 @@ impl BaseBox for StsdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -2042,22 +2115,6 @@ impl Decode for SampleEntry {
 }
 
 impl BaseBox for SampleEntry {
-    fn box_type(&self) -> BoxType {
-        match self {
-            Self::Avc1(b) => b.box_type(),
-            Self::Opus(b) => b.box_type(),
-            Self::Unknown(b) => b.box_type(),
-        }
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        match self {
-            Self::Avc1(b) => b.box_payload_size(),
-            Self::Opus(b) => b.box_payload_size(),
-            Self::Unknown(b) => b.box_payload_size(),
-        }
-    }
-
     fn actual_box(&self) -> &dyn BaseBox {
         match self {
             Self::Avc1(b) => b.actual_box(),
@@ -2066,12 +2123,24 @@ impl BaseBox for SampleEntry {
         }
     }
 
+    fn box_type(&self) -> BoxType {
+        self.actual_box().box_type()
+    }
+
+    fn box_size(&self) -> BoxSize {
+        self.actual_box().box_size()
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.actual_box().box_payload_size()
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        self.actual_box().is_opaque_payload()
+    }
+
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        match self {
-            Self::Avc1(b) => b.children(),
-            Self::Opus(b) => b.children(),
-            Self::Unknown(b) => b.children(),
-        }
+        self.actual_box().children()
     }
 }
 
@@ -2236,6 +2305,10 @@ impl BaseBox for Avc1Box {
 
     fn actual_box(&self) -> &dyn BaseBox {
         self
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2427,6 +2500,10 @@ impl BaseBox for AvccBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -2483,6 +2560,10 @@ impl BaseBox for PaspBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -2544,6 +2625,10 @@ impl BaseBox for BtrtBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -2617,6 +2702,10 @@ impl BaseBox for SttsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -2703,6 +2792,10 @@ impl BaseBox for StscBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -2804,6 +2897,10 @@ impl BaseBox for StszBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -2875,6 +2972,10 @@ impl BaseBox for StcoBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -2950,6 +3051,10 @@ impl BaseBox for Co64Box {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        false
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -3016,6 +3121,10 @@ impl BaseBox for SgpdBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        true
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -3072,6 +3181,10 @@ impl BaseBox for SbgpBox {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
     }
 
+    fn is_opaque_payload(&self) -> bool {
+        true
+    }
+
     fn actual_box(&self) -> &dyn BaseBox {
         self
     }
@@ -3118,6 +3231,10 @@ impl BaseBox for UdtaBox {
 
     fn box_payload_size(&self) -> u64 {
         self.payload.len() as u64
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        true
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -3205,6 +3322,10 @@ impl BaseBox for OpusBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
@@ -3353,6 +3474,10 @@ impl BaseBox for DopsBox {
 
     fn box_payload_size(&self) -> u64 {
         ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn is_opaque_payload(&self) -> bool {
+        false
     }
 
     fn actual_box(&self) -> &dyn BaseBox {
