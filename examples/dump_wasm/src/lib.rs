@@ -32,7 +32,7 @@ pub fn dump(bytes: *const u8, bytes_len: i32) -> *mut Vec<u8> {
         .map_err(|e| e.to_string())
         .and_then(|mp4| {
             let infos = mp4.iter().map(BoxInfo::new).collect::<Vec<_>>();
-            serde_json::to_string(&infos).map_err(|e| e.to_string())
+            serde_json::to_string_pretty(&infos).map_err(|e| e.to_string())
         })
         .unwrap_or_else(|e| e);
 
