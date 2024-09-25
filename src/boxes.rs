@@ -1300,7 +1300,15 @@ impl FullBox for MdhdBox {
 #[allow(missing_docs)]
 pub struct HdlrBox {
     pub handler_type: [u8; 4],
-    pub name: Utf8String,
+
+    /// ハンドラ名
+    ///
+    /// ISO の仕様書上はここは [`Utf8String`] であるべきだが、
+    /// 中身が UTF-8 ではなかったり、
+    /// null 終端文字列ではなく先頭にサイズバイトを格納する形式で
+    /// MP4 ファイルを作成する実装が普通に存在するため、
+    /// ここでは単なるバイト列として扱っている
+    pub name: Vec<u8>,
 }
 
 impl HdlrBox {
@@ -1318,7 +1326,7 @@ impl HdlrBox {
         [0u8; 4].encode(writer)?;
         self.handler_type.encode(writer)?;
         [0u8; 4 * 3].encode(writer)?;
-        self.name.encode(writer)?;
+        writer.write_all(&self.name)?;
         Ok(())
     }
 
@@ -1327,7 +1335,8 @@ impl HdlrBox {
         let _ = <[u8; 4]>::decode(reader)?;
         let handler_type = <[u8; 4]>::decode(reader)?;
         let _ = <[u8; 4 * 3]>::decode(reader)?;
-        let name = Utf8String::decode(reader)?;
+        let mut name = Vec::new();
+        reader.read_to_end(&mut name)?;
         Ok(Self { handler_type, name })
     }
 }
