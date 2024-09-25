@@ -195,7 +195,7 @@ impl Encode for BoxHeader {
 
 impl Decode for BoxHeader {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut box_size = u32::decode(reader)? as u64;
+        let box_size = u32::decode(reader)?;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -208,16 +208,20 @@ impl Decode for BoxHeader {
             BoxType::Normal(box_type)
         };
 
-        if box_size == 1 {
-            box_size = u64::decode(reader)?;
-        }
-        let box_size = BoxSize::new(box_type, box_size).ok_or_else(|| {
-            Error::invalid_data(&format!(
+        let box_size = if box_size == 1 {
+            BoxSize::U64(u64::decode(reader)?)
+        } else {
+            BoxSize::U32(box_size)
+        };
+        if box_size.get() != 0
+            && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
+        {
+            return Err(Error::invalid_data(&format!(
                 "Too small box size: actual={}, expected={} or more",
-                box_size,
-                4 + box_type.external_size()
-            ))
-        })?;
+                box_size.get(),
+                box_size.external_size() + box_type.external_size()
+            )));
+        };
 
         Ok(Self { box_type, box_size })
     }
@@ -315,47 +319,40 @@ impl Decode for FullBoxFlags {
 /// ボックスのサイズは原則として、ヘッダー部分とペイロード部分のサイズを足した値となる。
 /// ただし、MP4 ファイルの末尾にあるボックスについてはサイズを 0 とすることで、ペイロードが可変長（追記可能）なボックスとして扱うことが可能となっている。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BoxSize(u64);
+#[allow(missing_docs)]
+pub enum BoxSize {
+    U32(u32),
+    U64(u64),
+}
 
 impl BoxSize {
     /// ファイル末尾に位置する可変長のボックスを表すための特別な値
-    pub const VARIABLE_SIZE: Self = Self(0);
-
-    /// [`u64`] のサイズ値を受け取って、それが適切な場合には `Some(BoxSize)` が返される
-    ///
-    /// `box_size` の値が、指定されたボックス種別を保持するために必要な最小サイズを下回っている場合には [`None`] が返される
-    pub fn new(box_type: BoxType, box_size: u64) -> Option<Self> {
-        if box_size == 0 {
-            return Some(Self(0));
-        }
-
-        if box_size < 4 + box_type.external_size() as u64 {
-            None
-        } else {
-            Some(Self(box_size))
-        }
-    }
+    pub const VARIABLE_SIZE: Self = Self::U32(0);
 
     /// ボックス種別とペイロードサイズを受け取って、対応する [`BoxSize`] インスタンスを作成する
-    pub const fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
+    pub fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
         let mut size = 4 + box_type.external_size() as u64 + payload_size;
-        if size > u32::MAX as u64 {
+        if let Ok(size) = u32::try_from(size) {
+            Self::U32(size)
+        } else {
             size += 8;
+            Self::U64(size)
         }
-        Self(size)
     }
 
     /// ボックスのサイズの値を取得する
     pub const fn get(self) -> u64 {
-        self.0
+        match self {
+            BoxSize::U32(v) => v as u64,
+            BoxSize::U64(v) => v,
+        }
     }
 
     /// [`BoxHeader`] 内のサイズフィールドをエンコードする際に必要となるバイト数を返す
     pub const fn external_size(self) -> usize {
-        if self.0 > u32::MAX as u64 {
-            4 + 8
-        } else {
-            4
+        match self {
+            BoxSize::U32(_) => 4,
+            BoxSize::U64(_) => 4 + 8,
         }
     }
 }
