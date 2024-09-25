@@ -1,0 +1,46 @@
+name: GitHub Pages Deploy
+
+# Controls when the workflow will run
+on:
+  push:
+    branches: [ "develop" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install wasm32-unknown-unknown target
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target wasm32-unknown-unknown -p dump_wasm
+      - name: Prepare static files
+        run: |
+          mkdir -p _site/examples/dump/
+          cp examples/dump_wasm/index.html _site/examples/dump/
+          cp target/wasm32-unknown-unknown/release/dump_wasm.wasm _site/examples/dump/
+      - name: Upload files
+        uses: actions/upload-pages-artifact@v1
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
