@@ -4,12 +4,6 @@
 [![Documentation](https://docs.rs/shiguredo_mp4/badge.svg)](https://docs.rs/shiguredo_mp4)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Rust で実装された MP4 ファイルを読み書きするためのライブラリです。
-
-## WebAssembly サンプルページ
-
-WebAssembly を使ったサンプルを GitHub Pages に用意しています。
-
 - [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
 
 ## About Shiguredo's open source software
@@ -21,6 +15,14 @@ Please read <https://github.com/shiguredo/oss> before use.
 ## 時雨堂のオープンソースソフトウェアについて
 
 利用前に <https://github.com/shiguredo/oss> をお読みください。
+
+## 概要
+
+Rust で実装された MP4 ファイルを読み書きするためのライブラリです。
+
+## WebAssembly サンプルページ
+
+WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 
 ## ライセンス
 
