@@ -141,17 +141,19 @@ impl BoxHeader {
                         self.box_size.get(),
                         self.external_size()
                     ))
+                    .with_box_type(self.box_type)
                 })?;
             reader.take(payload_size)
         };
 
-        let value = f(&mut reader)?;
+        let value = f(&mut reader).map_err(|e| e.with_box_type(self.box_type))?;
         if reader.limit() != 0 {
             return Err(Error::invalid_data(&format!(
-                "Unconsumed {} bytes at the end of the box {:?}",
+                "Unconsumed {} bytes at the end of the box '{}'",
                 reader.limit(),
                 self.box_type
-            )));
+            ))
+            .with_box_type(self.box_type));
         }
         Ok(value)
     }
@@ -220,7 +222,8 @@ impl Decode for BoxHeader {
                 "Too small box size: actual={}, expected={} or more",
                 box_size.get(),
                 box_size.external_size() + box_type.external_size()
-            )));
+            ))
+            .with_box_type(box_type));
         };
 
         Ok(Self { box_type, box_size })

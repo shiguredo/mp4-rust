@@ -13,6 +13,9 @@ pub struct Error {
     /// 具体的なエラー理由
     pub io_error: std::io::Error,
 
+    /// エラーが発生したボックスの種別
+    pub box_type: Option<BoxType>,
+
     /// エラー発生箇所を示すバックトレース
     ///
     /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
@@ -37,12 +40,20 @@ impl Error {
     pub(crate) fn unsupported(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::Other, message))
     }
+
+    pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {
+        if self.box_type.is_none() {
+            self.box_type = Some(box_type);
+        }
+        self
+    }
 }
 
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Self {
             io_error: value,
+            box_type: None,
             backtrace: Backtrace::capture(),
         }
     }
@@ -62,11 +73,17 @@ impl std::fmt::Debug for Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-            write!(f, "{}\n\nBacktrace:\n{}", self.io_error, self.backtrace)
-        } else {
-            write!(f, "{}", self.io_error)
+        if let Some(ty) = self.box_type {
+            write!(f, "[{ty}] ")?;
         }
+
+        write!(f, "{}", self.io_error)?;
+
+        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
+            write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
+        }
+
+        Ok(())
     }
 }
 
