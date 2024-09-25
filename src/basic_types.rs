@@ -451,7 +451,7 @@ impl Mp4FileTime {
 }
 
 /// 固定小数点数
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FixedPointNumber<I, F = I> {
     /// 整数部
     pub integer: I,
@@ -585,6 +585,16 @@ where
         + Sub<Output = T>
         + From<u8>,
 {
+    /// 指定された数値を受け取ってインスタンスを作成する
+    pub const fn new(v: T) -> Self {
+        Self(v)
+    }
+
+    /// このインスタンスが表現する整数値を返す
+    pub fn get(self) -> T {
+        self.0
+    }
+
     /// `T` が保持するビット列の `OFFSET` 位置から `BITS` 分のビット列に対応する整数値を返す
     pub fn from_bits(v: T) -> Self {
         Self((v >> OFFSET) & (T::from(1) << BITS) - T::from(1))
@@ -595,10 +605,5 @@ where
     /// なお `OFFSET` が `0` の場合には、このメソッドは [`Uint::get()`] と等価である
     pub fn to_bits(self) -> T {
         self.0 << OFFSET
-    }
-
-    /// このインスタンスが表現する整数値を返す
-    pub fn get(self) -> T {
-        self.0
     }
 }

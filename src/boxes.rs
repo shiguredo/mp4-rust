@@ -500,6 +500,15 @@ impl MvhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mvhd");
 
+    /// [`MvhdBox::rate`] のデフォルト値（通常の再生速度）
+    pub const DEFAULT_RATE: FixedPointNumber<i16, u16> = FixedPointNumber::new(1, 0);
+
+    /// [`MvhdBox::volume`] のデフォルト値（最大音量）
+    pub const DEFAULT_VOLUME: FixedPointNumber<i8, u8> = FixedPointNumber::new(1, 0);
+
+    /// [`MvhdBox::matrix`] のデフォルト値
+    pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         if self.full_box_version() == 1 {
@@ -524,7 +533,16 @@ impl MvhdBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(reader)?;
-        let mut this = Self::default();
+        let mut this = Self {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: 0,
+            duration: 0,
+            rate: Self::DEFAULT_RATE,
+            volume: Self::DEFAULT_VOLUME,
+            matrix: Self::DEFAULT_MATRIX,
+            next_track_id: 0,
+        };
 
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
@@ -563,21 +581,6 @@ impl Decode for MvhdBox {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
-    }
-}
-
-impl Default for MvhdBox {
-    fn default() -> Self {
-        Self {
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            timescale: 0,
-            duration: 0,
-            rate: FixedPointNumber::new(1, 0),   // 通常の再生速度
-            volume: FixedPointNumber::new(1, 0), // 最大音量
-            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
-            next_track_id: 0,
-        }
     }
 }
 
@@ -733,6 +736,21 @@ impl TkhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"tkhd");
 
+    /// [`TkhdBox::layer`] のデフォルト値
+    pub const DEFAULT_LAYER: i16 = 0;
+
+    /// [`TkhdBox::alternate_group`] のデフォルト値
+    pub const DEFAULT_ALTERNATE_GROUP: i16 = 0;
+
+    /// 音声用の [`TkhdBox::volume`] のデフォルト値（最大音量）
+    pub const DEFAULT_AUDIO_VOLUME: FixedPointNumber<i8, u8> = FixedPointNumber::new(1, 0);
+
+    /// 映像用の [`TkhdBox::volume`] のデフォルト値（無音）
+    pub const DEFAULT_VIDEO_VOLUME: FixedPointNumber<i8, u8> = FixedPointNumber::new(0, 0);
+
+    /// [`TkhdBox::matrix`] のデフォルト値
+    pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         if self.full_box_version() == 1 {
@@ -761,7 +779,23 @@ impl TkhdBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(reader)?;
-        let mut this = Self::default();
+        let mut this = Self {
+            flag_track_enabled: false,
+            flag_track_in_movie: false,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: false,
+
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            track_id: 0,
+            duration: 0,
+            layer: Self::DEFAULT_LAYER,
+            alternate_group: Self::DEFAULT_ALTERNATE_GROUP,
+            volume: Self::DEFAULT_AUDIO_VOLUME,
+            matrix: Self::DEFAULT_MATRIX,
+            width: FixedPointNumber::new(0, 0),
+            height: FixedPointNumber::new(0, 0),
+        };
 
         this.flag_track_enabled = full_header.flags.is_set(0);
         this.flag_track_in_movie = full_header.flags.is_set(1);
@@ -809,28 +843,6 @@ impl Decode for TkhdBox {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
-    }
-}
-
-impl Default for TkhdBox {
-    fn default() -> Self {
-        Self {
-            flag_track_enabled: true,
-            flag_track_in_movie: true,
-            flag_track_in_preview: false,
-            flag_track_size_is_aspect_ratio: false,
-
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            track_id: 0,
-            duration: 0,
-            layer: 0,
-            alternate_group: 0,
-            volume: FixedPointNumber::new(0, 0),
-            matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
-            width: FixedPointNumber::new(0, 0),
-            height: FixedPointNumber::new(0, 0),
-        }
     }
 }
 
@@ -1170,6 +1182,9 @@ impl MdhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdhd");
 
+    /// 未定義を表す言語コード
+    pub const LANGUAGE_UNDEFINED: [u8; 3] = *b"und";
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         if self.full_box_version() == 1 {
@@ -1199,7 +1214,13 @@ impl MdhdBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(reader)?;
-        let mut this = Self::default();
+        let mut this = Self {
+            creation_time: Default::default(),
+            modification_time: Default::default(),
+            timescale: Default::default(),
+            duration: Default::default(),
+            language: Default::default(),
+        };
 
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
@@ -1240,18 +1261,6 @@ impl Decode for MdhdBox {
         let header = BoxHeader::decode(reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
-    }
-}
-
-impl Default for MdhdBox {
-    fn default() -> Self {
-        Self {
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            timescale: 0,
-            duration: 0,
-            language: *b"und", // undefined
-        }
     }
 }
 
@@ -1471,12 +1480,15 @@ impl BaseBox for MinfBox {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub struct SmhdBox {
-    pub balance: i16,
+    pub balance: FixedPointNumber<u8, u8>,
 }
 
 impl SmhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"smhd");
+
+    /// [`SmhdBox::balance`] のデフォルト値（中央）
+    pub const DEFAULT_BALANCE: FixedPointNumber<u8, u8> = FixedPointNumber::new(0, 0);
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
@@ -1487,7 +1499,7 @@ impl SmhdBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let _full_header = FullBoxHeader::decode(reader)?;
-        let balance = i16::decode(reader)?;
+        let balance = FixedPointNumber::decode(reader)?;
         let _ = <[u8; 2]>::decode(reader)?;
         Ok(Self { balance })
     }
@@ -1545,6 +1557,12 @@ impl VmhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vmhd");
 
+    /// [`Vmhd::graphicsmode`] のデフォルト値（コピー）
+    pub const DEFAULT_GRAPHICSMODE: u16 = 0;
+
+    /// [`Vmhd::graphicsmode`] のデフォルト値
+    pub const DEFAULT_OPCOLOR: [u16; 3] = [0, 0, 0];
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         self.graphicsmode.encode(writer)?;
@@ -1553,7 +1571,14 @@ impl VmhdBox {
     }
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _full_header = FullBoxHeader::decode(reader)?;
+        let full_header = FullBoxHeader::decode(reader)?;
+        if full_header.flags.get() != 1 {
+            return Err(Error::invalid_data(&format!(
+                "Unexpected FullBox header flags of 'vmhd' box: {}",
+                full_header.flags.get()
+            )));
+        }
+
         let graphicsmode = u16::decode(reader)?;
         let opcolor = <[u16; 3]>::decode(reader)?;
         Ok(Self {
@@ -1614,6 +1639,12 @@ pub struct DinfBox {
 impl DinfBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"dinf");
+
+    /// メディアデータが同じファイル内に格納されていることを示す [`DinfBox`] の値
+    pub const LOCAL_FILE: Self = Self {
+        dref_box: DrefBox::LOCAL_FILE,
+        unknown_boxes: Vec::new(),
+    };
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.dref_box.encode(writer)?;
@@ -1691,6 +1722,12 @@ impl DrefBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"dref");
 
+    /// メディアデータが同じファイル内に格納されていることを示す [`DrefBox`] の値
+    pub const LOCAL_FILE: Self = Self {
+        url_box: Some(UrlBox::LOCAL_FILE),
+        unknown_boxes: Vec::new(),
+    };
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         let entry_count = (self.url_box.is_some() as usize + self.unknown_boxes.len()) as u32;
@@ -1724,15 +1761,6 @@ impl DrefBox {
             url_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Default for DrefBox {
-    fn default() -> Self {
-        Self {
-            url_box: Some(UrlBox::default()),
-            unknown_boxes: Vec::new(),
-        }
     }
 }
 
@@ -1781,7 +1809,7 @@ impl FullBox for DrefBox {
 }
 
 /// [ISO/IEC 14496-12] DataEntryUrlBox class (親: [`DrefBox`])
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(missing_docs)]
 pub struct UrlBox {
     pub location: Option<Utf8String>,
@@ -1790,6 +1818,9 @@ pub struct UrlBox {
 impl UrlBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"url ");
+
+    /// メディアデータが同じファイル内に格納されていることを示す [`UrlBox`] の値
+    pub const LOCAL_FILE: Self = Self { location: None };
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
@@ -2146,19 +2177,21 @@ pub struct VisualSampleEntryFields {
     pub depth: u16,
 }
 
-impl Default for VisualSampleEntryFields {
-    fn default() -> Self {
-        Self {
-            data_reference_index: 1,
-            width: 0,
-            height: 0,
-            horizresolution: FixedPointNumber::new(0x48, 0), // 72 dpi
-            vertresolution: FixedPointNumber::new(0x48, 0),  // 72 dpi
-            frame_count: 1,
-            compressorname: [0; 32],
-            depth: 0x0018, // images are in colour with no alpha
-        }
-    }
+impl VisualSampleEntryFields {
+    /// [`VisualSampleEntryFields::horizresolution`] のデフォルト値 (72 dpi)
+    pub const DEFAULT_HORIZRESOLUTION: FixedPointNumber<u16, u16> = FixedPointNumber::new(0x48, 0);
+
+    /// [`VisualSampleEntryFields::vertresolution`] のデフォルト値 (72 dpi)
+    pub const DEFAULT_VERTRESOLUTION: FixedPointNumber<u16, u16> = FixedPointNumber::new(0x48, 0);
+
+    /// [`VisualSampleEntryFields::frame_count`] のデフォルト値 (1)
+    pub const DEFAULT_FRAME_COUNT: u16 = 1;
+
+    /// [`VisualSampleEntryFields::depth`] のデフォルト値 (images are in colour with no alpha)
+    pub const DEFAULT_DEPTH: u16 = 0x0018;
+
+    /// 名前なしを表す [`VisualSampleEntryFields::compressorname`] の値
+    pub const NULL_COMPRESSORNAME: [u8; 32] = [0; 32];
 }
 
 impl Encode for VisualSampleEntryFields {
@@ -2424,23 +2457,6 @@ impl AvccBox {
             bit_depth_chroma_minus8,
             sps_ext_list,
         })
-    }
-}
-
-impl Default for AvccBox {
-    fn default() -> Self {
-        Self {
-            avc_profile_indication: 0,
-            profile_compatibility: 0,
-            avc_level_indication: 0,
-            length_size_minus_one: Uint::from_bits(0),
-            sps_list: Vec::new(),
-            pps_list: Vec::new(),
-            chroma_format: None,
-            bit_depth_luma_minus8: None,
-            bit_depth_chroma_minus8: None,
-            sps_ext_list: Vec::new(),
-        }
     }
 }
 
@@ -3116,11 +3132,11 @@ impl Av1cBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"av1C");
 
-    const MARKER: u8 = 1;
-    const VERSION: u8 = 1;
+    const MARKER: Uint<u8, 1, 7> = Uint::new(1);
+    const VERSION: Uint<u8, 7, 0> = Uint::new(1);
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        ((Self::MARKER << 7) | Self::VERSION).encode(writer)?;
+        (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(writer)?;
         (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits()).encode(writer)?;
         (self.seq_tier_0.to_bits()
             | self.high_bitdepth.to_bits()
@@ -3141,13 +3157,15 @@ impl Av1cBox {
 
     fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
         let b = u8::decode(reader)?;
-        if (b >> 7) != Self::MARKER {
+        let marker = Uint::from_bits(b);
+        let version = Uint::from_bits(b);
+        if marker != Self::MARKER {
             return Err(Error::invalid_data("Unexpected av1C marker"));
         }
-        if (b & 0b0111_1111) != Self::VERSION {
+        if version != Self::VERSION {
             return Err(Error::invalid_data(&format!(
                 "Unsupported av1C version: {}",
-                b & 0b0111_1111
+                version.get()
             )));
         }
 
@@ -3789,15 +3807,9 @@ pub struct AudioSampleEntryFields {
     pub samplerate: FixedPointNumber<u16, u16>,
 }
 
-impl Default for AudioSampleEntryFields {
-    fn default() -> Self {
-        Self {
-            data_reference_index: 1,
-            channelcount: 1,
-            samplesize: 16,
-            samplerate: FixedPointNumber::new(0, 0),
-        }
-    }
+impl AudioSampleEntryFields {
+    /// [`AudioSampleEntryFields::sample_size`] のデフォルト値 (16)
+    pub const DEFAULT_SAMPLESIZE: u16 = 16;
 }
 
 impl Encode for AudioSampleEntryFields {
@@ -3883,17 +3895,6 @@ impl DopsBox {
             input_sample_rate,
             output_gain,
         })
-    }
-}
-
-impl Default for DopsBox {
-    fn default() -> Self {
-        Self {
-            output_channel_count: 1,
-            pre_skip: 0,
-            input_sample_rate: 0,
-            output_gain: 0,
-        }
     }
 }
 
