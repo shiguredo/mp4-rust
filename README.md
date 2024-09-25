@@ -18,6 +18,8 @@ Please read <https://github.com/shiguredo/oss> before use.
 
 Rust で実装された MP4 ファイルを読み書きするためのライブラリです。
 
+依存ライブラリ 0 で実現しています。
+
 ## WebAssembly サンプルページ
 
 WebAssembly を使ったサンプルを GitHub Pages に用意しています。
