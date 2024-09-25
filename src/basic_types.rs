@@ -276,7 +276,7 @@ impl FullBoxFlags {
     }
 
     /// `(ビット位置、フラグがセットされているかどうか)` のイテレーターを受け取って、対応するビットフラグを作成する
-    pub fn from_iter<I>(iter: I) -> Self
+    pub fn from_flags<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = (usize, bool)>,
     {
@@ -597,7 +597,7 @@ where
 
     /// `T` が保持するビット列の `OFFSET` 位置から `BITS` 分のビット列に対応する整数値を返す
     pub fn from_bits(v: T) -> Self {
-        Self((v >> OFFSET) & (T::from(1) << BITS) - T::from(1))
+        Self((v >> OFFSET) & ((T::from(1) << BITS) - T::from(1)))
     }
 
     /// このインスタンスに対応する `T` 内のビット列を返す

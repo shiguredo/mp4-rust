@@ -873,7 +873,7 @@ impl FullBox for TkhdBox {
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {
-        FullBoxFlags::from_iter([
+        FullBoxFlags::from_flags([
             (0, self.flag_track_enabled),
             (1, self.flag_track_in_movie),
             (2, self.flag_track_in_preview),
@@ -2346,16 +2346,16 @@ impl AvccBox {
         self.avc_profile_indication.encode(writer)?;
         self.profile_compatibility.encode(writer)?;
         self.avc_level_indication.encode(writer)?;
-        (0b111111_00 | self.length_size_minus_one.get()).encode(writer)?;
+        (0b1111_1100 | self.length_size_minus_one.get()).encode(writer)?;
 
         let sps_count =
             u8::try_from(self.sps_list.len()).map_err(|_| Error::invalid_input("Too many SPSs"))?;
-        (0b111_00000 | sps_count).encode(writer)?;
+        (0b1110_0000 | sps_count).encode(writer)?;
         for sps in &self.sps_list {
             let size = u16::try_from(sps.len())
                 .map_err(|e| Error::invalid_input(&format!("Too long SPS: {e}")))?;
             size.encode(writer)?;
-            writer.write_all(&sps)?;
+            writer.write_all(sps)?;
         }
 
         let pps_count =
@@ -2365,7 +2365,7 @@ impl AvccBox {
             let size = u16::try_from(pps.len())
                 .map_err(|e| Error::invalid_input(&format!("Too long PPS: {e}")))?;
             size.encode(writer)?;
-            writer.write_all(&pps)?;
+            writer.write_all(pps)?;
         }
 
         if !matches!(self.avc_profile_indication, 66 | 77 | 88) {
@@ -2378,9 +2378,9 @@ impl AvccBox {
             let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
                 Error::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' boc")
             })?;
-            (0b111111_00 | chroma_format.get()).encode(writer)?;
-            (0b11111_000 | bit_depth_luma_minus8.get()).encode(writer)?;
-            (0b11111_000 | bit_depth_chroma_minus8.get()).encode(writer)?;
+            (0b1111_1100 | chroma_format.get()).encode(writer)?;
+            (0b1111_1000 | bit_depth_luma_minus8.get()).encode(writer)?;
+            (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(writer)?;
 
             let sps_ext_count = u8::try_from(self.sps_ext_list.len())
                 .map_err(|_| Error::invalid_input("Too many SPS EXTs"))?;
@@ -2389,7 +2389,7 @@ impl AvccBox {
                 let size = u16::try_from(sps_ext.len())
                     .map_err(|e| Error::invalid_input(&format!("Too long SPS EXT: {e}")))?;
                 size.encode(writer)?;
-                writer.write_all(&sps_ext)?;
+                writer.write_all(sps_ext)?;
             }
         }
 
