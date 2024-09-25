@@ -1,6 +1,7 @@
 use std::{
     backtrace::Backtrace,
     io::{Cursor, ErrorKind, Read, Write},
+    panic::Location,
 };
 
 use crate::BoxType;
@@ -13,6 +14,9 @@ pub struct Error {
     /// 具体的なエラー理由
     pub io_error: std::io::Error,
 
+    /// エラー発生場所
+    pub location: Option<&'static Location<'static>>,
+
     /// エラーが発生したボックスの種別
     pub box_type: Option<BoxType>,
 
@@ -23,20 +27,24 @@ pub struct Error {
 }
 
 impl Error {
+    #[track_caller]
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidData, message))
     }
 
+    #[track_caller]
     pub(crate) fn invalid_input(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidInput, message))
     }
 
+    #[track_caller]
     pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
         Self::invalid_data(&format!(
             "Missing mandatory '{missing_box}' box in '{parent_box}' box"
         ))
     }
 
+    #[track_caller]
     pub(crate) fn unsupported(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::Other, message))
     }
@@ -50,9 +58,11 @@ impl Error {
 }
 
 impl From<std::io::Error> for Error {
+    #[track_caller]
     fn from(value: std::io::Error) -> Self {
         Self {
             io_error: value,
+            location: Some(std::panic::Location::caller()),
             box_type: None,
             backtrace: Backtrace::capture(),
         }
@@ -78,6 +88,10 @@ impl std::fmt::Display for Error {
         }
 
         write!(f, "{}", self.io_error)?;
+
+        if let Some(l) = &self.location {
+            write!(f, " (at {}:{})", l.file(), l.line())?;
+        }
 
         if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
             write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
