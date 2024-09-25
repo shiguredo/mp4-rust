@@ -5,11 +5,15 @@ use std::{
 
 use crate::BoxType;
 
+/// このライブラリ用の [`std::result::Result`] 型
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// このライブラリ用のエラー型
 pub struct Error {
-    // TODO: add box_type field
+    /// 具体的なエラー理由
     pub io_error: std::io::Error,
+
+    /// エラー発生箇所を示すバックトレース
     pub backtrace: Backtrace,
 }
 
@@ -64,7 +68,9 @@ impl std::fmt::Display for Error {
     }
 }
 
+/// `self` のバイト列への変換を行うためのトレイト
 pub trait Encode {
+    /// `self` をバイト列に変換して `writer` に書き込む
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()>;
 }
 
@@ -133,7 +139,9 @@ impl<T: Encode, const N: usize> Encode for [T; N] {
     }
 }
 
+/// バイト列を `Self` に変換するためのトレイト
 pub trait Decode: Sized {
+    /// `reader` から読み込んだバイト列から `Self` を構築する
     fn decode<R: Read>(reader: &mut R) -> Result<Self>;
 }
 
