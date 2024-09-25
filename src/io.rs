@@ -14,6 +14,8 @@ pub struct Error {
     pub io_error: std::io::Error,
 
     /// エラー発生箇所を示すバックトレース
+    ///
+    /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
     pub backtrace: Backtrace,
 }
 
