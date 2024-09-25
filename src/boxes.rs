@@ -1467,13 +1467,15 @@ impl BaseBox for MinfBox {
     }
 }
 
-/// [ISO/IEC 14496-12] SoundMediaHeaderBox class
+/// [ISO/IEC 14496-12] SoundMediaHeaderBox class (親: [`MinfBox`]）
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct SmhdBox {
     pub balance: i16,
 }
 
 impl SmhdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"smhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1531,14 +1533,16 @@ impl FullBox for SmhdBox {
     }
 }
 
-/// [ISO/IEC 14496-12] VideoMediaHeaderBox class
+/// [ISO/IEC 14496-12] VideoMediaHeaderBox class (親: [`MinfBox`]）
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct VmhdBox {
     pub graphicsmode: u16,
     pub opcolor: [u16; 3],
 }
 
 impl VmhdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vmhd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1599,14 +1603,16 @@ impl FullBox for VmhdBox {
     }
 }
 
-/// [ISO/IEC 14496-12] DataInformationBox class
+/// [ISO/IEC 14496-12] DataInformationBox class (親: [`MinfBox`]）
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct DinfBox {
     pub dref_box: DrefBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
 impl DinfBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"dinf");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1673,14 +1679,16 @@ impl BaseBox for DinfBox {
     }
 }
 
-/// [ISO/IEC 14496-12] DataReferenceBox class
+/// [ISO/IEC 14496-12] DataReferenceBox class (親: [`DinfBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct DrefBox {
     pub url_box: Option<UrlBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
 impl DrefBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"dref");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1772,13 +1780,15 @@ impl FullBox for DrefBox {
     }
 }
 
-/// [ISO/IEC 14496-12] DataEntryUrlBox class
+/// [ISO/IEC 14496-12] DataEntryUrlBox class (親: [`DrefBox`])
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct UrlBox {
     pub location: Option<Utf8String>,
 }
 
 impl UrlBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"url ");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1840,8 +1850,9 @@ impl FullBox for UrlBox {
     }
 }
 
-/// [ISO/IEC 14496-12] SampleTableBox class
+/// [ISO/IEC 14496-12] SampleTableBox class (親: [`MinfBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StblBox {
     pub stsd_box: StsdBox,
     pub stts_box: SttsBox,
@@ -1853,6 +1864,7 @@ pub struct StblBox {
 }
 
 impl StblBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stbl");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -1970,13 +1982,15 @@ impl BaseBox for StblBox {
     }
 }
 
-/// [ISO/IEC 14496-12] SampleDescriptionBox class
+/// [ISO/IEC 14496-12] SampleDescriptionBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StsdBox {
     pub entries: Vec<SampleEntry>,
 }
 
 impl StsdBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsd");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2040,7 +2054,9 @@ impl FullBox for StsdBox {
     }
 }
 
+/// [`StsdBox`] に含まれるエントリー
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum SampleEntry {
     Avc1(Avc1Box),
     Hev1(Hev1Box),
@@ -2116,7 +2132,9 @@ impl BaseBox for SampleEntry {
     }
 }
 
+/// 映像系の [`SampleEntry`] に共通のフィールドをまとめた構造体
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct VisualSampleEntryFields {
     pub data_reference_index: u16,
     pub width: u16,
@@ -2188,8 +2206,9 @@ impl Decode for VisualSampleEntryFields {
     }
 }
 
-/// [ISO/IEC 14496-15] AVCSampleEntry class
+/// [ISO/IEC 14496-15] AVCSampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Avc1Box {
     pub visual: VisualSampleEntryFields,
     pub avcc_box: AvccBox,
@@ -2197,6 +2216,7 @@ pub struct Avc1Box {
 }
 
 impl Avc1Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"avc1");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2266,8 +2286,9 @@ impl BaseBox for Avc1Box {
     }
 }
 
-/// [ISO/IEC 14496-15] AVCConfigurationBox class
+/// [ISO/IEC 14496-15] AVCConfigurationBox class (親: [`Avc1Box`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct AvccBox {
     pub avc_profile_indication: u8,
     pub profile_compatibility: u8,
@@ -2282,6 +2303,7 @@ pub struct AvccBox {
 }
 
 impl AvccBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"avcC");
 
     const CONFIGURATION_VERSION: u8 = 1;
@@ -2452,8 +2474,9 @@ impl BaseBox for AvccBox {
     }
 }
 
-/// [ISO/IEC 14496-15] HEVCSampleEntry class
+/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Hev1Box {
     pub visual: VisualSampleEntryFields,
     pub hvcc_box: HvccBox,
@@ -2461,6 +2484,7 @@ pub struct Hev1Box {
 }
 
 impl Hev1Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"hev1");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2530,15 +2554,18 @@ impl BaseBox for Hev1Box {
     }
 }
 
+/// [`HvccBox`] 内の NAL ユニット配列を保持する構造体
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct HvccNalUintArray {
     pub array_completeness: Uint<u8, 1, 7>,
     pub nal_unit_type: Uint<u8, 6, 0>,
     pub nalus: Vec<Vec<u8>>,
 }
 
-/// [ISO/IEC 14496-15] HVCConfigurationBox class
+/// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct HvccBox {
     pub general_profile_space: Uint<u8, 2, 6>,
     pub general_tier_flag: Uint<u8, 1, 5>,
@@ -2560,6 +2587,7 @@ pub struct HvccBox {
 }
 
 impl HvccBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"hvcC");
 
     const CONFIGURATION_VERSION: u8 = 1;
@@ -2716,8 +2744,9 @@ impl BaseBox for HvccBox {
     }
 }
 
-/// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class
+/// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Vp08Box {
     pub visual: VisualSampleEntryFields,
     pub vpcc_box: VpccBox,
@@ -2725,6 +2754,7 @@ pub struct Vp08Box {
 }
 
 impl Vp08Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp08");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2794,8 +2824,9 @@ impl BaseBox for Vp08Box {
     }
 }
 
-/// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class
+/// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Vp09Box {
     pub visual: VisualSampleEntryFields,
     pub vpcc_box: VpccBox,
@@ -2803,6 +2834,7 @@ pub struct Vp09Box {
 }
 
 impl Vp09Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp09");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2872,8 +2904,9 @@ impl BaseBox for Vp09Box {
     }
 }
 
-/// [<https://www.webmproject.org/vp9/mp4/>] VPCodecConfigurationBox class
+/// [<https://www.webmproject.org/vp9/mp4/>] VPCodecConfigurationBox class (親: [`Vp08Box`], [`Vp09Box`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct VpccBox {
     pub profile: u8,
     pub level: u8,
@@ -2887,6 +2920,7 @@ pub struct VpccBox {
 }
 
 impl VpccBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vpcC");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -2981,8 +3015,9 @@ impl FullBox for VpccBox {
     }
 }
 
-/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Av01Box {
     pub visual: VisualSampleEntryFields,
     pub av1c_box: Av1cBox,
@@ -2990,6 +3025,7 @@ pub struct Av01Box {
 }
 
 impl Av01Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"av01");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3059,8 +3095,9 @@ impl BaseBox for Av01Box {
     }
 }
 
-/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Av1cBox {
     pub seq_profile: Uint<u8, 3, 5>,
     pub seq_level_idx_0: Uint<u8, 5, 0>,
@@ -3076,6 +3113,7 @@ pub struct Av1cBox {
 }
 
 impl Av1cBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"av1C");
 
     const MARKER: u8 = 1;
@@ -3182,19 +3220,23 @@ impl BaseBox for Av1cBox {
     }
 }
 
+/// [`SttsBox`] が保持するエントリー
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct SttsEntry {
     pub sample_count: u32,
     pub sample_delta: u32,
 }
 
-/// [ISO/IEC 14496-12] TimeToSampleBox class
+/// [ISO/IEC 14496-12] TimeToSampleBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct SttsBox {
     pub entries: Vec<SttsEntry>,
 }
 
 impl SttsBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stts");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3261,20 +3303,24 @@ impl FullBox for SttsBox {
     }
 }
 
+/// [`StscBox`] が保持するエントリー
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StscEntry {
     pub first_chunk: u32,
     pub sample_per_chunk: u32,
     pub sample_description_index: u32,
 }
 
-/// [ISO/IEC 14496-12] SampleToChunkBox class
+/// [ISO/IEC 14496-12] SampleToChunkBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StscBox {
     pub entries: Vec<StscEntry>,
 }
 
 impl StscBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsc");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3343,8 +3389,9 @@ impl FullBox for StscBox {
     }
 }
 
-/// [ISO/IEC 14496-12] SampleSizeBox class
+/// [ISO/IEC 14496-12] SampleSizeBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum StszBox {
     Fixed {
         sample_size: NonZeroU32,
@@ -3356,6 +3403,7 @@ pub enum StszBox {
 }
 
 impl StszBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsz");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3438,13 +3486,15 @@ impl FullBox for StszBox {
     }
 }
 
-/// [ISO/IEC 14496-12] ChunkOffsetBox class
+/// [ISO/IEC 14496-12] ChunkOffsetBox class (親: [`StcoBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StcoBox {
     pub chunk_offsets: Vec<u32>,
 }
 
 impl StcoBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stco");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3507,13 +3557,15 @@ impl FullBox for StcoBox {
     }
 }
 
-/// [ISO/IEC 14496-12] ChunkLargeOffsetBox class
+/// [ISO/IEC 14496-12] ChunkLargeOffsetBox class (親: [`Co64Box`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct Co64Box {
     pub chunk_offsets: Vec<u64>,
 }
 
 impl Co64Box {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"co64");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3576,13 +3628,15 @@ impl FullBox for Co64Box {
     }
 }
 
-/// [ISO/IEC 14496-12] SyncSampleBox class
+/// [ISO/IEC 14496-12] SyncSampleBox class (親: [`StssBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct StssBox {
     pub sample_numbers: Vec<u32>,
 }
 
 impl StssBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stss");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3645,8 +3699,9 @@ impl FullBox for StssBox {
     }
 }
 
-/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class
+/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct OpusBox {
     pub audio: AudioSampleEntryFields,
     pub dops_box: DopsBox,
@@ -3654,6 +3709,7 @@ pub struct OpusBox {
 }
 
 impl OpusBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"Opus");
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
@@ -3723,7 +3779,9 @@ impl BaseBox for OpusBox {
     }
 }
 
+/// 音声系の [`SampleEntry`] に共通のフィールドをまとめた構造体
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct AudioSampleEntryFields {
     pub data_reference_index: u16,
     pub channelcount: u16,
@@ -3775,8 +3833,9 @@ impl Decode for AudioSampleEntryFields {
     }
 }
 
-/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSpecificBox class
+/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSpecificBox class (親: [`OpusBox`])
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub struct DopsBox {
     pub output_channel_count: u8,
     pub pre_skip: u16,
@@ -3785,7 +3844,9 @@ pub struct DopsBox {
 }
 
 impl DopsBox {
+    /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"dOps");
+
     const VERSION: u8 = 0;
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
