@@ -170,12 +170,16 @@ impl BoxHeader {
 
 impl Encode for BoxHeader {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let large_size = self.box_size.get() > u32::MAX as u64;
-        if large_size {
-            1u32.encode(writer)?;
-        } else {
-            (self.box_size.get() as u32).encode(writer)?;
-        }
+        let large_size = match self.box_size {
+            BoxSize::U32(size) => {
+                size.encode(writer)?;
+                None
+            }
+            BoxSize::U64(size) => {
+                1u32.encode(writer)?;
+                Some(size)
+            }
+        };
 
         match self.box_type {
             BoxType::Normal(ty) => {
@@ -187,8 +191,8 @@ impl Encode for BoxHeader {
             }
         }
 
-        if large_size {
-            self.box_size.get().encode(writer)?;
+        if let Some(large_size) = large_size {
+            large_size.encode(writer)?;
         }
 
         Ok(())
