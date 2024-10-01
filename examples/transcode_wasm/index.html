@@ -23,7 +23,9 @@
     <input id="input" type="file" accept="video/mp4" onchange="startTranscode()" />
 
     <h3>出力 MP4 ファイル</h3>
-    <textarea id="output" cols="80" rows="30" style="font-family:monospace, serif;"></textarea>
+    <input id="download" type="button" value="ダウンロード" onclick="download()" />
+    <br />
+    <textarea id="log" cols="80" rows="30" style="font-family:monospace, serif;"></textarea>
 
     <script src="./transcode.js"></script>
   </body>

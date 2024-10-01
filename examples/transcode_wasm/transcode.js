@@ -66,6 +66,17 @@ function pollTranscode() {
     console.log("buildOutputMp4File: " + JSON.stringify(result));
 }
 
+function download() {
+    const mp4 = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33]); //getOutputMp4File();
+    const blob = new Blob([mp4], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'output.mp4';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 function getOutputMp4File() {
     const outputMp4WasmBytesRef = wasmFunctions.getOutputMp4File(transcoder);
     return fromWasmBytesRef(outputMp4WasmBytesRef);
