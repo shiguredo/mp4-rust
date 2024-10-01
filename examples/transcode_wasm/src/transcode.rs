@@ -2,7 +2,7 @@ use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::OrFail;
 use serde::{Deserialize, Serialize};
 
-use crate::input_mp4::{Chunk, InputMp4, Track};
+use crate::mp4::{Chunk, InputMp4, Track};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscodeOptions {}
