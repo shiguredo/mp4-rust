@@ -2,7 +2,7 @@ use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::OrFail;
 use serde::{Deserialize, Serialize};
 
-use crate::input_mp4::{InputMp4, Track};
+use crate::input_mp4::{Chunk, InputMp4, Track};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscodeOptions {}
@@ -105,7 +105,15 @@ struct TrackTranscoder {
 
 impl TrackTranscoder {
     async fn run(self) -> orfail::Result<Track> {
-        let _ = self.track;
-        todo!()
+        let mut output_track = Track { chunks: Vec::new() };
+        for chunk in &self.track.chunks {
+            let output_chunk = self.transcode_chunk(chunk).await.or_fail()?;
+            output_track.chunks.push(output_chunk);
+        }
+        Ok(output_track)
+    }
+
+    async fn transcode_chunk(&self, input_chunk: &Chunk) -> orfail::Result<Chunk> {
+        Ok(input_chunk.clone())
     }
 }
