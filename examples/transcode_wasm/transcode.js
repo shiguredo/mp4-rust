@@ -1,10 +1,12 @@
 let wasmInstance;
 let wasmMemory;
+let wasmFunctions;
 let transcoder;
 
 (async () => {
     wasmInstance = (await WebAssembly.instantiateStreaming(fetch("transcode_wasm.wasm"))).instance;
     wasmMemory = wasmInstance.exports.memory;
+    wasmFunctions = wasmInstance.exports;
 })();
 
 async function startTranscode() {
@@ -16,17 +18,49 @@ async function startTranscode() {
     }
     const file = files[0];
 
-    const inputBytes = new Uint8Array(await file.arrayBuffer());
-    const buffer = wasmInstance.exports.allocateVec(inputBytes.length);
-    const bufferOffset = wasmInstance.exports.vecOffset(buffer);
-    new Uint8Array(wasmMemory.buffer, bufferOffset, inputBytes.length).set(inputBytes);
+    if (transcoder !== undefined) {
+        wasmFunctions.freeTranscoder(transcoder);
+    }
+    const transcodeOptions = {};
+    transcoder = wasmFunctions.newTranscoder(valueToWasmJson(transcodeOptions));
 
-    // const output = wasmInstance.exports.transcode(bufferOffset, inputBytes.length);
-    // const outputOffset = wasmInstance.exports.vec_offset(output);
-    // const outputLen = wasmInstance.exports.vec_len(output);
+    const inputBytes = new Uint8Array(await file.arrayBuffer());
+    const inputWasmBytes = convertToWasmBytes(inputBytes);
+    const parseResultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
+    const parseResult = wasmJsonToValue(parseResultWasmJson);
+    if (parseResult["Err"] !== undefined) {
+        throw parseResult;
+    }
+    console.log("Parsed: " + JSON.stringify(parseResult));
+
+    // TODO: 所要時間を取る
+
+    // const output = wasmFunctions.transcode(bufferOffset, inputBytes.length);
+    // const outputOffset = wasmFunctions.vec_offset(output);
+    // const outputLen = wasmFunctions.vec_len(output);
     // const outputText = new TextDecoder('utf-8').decode(
     //     new Uint8Array(wasmMemory.buffer, outputOffset, outputLen));
-    // wasmInstance.exports.free_vec(output);
+    // wasmFunctions.free_vec(output);
     // document.getElementById("output").value = outputText;
-    alert("hello");
+}
+
+function convertToWasmBytes(bytes) {
+    const wasmBytes = wasmFunctions.allocateVec(bytes.length);
+    const wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
+    new Uint8Array(wasmMemory.buffer, wasmBytesOffset, bytes.length).set(bytes);
+    return wasmBytes;
+}
+
+function valueToWasmJson(value) {
+    const jsonBytes = new TextEncoder().encode(JSON.stringify(value));
+    return convertToWasmBytes(jsonBytes);
+}
+
+function wasmJsonToValue(wasmJson) {
+    const offset = wasmFunctions.vecOffset(wasmJson);
+    const len = wasmFunctions.vecLen(wasmJson);
+    const buffer = new Uint8Array(wasmMemory.buffer, offset, len);
+    const value = JSON.parse(new TextDecoder("utf-8").decode(buffer));
+    wasmFunctions.freeVec(wasmJson);
+    return value;
 }
