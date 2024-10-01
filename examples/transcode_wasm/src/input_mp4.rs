@@ -143,7 +143,7 @@ impl<'a> InputTrackBuilder<'a> {
     ) -> orfail::Result<InputSample> {
         let duration = self.sample_duration(sample_index).or_fail()?;
         let chunk_offset = self.chunk_offset(chunk_index).or_fail()?;
-        let sample_data_start = chunk_offset as usize + sample_offset as usize;
+        let sample_data_start = chunk_offset as usize + sample_offset;
         let sample_data_end =
             sample_data_start + self.sample_size(sample_index).or_fail()? as usize;
         (sample_data_end <= self.mp4_file_bytes.len()).or_fail()?;
