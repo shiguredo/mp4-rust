@@ -1,3 +1,4 @@
+// TODO: output_mp4 と統合する
 use std::time::Duration;
 
 use orfail::{Failure, OrFail};
@@ -8,7 +9,7 @@ use shiguredo_mp4::{
 
 #[derive(Debug)]
 pub struct InputMp4 {
-    pub tracks: Vec<InputTrack>,
+    pub tracks: Vec<Track>,
 }
 
 impl InputMp4 {
@@ -39,9 +40,10 @@ impl InputMp4 {
     }
 }
 
+// TODO: move
 #[derive(Debug)]
-pub struct InputTrack {
-    pub chunks: Vec<InputChunk>,
+pub struct Track {
+    pub chunks: Vec<Chunk>,
 }
 
 #[derive(Debug)]
@@ -53,7 +55,7 @@ struct InputTrackBuilder<'a> {
 }
 
 impl<'a> InputTrackBuilder<'a> {
-    fn build(self) -> orfail::Result<InputTrack> {
+    fn build(self) -> orfail::Result<Track> {
         let mut chunks = Vec::new();
         let mut chunk_index_end = self.chunk_count();
         let mut sample_index_end = self.sample_count();
@@ -97,7 +99,7 @@ impl<'a> InputTrackBuilder<'a> {
             chunk_index_end = first_chunk_index;
         }
         chunks.reverse();
-        Ok(InputTrack { chunks })
+        Ok(Track { chunks })
     }
 
     fn build_chunk(
@@ -106,7 +108,7 @@ impl<'a> InputTrackBuilder<'a> {
         sample_entry_index: usize,
         sample_index_start: usize,
         sample_index_end: usize,
-    ) -> orfail::Result<InputChunk> {
+    ) -> orfail::Result<Chunk> {
         let sample_entry = self
             .stbl_box
             .stsd_box
@@ -129,7 +131,7 @@ impl<'a> InputTrackBuilder<'a> {
             sample_offset += sample.data.len();
             samples.push(sample);
         }
-        Ok(InputChunk {
+        Ok(Chunk {
             sample_entry,
             samples,
         })
@@ -140,7 +142,7 @@ impl<'a> InputTrackBuilder<'a> {
         sample_index: usize,
         chunk_index: usize,
         sample_offset: usize,
-    ) -> orfail::Result<InputSample> {
+    ) -> orfail::Result<Sample> {
         let duration = self.sample_duration(sample_index).or_fail()?;
         let chunk_offset = self.chunk_offset(chunk_index).or_fail()?;
         let sample_data_start = chunk_offset as usize + sample_offset;
@@ -148,7 +150,7 @@ impl<'a> InputTrackBuilder<'a> {
             sample_data_start + self.sample_size(sample_index).or_fail()? as usize;
         (sample_data_end <= self.mp4_file_bytes.len()).or_fail()?;
         let data = self.mp4_file_bytes[sample_data_start..sample_data_end].to_vec();
-        Ok(InputSample { duration, data })
+        Ok(Sample { duration, data })
     }
 
     // TODO: StblBox に移す
@@ -213,14 +215,16 @@ impl<'a> InputTrackBuilder<'a> {
     }
 }
 
+// TODO: move
 #[derive(Debug, Clone)]
-pub struct InputChunk {
+pub struct Chunk {
     pub sample_entry: SampleEntry,
-    pub samples: Vec<InputSample>,
+    pub samples: Vec<Sample>,
 }
 
+// TODO: move
 #[derive(Debug, Clone)]
-pub struct InputSample {
+pub struct Sample {
     pub duration: Duration,
     pub data: Vec<u8>,
 }
