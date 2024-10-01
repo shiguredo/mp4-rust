@@ -8,7 +8,7 @@ pub mod mp4_build;
 pub mod transcode;
 
 #[no_mangle]
-#[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
+#[expect(non_snake_case)]
 pub fn newTranscoder(options: JsonVec<TranscodeOptions>) -> *mut Transcoder {
     let options = unsafe { options.into_value() };
     Box::into_raw(Box::new(Transcoder::new(options)))
