@@ -1,6 +1,7 @@
 use orfail::OrFail;
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::{Decode, Mp4File};
+
+use crate::input_mp4::InputMp4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscodeOptions {}
@@ -15,7 +16,7 @@ pub struct TranscodeProgress {
 #[derive(Debug)]
 pub struct Transcoder {
     options: TranscodeOptions,
-    input_mp4: Option<Mp4File>,
+    input_mp4: Option<InputMp4>,
 }
 
 impl Transcoder {
@@ -26,8 +27,8 @@ impl Transcoder {
         }
     }
 
-    pub fn parse_input_mp4_file(&mut self, mut mp4: &[u8]) -> orfail::Result<()> {
-        self.input_mp4 = Some(Mp4File::decode(&mut mp4).or_fail()?);
+    pub fn parse_input_mp4_file(&mut self, mp4: &[u8]) -> orfail::Result<()> {
+        self.input_mp4 = Some(InputMp4::parse(mp4).or_fail()?);
         Ok(())
     }
 

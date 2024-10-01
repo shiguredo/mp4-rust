@@ -4,7 +4,8 @@ use orfail::OrFail;
 use serde::{Deserialize, Serialize};
 use transcode::{TranscodeOptions, TranscodeProgress, Transcoder};
 
-pub mod mp4_build;
+pub mod input_mp4;
+pub mod output_mp4;
 pub mod transcode;
 
 #[no_mangle]
