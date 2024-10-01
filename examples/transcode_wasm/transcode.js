@@ -24,24 +24,25 @@ async function startTranscode() {
     const transcodeOptions = {};
     transcoder = wasmFunctions.newTranscoder(valueToWasmJson(transcodeOptions));
 
-    const inputBytes = new Uint8Array(await file.arrayBuffer());
-    const inputWasmBytes = convertToWasmBytes(inputBytes);
-    const parseResultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
-    const parseResult = wasmJsonToValue(parseResultWasmJson);
-    if (parseResult["Err"] !== undefined) {
-        throw parseResult;
-    }
-    console.log("Parsed: " + JSON.stringify(parseResult));
-
     // TODO: 所要時間を取る
 
-    // const output = wasmFunctions.transcode(bufferOffset, inputBytes.length);
-    // const outputOffset = wasmFunctions.vec_offset(output);
-    // const outputLen = wasmFunctions.vec_len(output);
-    // const outputText = new TextDecoder('utf-8').decode(
-    //     new Uint8Array(wasmMemory.buffer, outputOffset, outputLen));
-    // wasmFunctions.free_vec(output);
-    // document.getElementById("output").value = outputText;
+    let resultWasmJson;
+    let result;
+    const inputBytes = new Uint8Array(await file.arrayBuffer());
+    const inputWasmBytes = convertToWasmBytes(inputBytes);
+    resultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
+    result = wasmJsonToValue(resultWasmJson);
+    if (result["Err"] !== undefined) {
+        throw JSON.stringify(result);
+    }
+    console.log("Parsed: " + JSON.stringify(result));
+
+    resultWasmJson = wasmFunctions.startTranscode(transcoder);
+    result = wasmJsonToValue(resultWasmJson);
+    if (result["Err"] !== undefined) {
+        throw JSON.stringify(result);
+    }
+    console.log("startTranscode: " + JSON.stringify(result));
 }
 
 function convertToWasmBytes(bytes) {
