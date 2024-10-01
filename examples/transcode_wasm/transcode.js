@@ -43,6 +43,20 @@ async function startTranscode() {
         throw JSON.stringify(result);
     }
     console.log("startTranscode: " + JSON.stringify(result));
+
+    pollTranscode();
+}
+
+function pollTranscode() {
+    const resultWasmJson = wasmFunctions.pollTranscode(transcoder);
+    const result = wasmJsonToValue(resultWasmJson);
+    if (result["Err"] !== undefined) {
+        throw JSON.stringify(result);
+    }
+    console.log("pollTranscode: " + JSON.stringify(result));
+    if (!result["Ok"].done) {
+        setTimeout(pollTranscode, 1000); // TODO: もっと短くする
+    }
 }
 
 function convertToWasmBytes(bytes) {

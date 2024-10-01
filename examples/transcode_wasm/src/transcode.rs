@@ -68,16 +68,21 @@ impl Transcoder {
             self.executor.run_until_stalled();
             self.executing = false;
 
-            match self.transcode_result_rx.try_next() {
-                Err(_) => {
-                    // 全ての変換が終了した
-                }
-                Ok(None) => {
-                    // 変換中
-                }
-                Ok(Some(result)) => {
-                    // 特定のトラックの変換が完了した or 失敗した
-                    self.output_tracks.push(result.or_fail()?);
+            let mut do_continue = true;
+            while do_continue {
+                do_continue = false;
+                match self.transcode_result_rx.try_next() {
+                    Err(_) => {
+                        // 全ての変換が終了した
+                    }
+                    Ok(None) => {
+                        // 変換中
+                    }
+                    Ok(Some(result)) => {
+                        // 特定のトラックの変換が完了した or 失敗した
+                        self.output_tracks.push(result.or_fail()?);
+                        do_continue = true;
+                    }
                 }
             }
         }
@@ -114,6 +119,7 @@ impl TrackTranscoder {
     }
 
     async fn transcode_chunk(&self, input_chunk: &Chunk) -> orfail::Result<Chunk> {
+        // TODO: 入出力のチャンク数を一対一にマッピングする必要はない
         Ok(input_chunk.clone())
     }
 }
