@@ -98,7 +98,7 @@ impl Transcoder {
         todo!()
     }
 
-    pub fn take_output_mp4_file(&mut self) -> Vec<u8> {
+    pub fn get_output_mp4_file(&mut self) -> &Vec<u8> {
         todo!()
     }
 }

@@ -59,9 +59,9 @@ pub fn buildOutputMp4File(transcoder: *mut Transcoder) -> JsonVec<orfail::Result
 
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
-pub fn takeOutputMp4File(transcoder: *mut Transcoder) -> *mut Vec<u8> {
+pub fn getOutputMp4File(transcoder: *mut Transcoder) -> *const Vec<u8> {
     let transcoder = unsafe { &mut *transcoder };
-    Box::into_raw(Box::new(transcoder.take_output_mp4_file()))
+    transcoder.get_output_mp4_file() as *const _
 }
 
 #[no_mangle]

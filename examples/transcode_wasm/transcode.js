@@ -29,7 +29,7 @@ async function startTranscode() {
     let resultWasmJson;
     let result;
     const inputBytes = new Uint8Array(await file.arrayBuffer());
-    const inputWasmBytes = convertToWasmBytes(inputBytes);
+    const inputWasmBytes = toWasmBytes(inputBytes);
     resultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
     result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
@@ -48,27 +48,45 @@ async function startTranscode() {
 }
 
 function pollTranscode() {
-    const resultWasmJson = wasmFunctions.pollTranscode(transcoder);
-    const result = wasmJsonToValue(resultWasmJson);
+    let resultWasmJson = wasmFunctions.pollTranscode(transcoder);
+    let result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
         throw JSON.stringify(result);
     }
     console.log("pollTranscode: " + JSON.stringify(result));
     if (!result["Ok"].done) {
-        setTimeout(pollTranscode, 1000); // TODO: もっと短くする
+        return setTimeout(pollTranscode, 1000); // TODO: もっと短くする
     }
+
+    resultWasmJson = wasmFunctions.buildOutputMp4File(transcoder);
+    result = wasmJsonToValue(resultWasmJson);
+    if (result["Err"] !== undefined) {
+        throw JSON.stringify(result);
+    }
+    console.log("buildOutputMp4File: " + JSON.stringify(result));
 }
 
-function convertToWasmBytes(bytes) {
+function getOutputMp4File() {
+    const outputMp4WasmBytesRef = wasmFunctions.getOutputMp4File(transcoder);
+    return fromWasmBytesRef(outputMp4WasmBytesRef);
+}
+
+function toWasmBytes(bytes) {
     const wasmBytes = wasmFunctions.allocateVec(bytes.length);
     const wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
     new Uint8Array(wasmMemory.buffer, wasmBytesOffset, bytes.length).set(bytes);
     return wasmBytes;
 }
 
+function fromWasmBytesRef(wasmBytes) {
+    const offset = wasmFunctions.vecOffset(wasmBytes);
+    const len = wasmFunctions.vecLen(wasmBytes);
+    return new Uint8Array(wasmMemory.buffer, offset, len);
+}
+
 function valueToWasmJson(value) {
     const jsonBytes = new TextEncoder().encode(JSON.stringify(value));
-    return convertToWasmBytes(jsonBytes);
+    return toWasmBytes(jsonBytes);
 }
 
 function wasmJsonToValue(wasmJson) {
