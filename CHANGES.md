@@ -11,6 +11,8 @@
 
 ## develop
 
+- [ADD] `Utf8String::into_null_terminated_bytes()` メソッドを追加する
+  - @sile
 - [CHANGE] 仕様上 0 を取らないフィールドの型は `NonZeroXXX` にする
   -  @sile
 - [UPDATE] ボックスに `Hash` を実装する
