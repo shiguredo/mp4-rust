@@ -2,10 +2,33 @@ use std::marker::PhantomData;
 
 use orfail::OrFail;
 use serde::{Deserialize, Serialize};
-use transcode::{TranscodeOptions, TranscodeProgress, Transcoder};
+use transcode::{Codec, TranscodeOptions, TranscodeProgress};
 
 pub mod mp4;
 pub mod transcode;
+
+pub struct WebCodec;
+
+pub type CoderId = u32;
+pub type Transcoder = transcode::Transcoder<WebCodec>;
+
+#[expect(unused_variables, unreachable_code)]
+impl Codec for WebCodec {
+    type Coder = CoderId;
+
+    fn create_h264_decoder(
+        config: &shiguredo_mp4::boxes::Avc1Box,
+    ) -> impl futures::Future<Output = orfail::Result<Self::Coder>> {
+        futures::future::ok(todo!())
+    }
+
+    fn decode_sample(
+        decoder: &mut Self::Coder,
+        encoded_data: &[u8],
+    ) -> impl futures::Future<Output = orfail::Result<Vec<u8>>> {
+        futures::future::ok(todo!())
+    }
+}
 
 #[no_mangle]
 #[expect(non_snake_case)]

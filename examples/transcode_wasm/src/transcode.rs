@@ -1,9 +1,24 @@
+use std::{future::Future, marker::PhantomData};
+
 use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::{boxes::SampleEntry, BaseBox, Encode};
+use shiguredo_mp4::{
+    boxes::{Avc1Box, SampleEntry},
+    BaseBox, Encode,
+};
 
 use crate::mp4::{Chunk, InputMp4, Track};
+
+pub trait Codec {
+    type Coder;
+
+    fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
+    fn decode_sample(
+        decoder: &mut Self::Coder,
+        encoded_data: &[u8],
+    ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscodeOptions {}
@@ -17,7 +32,7 @@ pub struct TranscodeProgress {
 }
 
 #[derive(Debug)]
-pub struct Transcoder {
+pub struct Transcoder<CODEC> {
     options: TranscodeOptions,
     input_mp4: Option<InputMp4>,
     output_mp4: Vec<u8>,
@@ -25,9 +40,10 @@ pub struct Transcoder {
     executing: bool,
     transcode_result_rx: futures::channel::mpsc::UnboundedReceiver<orfail::Result<Track>>,
     output_tracks: Vec<Track>,
+    _codec: PhantomData<CODEC>,
 }
 
-impl Transcoder {
+impl<CODEC: Codec> Transcoder<CODEC> {
     pub fn new(options: TranscodeOptions) -> Self {
         let (_transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         Self {
@@ -38,6 +54,7 @@ impl Transcoder {
             executing: false,
             transcode_result_rx,
             output_tracks: Vec::new(),
+            _codec: PhantomData,
         }
     }
 
