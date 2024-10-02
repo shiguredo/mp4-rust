@@ -4,11 +4,12 @@ use futures::{channel::oneshot, TryFutureExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{boxes::Avc1Box, Encode};
-use transcode::{Codec, TranscodeOptions, TranscodeProgress};
+use transcode::{Codec, TranscodeOptions, TranscodeProgress, VideoEncoderConfig};
 
 pub mod mp4;
 pub mod transcode;
 
+// TODO: transcode.rs に持っていく
 #[derive(Serialize)]
 pub struct VideoDecoderConfig {
     pub codec: String,
@@ -32,6 +33,14 @@ extern "C" {
         data_offset: *const u8,
         data_len: u32,
     );
+
+    #[expect(improper_ctypes)]
+    pub fn createVideoEncoder(
+        result_future: *mut oneshot::Sender<orfail::Result<CoderId>>,
+        config: JsonVec<VideoEncoderConfig>,
+    );
+
+    pub fn closeCoder(coder_id: CoderId);
 }
 
 pub struct WebCodec;
@@ -83,6 +92,22 @@ impl Codec for WebCodec {
         }
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
+
+    fn create_encoder(
+        config: &VideoEncoderConfig,
+    ) -> impl Future<Output = orfail::Result<Self::Coder>> {
+        let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
+        unsafe {
+            createVideoEncoder(Box::into_raw(Box::new(tx)), JsonVec::new(config.clone()));
+        }
+        rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
+    }
+
+    fn close_coder(coder: &mut Self::Coder) {
+        unsafe {
+            closeCoder(*coder);
+        }
+    }
 }
 
 #[no_mangle]
@@ -109,6 +134,19 @@ pub fn freeTranscoder(transcoder: *mut Transcoder) {
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyCreateVideoDecoderResult(
+    transcoder: *mut Transcoder,
+    result_future: *mut oneshot::Sender<orfail::Result<CoderId>>,
+    result: JsonVec<orfail::Result<CoderId>>,
+) {
+    let result = unsafe { result.into_value() };
+    let tx = unsafe { Box::from_raw(result_future) };
+    let _ = tx.send(result);
+    let _ = pollTranscode(transcoder);
+}
+
+#[no_mangle]
+#[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
+pub fn notifyCreateVideoEncoderResult(
     transcoder: *mut Transcoder,
     result_future: *mut oneshot::Sender<orfail::Result<CoderId>>,
     result: JsonVec<orfail::Result<CoderId>>,

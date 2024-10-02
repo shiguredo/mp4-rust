@@ -14,10 +14,14 @@ let coderResultFutures = {};
                 console.log(new TextDecoder('utf-8').decode(
                     new Uint8Array(wasmMemory.buffer,messageOffset, messageLen)));
             },
+            async closeCoder(coderId) {
+                coders[coderId].close();
+            },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
                 console.log("createVideoDecoder: " + JSON.stringify(config));
                 config.description = new Uint8Array(config.description);
+                config.hardwareAcceleration = "prefer-hardware";
 
                 const coderId = nextCoderId;
 
@@ -35,6 +39,7 @@ let coderResultFutures = {};
                             transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
+                        // TODO: coderResultFutures も考慮する
                         console.log("video decode error: " +  error);
                         coderErrors[coderId] = error;
                     }
@@ -75,6 +80,42 @@ let coderResultFutures = {};
                 });
                 decoder.decode(chunk);
                 coderResultFutures[coderId] = resultFuture;
+            },
+            async createVideoEncoder(resultFuture, configWasmJson) {
+                const config = wasmJsonToValue(configWasmJson);
+                console.log("createVideoEncoder: " + JSON.stringify(config));
+
+                const coderId = nextCoderId;
+
+                const params = {
+                    output: function (frame) {
+                        console.log("encoded");
+                        // let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
+                        // let result = {"Ok": null};
+                        // let size = frame.allocationSize({format: "RGBA"});
+                        // let wasmBytes = wasmFunctions.allocateVec(size);
+                        // let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
+                        // frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size), {format: "RGBA"});
+                        // frame.close();
+                        // wasmFunctions.notifyDecodeSampleResult(
+                        //     transcoder, future, valueToWasmJson(result), wasmBytes);
+                    },
+                    error: function (error) {
+                        // TODO: coderResultFutures も考慮する
+                        console.log("video encode error: " +  error);
+                        coderErrors[coderId] = error;
+                    }
+                };
+
+                const encoder = new VideoEncoder(params);
+                nextCoderId += 1;
+                coders[coderId] = encoder;
+                await encoder.configure(config);
+
+                // 不正な config を指定したとしても、ここは常に成功する
+                let result = {"Ok": coderId};
+                console.log("createVideoEncoderResult: " + JSON.stringify(result));
+                wasmFunctions.notifyCreateVideoEncoderResult(transcoder, resultFuture, valueToWasmJson(result));
             },
         }
     };

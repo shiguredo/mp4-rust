@@ -10,16 +10,32 @@ use shiguredo_mp4::{
 
 use crate::mp4::{Chunk, InputMp4, Track};
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoEncoderConfig {
+    pub codec: String,
+    pub bitrate: u32,
+    pub framerate: u8,
+    pub hardware_acceleration: String,
+    pub width: u16,
+    pub height: u16,
+}
+
 pub trait Codec: 'static {
     type Coder;
 
-    // TODO: close
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
     fn decode_sample(
         decoder: &mut Self::Coder,
         is_key: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
+
+    fn create_encoder(
+        config: &VideoEncoderConfig,
+    ) -> impl Future<Output = orfail::Result<Self::Coder>>;
+
+    fn close_coder(coder: &mut Self::Coder);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,12 +216,24 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
             unreachable!();
         };
 
+        let encoder_config = VideoEncoderConfig {
+            codec: "vp8".to_owned(),
+            bitrate: 1_000_000,
+            framerate: 10,
+            //hardware_acceleration: "prefer-hardware".to_owned(),
+            hardware_acceleration: "no-preference".to_owned(),
+            width: 640,
+            height: 480,
+        };
         let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
+        let mut encoder = CODEC::create_encoder(&encoder_config).await.or_fail()?;
         for sample in &chunk.samples {
             CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)
                 .await
                 .or_fail()?;
         }
+        CODEC::close_coder(&mut decoder);
+        CODEC::close_coder(&mut encoder);
 
         Ok(()) // TODO: 変換後のチャンクを返す
     }
