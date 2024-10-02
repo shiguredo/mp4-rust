@@ -1,7 +1,7 @@
 use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
-use orfail::OrFail;
+use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::Encode;
+use shiguredo_mp4::{boxes::SampleEntry, BaseBox, Encode};
 
 use crate::mp4::{Chunk, InputMp4, Track};
 
@@ -48,6 +48,26 @@ impl Transcoder {
 
     pub fn start_transcode(&mut self) -> orfail::Result<()> {
         let input_mp4 = self.input_mp4.take().or_fail()?;
+        for track in &input_mp4.tracks {
+            if track.is_audio {
+                continue;
+            }
+
+            // 入力映像は H.264 のみ
+            if let Some(sample_entry) = track.chunks.iter().find_map(|c| {
+                if matches!(c.sample_entry, SampleEntry::Avc1(_)) {
+                    None
+                } else {
+                    Some(&c.sample_entry)
+                }
+            }) {
+                return Err(Failure::new(format!(
+                    "Only H.264 is supported for input video codec: {}",
+                    sample_entry.box_type()
+                )));
+            }
+        }
+
         let (transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         let _ = self.options;
         for track in input_mp4.tracks {
