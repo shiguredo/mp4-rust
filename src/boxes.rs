@@ -13,7 +13,7 @@ use crate::{
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
 ///
 /// ペイロードは単なるバイト列として扱われる
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnknownBox {
     /// ボックス種別
     pub box_type: BoxType,
@@ -160,7 +160,7 @@ impl Decode for Brand {
 }
 
 /// [ISO/IEC 14496-12] FileTypeBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct FtypBox {
     pub major_brand: Brand,
@@ -226,7 +226,7 @@ impl BaseBox for FtypBox {
 }
 
 /// [`Mp4File`](crate::Mp4File) のトップレベルに位置するボックス群のデフォルト実装
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum RootBox {
     Free(FreeBox),
@@ -292,7 +292,7 @@ impl BaseBox for RootBox {
 }
 
 /// [ISO/IEC 14496-12] FreeSpaceBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct FreeBox {
     pub payload: Vec<u8>,
@@ -337,7 +337,7 @@ impl BaseBox for FreeBox {
 }
 
 /// [ISO/IEC 14496-12] MediaDataBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MdatBox {
     /// ペイロードが可変長かどうか
     pub is_variable_size: bool,
@@ -396,7 +396,7 @@ impl BaseBox for MdatBox {
 }
 
 /// [ISO/IEC 14496-12] MovieBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
@@ -483,7 +483,7 @@ impl BaseBox for MoovBox {
 }
 
 /// [ISO/IEC 14496-12] MovieHeaderBox class (親: [`MoovBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MvhdBox {
     pub creation_time: Mp4FileTime,
@@ -616,7 +616,7 @@ impl FullBox for MvhdBox {
 }
 
 /// [ISO/IEC 14496-12] TrackBox class (親: [`MoovBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct TrakBox {
     pub tkhd_box: TkhdBox,
@@ -712,7 +712,7 @@ impl BaseBox for TrakBox {
 }
 
 /// [ISO/IEC 14496-12] TrackHeaderBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct TkhdBox {
     pub flag_track_enabled: bool,
@@ -883,7 +883,7 @@ impl FullBox for TkhdBox {
 }
 
 /// [ISO/IEC 14496-12] EditBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct EdtsBox {
     pub elst_box: Option<ElstBox>,
@@ -960,7 +960,7 @@ impl BaseBox for EdtsBox {
 }
 
 /// [`ElstBox`] に含まれるエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct ElstEntry {
     pub edit_duration: u64,
@@ -969,7 +969,7 @@ pub struct ElstEntry {
 }
 
 /// [ISO/IEC 14496-12] EditListBox class (親: [`EdtsBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct ElstBox {
     pub entries: Vec<ElstEntry>,
@@ -1072,7 +1072,7 @@ impl FullBox for ElstBox {
 }
 
 /// [ISO/IEC 14496-12] MediaBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MdiaBox {
     pub mdhd_box: MdhdBox,
@@ -1166,7 +1166,7 @@ impl BaseBox for MdiaBox {
 }
 
 /// [ISO/IEC 14496-12] MediaHeaderBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MdhdBox {
     pub creation_time: Mp4FileTime,
@@ -1296,7 +1296,7 @@ impl FullBox for MdhdBox {
 }
 
 /// [ISO/IEC 14496-12] HandlerBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HdlrBox {
     pub handler_type: [u8; 4],
@@ -1382,7 +1382,7 @@ impl FullBox for HdlrBox {
 }
 
 /// [ISO/IEC 14496-12] MediaInformationBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MinfBox {
     pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
@@ -1486,7 +1486,7 @@ impl BaseBox for MinfBox {
 }
 
 /// [ISO/IEC 14496-12] SoundMediaHeaderBox class (親: [`MinfBox`]）
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SmhdBox {
     pub balance: FixedPointNumber<u8, u8>,
@@ -1555,7 +1555,7 @@ impl FullBox for SmhdBox {
 }
 
 /// [ISO/IEC 14496-12] VideoMediaHeaderBox class (親: [`MinfBox`]）
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VmhdBox {
     pub graphicsmode: u16,
@@ -1638,7 +1638,7 @@ impl FullBox for VmhdBox {
 }
 
 /// [ISO/IEC 14496-12] DataInformationBox class (親: [`MinfBox`]）
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct DinfBox {
     pub dref_box: DrefBox,
@@ -1720,7 +1720,7 @@ impl BaseBox for DinfBox {
 }
 
 /// [ISO/IEC 14496-12] DataReferenceBox class (親: [`DinfBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct DrefBox {
     pub url_box: Option<UrlBox>,
@@ -1818,7 +1818,7 @@ impl FullBox for DrefBox {
 }
 
 /// [ISO/IEC 14496-12] DataEntryUrlBox class (親: [`DrefBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct UrlBox {
     pub location: Option<Utf8String>,
@@ -1891,7 +1891,7 @@ impl FullBox for UrlBox {
 }
 
 /// [ISO/IEC 14496-12] SampleTableBox class (親: [`MinfBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StblBox {
     pub stsd_box: StsdBox,
@@ -2023,7 +2023,7 @@ impl BaseBox for StblBox {
 }
 
 /// [ISO/IEC 14496-12] SampleDescriptionBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StsdBox {
     pub entries: Vec<SampleEntry>,
@@ -2095,7 +2095,7 @@ impl FullBox for StsdBox {
 }
 
 /// [`StsdBox`] に含まれるエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum SampleEntry {
     Avc1(Avc1Box),
@@ -2173,7 +2173,7 @@ impl BaseBox for SampleEntry {
 }
 
 /// 映像系の [`SampleEntry`] に共通のフィールドをまとめた構造体
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VisualSampleEntryFields {
     pub data_reference_index: u16,
@@ -2249,7 +2249,7 @@ impl Decode for VisualSampleEntryFields {
 }
 
 /// [ISO/IEC 14496-15] AVCSampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Avc1Box {
     pub visual: VisualSampleEntryFields,
@@ -2329,7 +2329,7 @@ impl BaseBox for Avc1Box {
 }
 
 /// [ISO/IEC 14496-15] AVCConfigurationBox class (親: [`Avc1Box`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct AvccBox {
     pub avc_profile_indication: u8,
@@ -2500,7 +2500,7 @@ impl BaseBox for AvccBox {
 }
 
 /// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Hev1Box {
     pub visual: VisualSampleEntryFields,
@@ -2580,7 +2580,7 @@ impl BaseBox for Hev1Box {
 }
 
 /// [`HvccBox`] 内の NAL ユニット配列を保持する構造体
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HvccNalUintArray {
     pub array_completeness: Uint<u8, 1, 7>,
@@ -2589,7 +2589,7 @@ pub struct HvccNalUintArray {
 }
 
 /// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HvccBox {
     pub general_profile_space: Uint<u8, 2, 6>,
@@ -2770,7 +2770,7 @@ impl BaseBox for HvccBox {
 }
 
 /// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Vp08Box {
     pub visual: VisualSampleEntryFields,
@@ -2850,7 +2850,7 @@ impl BaseBox for Vp08Box {
 }
 
 /// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Vp09Box {
     pub visual: VisualSampleEntryFields,
@@ -2930,7 +2930,7 @@ impl BaseBox for Vp09Box {
 }
 
 /// [<https://www.webmproject.org/vp9/mp4/>] VPCodecConfigurationBox class (親: [`Vp08Box`], [`Vp09Box`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VpccBox {
     pub profile: u8,
@@ -3041,7 +3041,7 @@ impl FullBox for VpccBox {
 }
 
 /// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Av01Box {
     pub visual: VisualSampleEntryFields,
@@ -3121,7 +3121,7 @@ impl BaseBox for Av01Box {
 }
 
 /// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Av1cBox {
     pub seq_profile: Uint<u8, 3, 5>,
@@ -3248,7 +3248,7 @@ impl BaseBox for Av1cBox {
 }
 
 /// [`SttsBox`] が保持するエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SttsEntry {
     pub sample_count: u32,
@@ -3256,7 +3256,7 @@ pub struct SttsEntry {
 }
 
 /// [ISO/IEC 14496-12] TimeToSampleBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SttsBox {
     pub entries: Vec<SttsEntry>,
@@ -3331,7 +3331,7 @@ impl FullBox for SttsBox {
 }
 
 /// [`StscBox`] が保持するエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StscEntry {
     pub first_chunk: u32,
@@ -3340,7 +3340,7 @@ pub struct StscEntry {
 }
 
 /// [ISO/IEC 14496-12] SampleToChunkBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StscBox {
     pub entries: Vec<StscEntry>,
@@ -3417,7 +3417,7 @@ impl FullBox for StscBox {
 }
 
 /// [ISO/IEC 14496-12] SampleSizeBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum StszBox {
     Fixed {
@@ -3514,7 +3514,7 @@ impl FullBox for StszBox {
 }
 
 /// [ISO/IEC 14496-12] ChunkOffsetBox class (親: [`StcoBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StcoBox {
     pub chunk_offsets: Vec<u32>,
@@ -3585,7 +3585,7 @@ impl FullBox for StcoBox {
 }
 
 /// [ISO/IEC 14496-12] ChunkLargeOffsetBox class (親: [`Co64Box`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Co64Box {
     pub chunk_offsets: Vec<u64>,
@@ -3656,7 +3656,7 @@ impl FullBox for Co64Box {
 }
 
 /// [ISO/IEC 14496-12] SyncSampleBox class (親: [`StssBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StssBox {
     pub sample_numbers: Vec<u32>,
@@ -3727,7 +3727,7 @@ impl FullBox for StssBox {
 }
 
 /// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class (親: [`StsdBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct OpusBox {
     pub audio: AudioSampleEntryFields,
@@ -3807,7 +3807,7 @@ impl BaseBox for OpusBox {
 }
 
 /// 音声系の [`SampleEntry`] に共通のフィールドをまとめた構造体
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct AudioSampleEntryFields {
     pub data_reference_index: u16,
@@ -3855,7 +3855,7 @@ impl Decode for AudioSampleEntryFields {
 }
 
 /// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSpecificBox class (親: [`OpusBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct DopsBox {
     pub output_channel_count: u8,

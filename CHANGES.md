@@ -11,6 +11,8 @@
 
 ## develop
 
+- [UPDATE] ボックスに `Hash` を実装する
+  - @sile
 - [CHANGE] `BoxHeader` 書き込み時に large size にするかどうかの自動判定は行わないようにする
   - `BoxSize` 自体はどちらを使うべきかの情報を有しているので、それをそのまま反映するようにした
   - @sile
