@@ -5,6 +5,7 @@ let transcoder;
 let nextCoderId = 0;
 let coders = {};
 let coderErrors = {};
+let coderResultFutures = {};
 
 (async () => {
     const importObject = {
@@ -22,15 +23,16 @@ let coderErrors = {};
 
                 const params = {
                     output: function (frame) {
-                        console.log("decoded");
-                        // TODO: wasm.buffer に直接コピーする
-
-                        // const buffer = new Float32Array(chunk.numberOfFrames);
-                        // chunk.copyTo(buffer, { planeIndex: 0 });
-                        // const result = {"Ok": [...buffer]};
-                        // wasmInstance.exports.notifyDecodeAudioSampleResult(
-                        //     mixer, decodeAudioSampleFuture, valueToWasmJson(result));
+                        // console.log("decoded: " + frame.format + ", " + frame.codedWidth + "x" + frame.codedHeight);
+                        let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
+                        let result = {"Ok": null};
+                        let size = frame.allocationSize({format: "RGBA"});
+                        let wasmBytes = wasmFunctions.allocateVec(size);
+                        let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
+                        frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size), {format: "RGBA"});
                         frame.close();
+                        wasmFunctions.notifyDecodeSampleResult(
+                            transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
                         console.log("video decode error: " +  error);
@@ -50,22 +52,21 @@ let coderErrors = {};
                     transcoder, resultFuture, valueToWasmJson(result));
             },
             async decodeSample(resultFuture, coderId, isKey, dataBytes, dataBytesLen) {
-                console.log("decodeSample: isKey=" + isKey);
+                // console.log("decodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
-                    wasmInstance.exports.notifyCreateVideoDecoderResult(
+                    wasmFunctons.notifyDecodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
                 if (coders[coderId] === undefined) {
                     result = {"Err": {"message": "unknown decoder"}};
-                    wasmInstance.exports.notifyCreateVideoDecoderResult(
+                    wasmFunctons.notifyDecodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
 
                 const decoder = coders[coderId];
-                //decodeAudioSampleFuture = resultFuture;
                 const chunk = new EncodedVideoChunk({
                     type: isKey === 1 ? "key" : "delta",
                     timestamp: 0, // dummy value
@@ -73,7 +74,7 @@ let coderErrors = {};
                     data: new Uint8Array(wasmMemory.buffer, dataBytes, dataBytesLen).slice(),
                 });
                 decoder.decode(chunk);
-                // await decoder.flush();
+                coderResultFutures[coderId] = resultFuture;
             },
         }
     };
