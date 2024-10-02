@@ -8,7 +8,7 @@ use shiguredo_mp4::{
     BaseBox, Encode,
 };
 
-use crate::mp4::{Chunk, InputMp4, Track};
+use crate::mp4::{InputMp4, Track};
 
 pub trait Codec {
     type Coder;
@@ -158,15 +158,36 @@ impl TrackTranscoder {
             is_audio: self.track.is_audio,
             chunks: Vec::new(),
         };
+
+        // サンプルエントリーが同じチャンクはまとめる
+        let mut current_chunk = None;
         for chunk in &self.track.chunks {
-            let output_chunk = self.transcode_chunk(chunk).await.or_fail()?;
-            output_track.chunks.push(output_chunk);
+            let Some(current) = &mut current_chunk else {
+                current_chunk = Some(chunk.clone());
+                continue;
+            };
+            if current.sample_entry != chunk.sample_entry {
+                output_track
+                    .chunks
+                    .push(std::mem::replace(current, chunk.clone()));
+                continue;
+            }
+            current.samples.extend(chunk.samples.iter().cloned());
         }
+        if let Some(chunk) = current_chunk {
+            output_track.chunks.push(chunk);
+        }
+
+        // for chunk in &self.track.chunks {
+        //     let output_chunk = self.transcode_chunk(chunk).await.or_fail()?;
+        //     output_track.chunks.push(output_chunk);
+        // }
+
         Ok(output_track)
     }
 
-    async fn transcode_chunk(&self, input_chunk: &Chunk) -> orfail::Result<Chunk> {
-        // TODO: 入出力のチャンク数を一対一にマッピングする必要はない
-        Ok(input_chunk.clone())
-    }
+    // async fn transcode_chunk(&self, input_chunk: &Chunk) -> orfail::Result<Chunk> {
+    //     // TODO: 入出力のチャンク数を一対一にマッピングする必要はない
+    //     Ok(input_chunk.clone())
+    // }
 }

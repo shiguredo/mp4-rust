@@ -1,4 +1,3 @@
-// TODO: output_mp4 と統合する
 use std::{collections::HashMap, time::Duration};
 
 use orfail::{Failure, OrFail};
@@ -163,7 +162,7 @@ impl InputMp4 {
     }
 
     fn build_stbl_box(&mut self, track: &Track) -> orfail::Result<StblBox> {
-        let mut uniq_sample_entries = HashMap::new();
+        let mut uniq_sample_entries = HashMap::new(); // TODO: これはもう不要かも
         let mut stsd_entries = Vec::new();
         for chunk in &track.chunks {
             if uniq_sample_entries.contains_key(&chunk.sample_entry) {
