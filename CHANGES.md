@@ -11,6 +11,8 @@
 
 ## develop
 
+- [CHANGE] 仕様上 0 を取らないフィールドの型は `NonZeroXXX` にする
+  -  @sile
 - [UPDATE] ボックスに `Hash` を実装する
   - @sile
 - [CHANGE] `BoxHeader` 書き込み時に large size にするかどうかの自動判定は行わないようにする

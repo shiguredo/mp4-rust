@@ -488,7 +488,7 @@ impl BaseBox for MoovBox {
 pub struct MvhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
-    pub timescale: u32,
+    pub timescale: NonZeroU32,
     pub duration: u64,
     pub rate: FixedPointNumber<i16, u16>,
     pub volume: FixedPointNumber<i8, u8>,
@@ -536,7 +536,7 @@ impl MvhdBox {
         let mut this = Self {
             creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
-            timescale: 0,
+            timescale: NonZeroU32::MIN,
             duration: 0,
             rate: Self::DEFAULT_RATE,
             volume: Self::DEFAULT_VOLUME,
@@ -547,13 +547,13 @@ impl MvhdBox {
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
             this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u64::decode(reader)?;
         } else {
             this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
                 u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u32::decode(reader)? as u64;
         }
 
@@ -1171,7 +1171,7 @@ impl BaseBox for MdiaBox {
 pub struct MdhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
-    pub timescale: u32,
+    pub timescale: NonZeroU32,
     pub duration: u64,
 
     /// ISO-639-2/T language code
@@ -1217,7 +1217,7 @@ impl MdhdBox {
         let mut this = Self {
             creation_time: Default::default(),
             modification_time: Default::default(),
-            timescale: Default::default(),
+            timescale: NonZeroU32::MIN,
             duration: Default::default(),
             language: Default::default(),
         };
@@ -1225,13 +1225,13 @@ impl MdhdBox {
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
             this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u64::decode(reader)?;
         } else {
             this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
                 u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u32::decode(reader)? as u64;
         }
 
@@ -3334,9 +3334,9 @@ impl FullBox for SttsBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StscEntry {
-    pub first_chunk: u32,
+    pub first_chunk: NonZeroU32,
     pub sample_per_chunk: u32,
-    pub sample_description_index: u32,
+    pub sample_description_index: NonZeroU32,
 }
 
 /// [ISO/IEC 14496-12] SampleToChunkBox class (親: [`StblBox`])
@@ -3367,9 +3367,9 @@ impl StscBox {
         let mut entries = Vec::with_capacity(count);
         for _ in 0..count {
             entries.push(StscEntry {
-                first_chunk: u32::decode(reader)?,
+                first_chunk: NonZeroU32::decode(reader)?,
                 sample_per_chunk: u32::decode(reader)?,
-                sample_description_index: u32::decode(reader)?,
+                sample_description_index: NonZeroU32::decode(reader)?,
             });
         }
         Ok(Self { entries })
@@ -3659,7 +3659,7 @@ impl FullBox for Co64Box {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StssBox {
-    pub sample_numbers: Vec<u32>,
+    pub sample_numbers: Vec<NonZeroU32>,
 }
 
 impl StssBox {
@@ -3680,7 +3680,7 @@ impl StssBox {
         let count = u32::decode(reader)? as usize;
         let mut sample_numbers = Vec::with_capacity(count);
         for _ in 0..count {
-            sample_numbers.push(u32::decode(reader)?);
+            sample_numbers.push(NonZeroU32::decode(reader)?);
         }
         Ok(Self { sample_numbers })
     }
