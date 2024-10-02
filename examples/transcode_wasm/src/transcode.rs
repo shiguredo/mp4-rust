@@ -1,6 +1,7 @@
 use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::OrFail;
 use serde::{Deserialize, Serialize};
+use shiguredo_mp4::Encode;
 
 use crate::mp4::{Chunk, InputMp4, Track};
 
@@ -19,6 +20,7 @@ pub struct TranscodeProgress {
 pub struct Transcoder {
     options: TranscodeOptions,
     input_mp4: Option<InputMp4>,
+    output_mp4: Vec<u8>,
     executor: LocalPool,
     executing: bool,
     transcode_result_rx: futures::channel::mpsc::UnboundedReceiver<orfail::Result<Track>>,
@@ -31,6 +33,7 @@ impl Transcoder {
         Self {
             options,
             input_mp4: None,
+            output_mp4: Vec::new(),
             executor: LocalPool::new(),
             executing: false,
             transcode_result_rx,
@@ -95,11 +98,15 @@ impl Transcoder {
     }
 
     pub fn build_output_mp4_file(&mut self) -> orfail::Result<()> {
-        todo!()
+        let builder = InputMp4::new(std::mem::take(&mut self.output_tracks));
+        let mp4 = builder.build().or_fail()?;
+        self.output_mp4.clear();
+        mp4.encode(&mut self.output_mp4).or_fail()?;
+        Ok(())
     }
 
     pub fn get_output_mp4_file(&mut self) -> &Vec<u8> {
-        todo!()
+        &self.output_mp4
     }
 }
 
@@ -110,7 +117,10 @@ struct TrackTranscoder {
 
 impl TrackTranscoder {
     async fn run(self) -> orfail::Result<Track> {
-        let mut output_track = Track { chunks: Vec::new() };
+        let mut output_track = Track {
+            is_audio: self.track.is_audio,
+            chunks: Vec::new(),
+        };
         for chunk in &self.track.chunks {
             let output_chunk = self.transcode_chunk(chunk).await.or_fail()?;
             output_track.chunks.push(output_chunk);

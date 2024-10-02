@@ -3,16 +3,213 @@ use std::time::Duration;
 
 use orfail::{Failure, OrFail};
 use shiguredo_mp4::{
-    boxes::{RootBox, SampleEntry, StblBox, StscEntry, StszBox},
-    Decode, Either, Mp4File,
+    boxes::{
+        Brand, DinfBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox, MvhdBox,
+        RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StszBox,
+        SttsBox, SttsEntry, TkhdBox, TrakBox, VmhdBox,
+    },
+    BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime,
 };
 
+const TIMESCALE: u32 = 1_000_000; // いったんマイクロ秒に決め打ち
+
+// TOOD: rename
 #[derive(Debug)]
 pub struct InputMp4 {
     pub tracks: Vec<Track>,
+    pub chunk_offsets: Vec<u32>,
+    pub file_size: u32,
 }
 
 impl InputMp4 {
+    pub fn new(tracks: Vec<Track>) -> Self {
+        Self {
+            tracks,
+            chunk_offsets: Vec::new(),
+            file_size: 0,
+        }
+    }
+
+    pub fn build(mut self) -> orfail::Result<Mp4File> {
+        let ftyp_box = self.build_ftyp_box();
+        let mdat_box = self.build_mdat_box();
+        let moov_box = self.build_moov_box().or_fail()?;
+        Ok(Mp4File {
+            ftyp_box,
+            boxes: vec![RootBox::Mdat(mdat_box), RootBox::Moov(moov_box)],
+        })
+    }
+
+    fn build_ftyp_box(&mut self) -> FtypBox {
+        let ftyp_box = FtypBox {
+            major_brand: Brand::ISOM,
+            minor_version: 0,
+            compatible_brands: vec![
+                Brand::ISOM,
+                Brand::ISO2,
+                Brand::MP41,
+                Brand::AVC1,
+                Brand::AV01,
+            ],
+        };
+        self.file_size += ftyp_box.box_size().get() as u32;
+        ftyp_box
+    }
+
+    fn build_mdat_box(&mut self) -> MdatBox {
+        let mut mdat_box = MdatBox {
+            is_variable_size: false,
+            payload: Vec::new(),
+        };
+        self.file_size += mdat_box.box_size().get() as u32;
+
+        for track in &self.tracks {
+            for chunk in &track.chunks {
+                self.chunk_offsets.push(self.file_size);
+                for sample in &chunk.samples {
+                    mdat_box.payload.extend_from_slice(&sample.data);
+                    self.file_size += sample.data.len() as u32;
+                }
+            }
+        }
+        mdat_box
+    }
+
+    fn build_moov_box(&mut self) -> orfail::Result<MoovBox> {
+        let mvhd_box = MvhdBox {
+            creation_time: Mp4FileTime::default(), // TODO: 現在時刻を使う
+            modification_time: Mp4FileTime::default(),
+            timescale: TIMESCALE,
+            duration: self
+                .tracks
+                .iter()
+                .map(|t| t.duration().as_micros())
+                .max()
+                .unwrap_or_default() as u64,
+            rate: MvhdBox::DEFAULT_RATE,
+            volume: MvhdBox::DEFAULT_VOLUME,
+            matrix: MvhdBox::DEFAULT_MATRIX,
+            next_track_id: self.tracks.len() as u32 + 1,
+        };
+        let mut trak_boxes = Vec::new();
+        for (i, track) in std::mem::take(&mut self.tracks).iter().enumerate() {
+            let trak_box = self.build_trak_box(i as u32 + 1, track).or_fail()?;
+            trak_boxes.push(trak_box);
+        }
+        Ok(MoovBox {
+            mvhd_box,
+            trak_boxes,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_trak_box(&mut self, track_id: u32, track: &Track) -> orfail::Result<TrakBox> {
+        let tkhd_box = TkhdBox {
+            flag_track_enabled: true,
+            flag_track_in_movie: true,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: false,
+            creation_time: Mp4FileTime::default(), // TODO
+            modification_time: Mp4FileTime::default(),
+            track_id,
+            duration: track.duration().as_micros() as u64,
+            layer: TkhdBox::DEFAULT_LAYER,
+            alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
+            volume: TkhdBox::DEFAULT_AUDIO_VOLUME,
+            matrix: TkhdBox::DEFAULT_MATRIX,
+            width: FixedPointNumber::default(), // TODO: ちゃんと値を設定する
+            height: FixedPointNumber::default(),
+        };
+        Ok(TrakBox {
+            tkhd_box,
+            edts_box: None,
+            mdia_box: self.build_mdia_box(track).or_fail()?,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_mdia_box(&mut self, track: &Track) -> orfail::Result<MdiaBox> {
+        let mdhd_box = MdhdBox {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: TIMESCALE,
+            duration: track.duration().as_micros() as u64,
+            language: MdhdBox::LANGUAGE_UNDEFINED,
+        };
+        let hdlr_box = HdlrBox {
+            handler_type: if track.is_audio {
+                HdlrBox::HANDLER_TYPE_SOUN
+            } else {
+                HdlrBox::HANDLER_TYPE_VIDE
+            },
+            name: vec![0], // TODO: Utf8String::to_vec()
+        };
+        let minf_box = MinfBox {
+            smhd_or_vmhd_box: if track.is_audio {
+                Either::A(SmhdBox::default())
+            } else {
+                Either::B(VmhdBox::default())
+            },
+            dinf_box: DinfBox::LOCAL_FILE,
+            stbl_box: self.build_stbl_box(track).or_fail()?,
+            unknown_boxes: Vec::new(),
+        };
+        Ok(MdiaBox {
+            mdhd_box,
+            hdlr_box,
+            minf_box,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_stbl_box(&mut self, track: &Track) -> orfail::Result<StblBox> {
+        let stsd_box = StsdBox {
+            entries: track
+                .chunks
+                .iter()
+                .map(|c| c.sample_entry.clone())
+                .collect(),
+        };
+        let stts_box = SttsBox {
+            // TODO: 圧縮する
+            entries: track
+                .samples()
+                .map(|s| SttsEntry {
+                    sample_count: 1,
+                    sample_delta: s.duration.as_micros() as u32,
+                })
+                .collect(),
+        };
+        let stsc_box = StscBox {
+            // TODO: 圧縮する
+            entries: track
+                .chunks
+                .iter()
+                .enumerate()
+                .map(|(i, c)| StscEntry {
+                    first_chunk: i as u32 + 1,
+                    sample_per_chunk: c.samples.len() as u32,
+                    sample_description_index: i as u32 + 1,
+                })
+                .collect(),
+        };
+        let stsz_box = StszBox::Variable {
+            entry_sizes: track.samples().map(|s| s.data.len() as u32).collect(),
+        };
+        let stco_box = StcoBox {
+            chunk_offsets: self.chunk_offsets.drain(0..track.chunks.len()).collect(),
+        };
+        Ok(StblBox {
+            stsd_box,
+            stts_box,
+            stsc_box,
+            stsz_box,
+            stco_or_co64_box: Either::A(stco_box),
+            stss_box: None,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
     pub fn parse(mp4_file_bytes: &[u8]) -> orfail::Result<Self> {
         let mp4_file = Mp4File::decode(&mut &mp4_file_bytes[..]).or_fail()?;
         let moov_box = mp4_file
@@ -31,25 +228,47 @@ impl InputMp4 {
             let builder = InputTrackBuilder {
                 track_index,
                 mp4_file_bytes,
+                is_audio: trak_box.mdia_box.hdlr_box.handler_type == HdlrBox::HANDLER_TYPE_SOUN,
                 timescale: trak_box.mdia_box.mdhd_box.timescale, // TODO: NonZero にする
                 stbl_box: &trak_box.mdia_box.minf_box.stbl_box,
             };
             tracks.push(builder.build().or_fail()?);
         }
-        Ok(Self { tracks })
+        Ok(Self {
+            tracks,
+
+            // TODO:
+            chunk_offsets: Vec::new(),
+            file_size: mp4_file_bytes.len() as u32,
+        })
     }
 }
 
 // TODO: move
 #[derive(Debug)]
 pub struct Track {
+    pub is_audio: bool,
     pub chunks: Vec<Chunk>,
+}
+
+impl Track {
+    fn duration(&self) -> Duration {
+        self.chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration))
+            .sum()
+    }
+
+    fn samples(&self) -> impl '_ + Iterator<Item = &Sample> {
+        self.chunks.iter().flat_map(|c| c.samples.iter())
+    }
 }
 
 #[derive(Debug)]
 struct InputTrackBuilder<'a> {
     track_index: usize,
     mp4_file_bytes: &'a [u8],
+    is_audio: bool,
     timescale: u32,
     stbl_box: &'a StblBox,
 }
@@ -99,7 +318,10 @@ impl<'a> InputTrackBuilder<'a> {
             chunk_index_end = first_chunk_index;
         }
         chunks.reverse();
-        Ok(Track { chunks })
+        Ok(Track {
+            is_audio: self.is_audio,
+            chunks,
+        })
     }
 
     fn build_chunk(

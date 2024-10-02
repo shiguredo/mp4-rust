@@ -67,7 +67,7 @@ function pollTranscode() {
 }
 
 function download() {
-    const mp4 = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33]); //getOutputMp4File();
+    const mp4 = getOutputMp4File();
     const blob = new Blob([mp4], { type: 'video/mp4' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
