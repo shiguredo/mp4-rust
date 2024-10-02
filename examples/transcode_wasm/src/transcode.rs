@@ -17,6 +17,7 @@ pub trait Codec: 'static {
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
     fn decode_sample(
         decoder: &mut Self::Coder,
+        is_key: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
 }
@@ -201,7 +202,7 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
 
         let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
         for sample in &chunk.samples {
-            CODEC::decode_sample(&mut decoder, &sample.data)
+            CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)
                 .await
                 .or_fail()?;
         }

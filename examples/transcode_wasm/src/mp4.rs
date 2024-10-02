@@ -162,6 +162,7 @@ impl InputMp4 {
     }
 
     fn build_stbl_box(&mut self, track: &Track) -> orfail::Result<StblBox> {
+        // TODO: 映像なら sync table を設定する
         let mut uniq_sample_entries = HashMap::new(); // TODO: これはもう不要かも
         let mut stsd_entries = Vec::new();
         for chunk in &track.chunks {
@@ -371,13 +372,18 @@ impl<'a> InputTrackBuilder<'a> {
         sample_offset: usize,
     ) -> orfail::Result<Sample> {
         let duration = self.sample_duration(sample_index).or_fail()?;
+        let is_key = self.sample_is_key(sample_index).or_fail()?;
         let chunk_offset = self.chunk_offset(chunk_index).or_fail()?;
         let sample_data_start = chunk_offset as usize + sample_offset;
         let sample_data_end =
             sample_data_start + self.sample_size(sample_index).or_fail()? as usize;
         (sample_data_end <= self.mp4_file_bytes.len()).or_fail()?;
         let data = self.mp4_file_bytes[sample_data_start..sample_data_end].to_vec();
-        Ok(Sample { duration, data })
+        Ok(Sample {
+            duration,
+            is_key,
+            data,
+        })
     }
 
     // TODO: StblBox に移す
@@ -392,6 +398,16 @@ impl<'a> InputTrackBuilder<'a> {
                 self.track_index + 1
             )
         })
+    }
+
+    fn sample_is_key(&self, sample_index: usize) -> orfail::Result<bool> {
+        let Some(stss_box) = &self.stbl_box.stss_box else {
+            return Ok(true);
+        };
+
+        // TODO: optimize
+        let i = sample_index as u32 + 1; // 1 origin に直す
+        Ok(stss_box.sample_numbers.contains(&i))
     }
 
     fn sample_duration(&self, sample_index: usize) -> orfail::Result<Duration> {
@@ -453,5 +469,6 @@ pub struct Chunk {
 #[derive(Debug, Clone)]
 pub struct Sample {
     pub duration: Duration,
+    pub is_key: bool,
     pub data: Vec<u8>,
 }

@@ -16,6 +16,7 @@ let coderErrors = {};
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
                 console.log("createVideoDecoder: " + JSON.stringify(config));
+                config.description = new Uint8Array(config.description);
 
                 const coderId = nextCoderId;
 
@@ -44,32 +45,36 @@ let coderErrors = {};
 
                 // 不正な config を指定したとしても、ここは常に成功する
                 let result = {"Ok": coderId};
-                // TODO
-                // if (coderErrors[coderId] !== undefined) {
-                //     result = {"Err": {"message": coderErrors[coderId]}};
-                // }
                 console.log("createVideoDecoderResult: " + JSON.stringify(result));
                 wasmInstance.exports.notifyCreateVideoDecoderResult(
                     transcoder, resultFuture, valueToWasmJson(result));
             },
-            // async decodeSample(resultFuture, decoder, dataBytes, dataBytesLen) {
-            //     console.log("decodeSample");
-            //     if (decoder !== 0) {
-            //         throw "unexpected decoder";
-            //     }
+            async decodeSample(resultFuture, coderId, isKey, dataBytes, dataBytesLen) {
+                console.log("decodeSample: isKey=" + isKey);
+                if (coderErrors[coderId] !== undefined) {
+                    result = {"Err": {"message": coderErrors[coderId]}};
+                    wasmInstance.exports.notifyCreateVideoDecoderResult(
+                        transcoder, resultFuture, valueToWasmJson(result), null);
+                    return;
+                }
+                if (coders[coderId] === undefined) {
+                    result = {"Err": {"message": "unknown decoder"}};
+                    wasmInstance.exports.notifyCreateVideoDecoderResult(
+                        transcoder, resultFuture, valueToWasmJson(result), null);
+                    return;
+                }
 
-            //     // ある程度並行してデコードが行えるようにする
-            //     decodeAudioSampleFuture = resultFuture;
-            //     const chunk = new EncodedAudioChunk({
-            //         type: "key",
-            //         timestamp: 0, // TODO
-            //         duration: 20, // TODO
-            //         data: wasmBytesToUint8Array(dataBytes, dataBytesLen),
-            //     });
-            //     audioDecoder.decode(chunk);
-            //     await audioDecoder.flush();
-            //     console.log("decoded");
-            // },
+                const decoder = coders[coderId];
+                //decodeAudioSampleFuture = resultFuture;
+                const chunk = new EncodedVideoChunk({
+                    type: isKey === 1 ? "key" : "delta",
+                    timestamp: 0, // dummy value
+                    duration: 0, // dummy value
+                    data: new Uint8Array(wasmMemory.buffer, dataBytes, dataBytesLen).slice(),
+                });
+                decoder.decode(chunk);
+                // await decoder.flush();
+            },
         }
     };
     wasmInstance = (await WebAssembly.instantiateStreaming(fetch("transcode_wasm.wasm"), importObject)).instance;

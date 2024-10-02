@@ -3,7 +3,7 @@ use std::{future::Future, marker::PhantomData};
 use futures::{channel::oneshot, TryFutureExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::boxes::Avc1Box;
+use shiguredo_mp4::{boxes::Avc1Box, Encode};
 use transcode::{Codec, TranscodeOptions, TranscodeProgress};
 
 pub mod mp4;
@@ -12,6 +12,7 @@ pub mod transcode;
 #[derive(Serialize)]
 pub struct VideoDecoderConfig {
     pub codec: String,
+    pub description: Vec<u8>,
 }
 
 extern "C" {
@@ -22,6 +23,15 @@ extern "C" {
         result_future: *mut oneshot::Sender<orfail::Result<CoderId>>,
         config: JsonVec<VideoDecoderConfig>,
     );
+
+    #[expect(improper_ctypes)]
+    pub fn decodeSample(
+        result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
+        coder_id: CoderId,
+        is_key: bool,
+        data_offset: *const u8,
+        data_len: u32,
+    );
 }
 
 pub struct WebCodec;
@@ -29,12 +39,18 @@ pub struct WebCodec;
 pub type CoderId = u32;
 pub type Transcoder = transcode::Transcoder<WebCodec>;
 
-#[expect(unused_variables, unreachable_code)]
 impl Codec for WebCodec {
     type Coder = CoderId;
 
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
+
+        let mut description = Vec::new();
+        config
+            .avcc_box
+            .encode(&mut description)
+            .expect("unreachable");
+        description.drain(..8); // box header を取り除く
         let config = VideoDecoderConfig {
             codec: format!(
                 "avc1.{:02x}{:02x}{:02x}",
@@ -42,6 +58,7 @@ impl Codec for WebCodec {
                 config.avcc_box.profile_compatibility,
                 config.avcc_box.avc_level_indication
             ),
+            description,
         };
         unsafe {
             createVideoDecoder(Box::into_raw(Box::new(tx)), JsonVec::new(config));
@@ -51,9 +68,20 @@ impl Codec for WebCodec {
 
     fn decode_sample(
         decoder: &mut Self::Coder,
+        is_key: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<Vec<u8>>> {
-        futures::future::ok(todo!())
+        let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
+        unsafe {
+            decodeSample(
+                Box::into_raw(Box::new(tx)),
+                *decoder,
+                is_key,
+                encoded_data.as_ptr(),
+                encoded_data.len() as u32,
+            );
+        }
+        rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
 }
 
@@ -77,6 +105,7 @@ pub fn freeTranscoder(transcoder: *mut Transcoder) {
     let _ = unsafe { Box::from_raw(transcoder) };
 }
 
+// TODO: 名前から "video" は外す
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyCreateVideoDecoderResult(
@@ -87,6 +116,20 @@ pub fn notifyCreateVideoDecoderResult(
     let result = unsafe { result.into_value() };
     let tx = unsafe { Box::from_raw(result_future) };
     let _ = tx.send(result);
+    let _ = pollTranscode(transcoder);
+}
+
+#[no_mangle]
+#[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
+pub fn notifyDecodeSampleResult(
+    transcoder: *mut Transcoder,
+    result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
+    result: JsonVec<orfail::Result<()>>,
+    decoded_data: *mut Vec<u8>,
+) {
+    let result = unsafe { result.into_value() };
+    let tx = unsafe { Box::from_raw(result_future) };
+    let _ = tx.send(result.map(|()| *unsafe { Box::from_raw(decoded_data) }));
     let _ = pollTranscode(transcoder);
 }
 
