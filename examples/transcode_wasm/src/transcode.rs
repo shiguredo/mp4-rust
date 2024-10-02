@@ -4,11 +4,19 @@ use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
-    boxes::{Avc1Box, SampleEntry},
-    BaseBox, Encode,
+    boxes::{Avc1Box, SampleEntry, VisualSampleEntryFields, Vp08Box, VpccBox},
+    BaseBox, Encode, Uint,
 };
 
-use crate::mp4::{Chunk, InputMp4, Track};
+use crate::mp4::{Chunk, InputMp4, Sample, Track};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoFrame {
+    pub width: u16,
+    pub height: u16,
+    #[serde(default)]
+    pub data: Vec<u8>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,11 +37,16 @@ pub trait Codec: 'static {
         decoder: &mut Self::Coder,
         is_key: bool,
         encoded_data: &[u8],
-    ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
+    ) -> impl Future<Output = orfail::Result<VideoFrame>>;
 
     fn create_encoder(
         config: &VideoEncoderConfig,
     ) -> impl Future<Output = orfail::Result<Self::Coder>>;
+    fn encode_sample(
+        encoder: &mut Self::Coder,
+        is_key: bool,
+        frame: &VideoFrame,
+    ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
 
     fn close_coder(coder: &mut Self::Coder);
 }
@@ -200,20 +213,50 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
             output_track.chunks.push(chunk);
         }
 
-        for chunk in &output_track.chunks {
+        for chunk in &mut output_track.chunks {
             if !matches!(chunk.sample_entry, SampleEntry::Avc1(_)) {
                 // H.264 以外 (= 音声) は無変換
                 continue;
             }
-            self.transcode_chunk(chunk).await.or_fail()?;
+            *chunk = self.transcode_chunk(chunk).await.or_fail()?;
         }
 
         Ok(output_track)
     }
 
-    async fn transcode_chunk(&self, chunk: &Chunk) -> orfail::Result<()> {
+    async fn transcode_chunk(&self, chunk: &Chunk) -> orfail::Result<Chunk> {
         let SampleEntry::Avc1(sample_entry) = &chunk.sample_entry else {
             unreachable!();
+        };
+
+        // TODO: key frame interval を指定可能にする
+
+        let mut output_chunk = Chunk {
+            sample_entry: SampleEntry::Vp08(Vp08Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: 1,
+                    width: 640,
+                    height: 480,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                vpcc_box: VpccBox {
+                    profile: 0,
+                    level: 0,
+                    bit_depth: Uint::new(8),
+                    chroma_subsampling: Uint::new(1),
+                    video_full_range_flag: Uint::new(0),
+                    colour_primaries: 1,
+                    transfer_characteristics: 1,
+                    matrix_coefficients: 1,
+                    codec_initialization_data: Vec::new(),
+                },
+                unknown_boxes: Vec::new(),
+            }),
+            samples: Vec::new(),
         };
 
         let encoder_config = VideoEncoderConfig {
@@ -227,14 +270,24 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
         };
         let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
         let mut encoder = CODEC::create_encoder(&encoder_config).await.or_fail()?;
+        let mut is_first = true;
         for sample in &chunk.samples {
-            CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)
+            let frame = CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)
                 .await
                 .or_fail()?;
+            let encoded_data = CODEC::encode_sample(&mut encoder, is_first, &frame)
+                .await
+                .or_fail()?;
+            output_chunk.samples.push(Sample {
+                duration: sample.duration,
+                is_key: is_first,
+                data: encoded_data,
+            });
+            is_first = false;
         }
         CODEC::close_coder(&mut decoder);
         CODEC::close_coder(&mut encoder);
 
-        Ok(()) // TODO: 変換後のチャンクを返す
+        Ok(output_chunk)
     }
 }

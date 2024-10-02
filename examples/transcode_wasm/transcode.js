@@ -29,7 +29,10 @@ let coderResultFutures = {};
                     output: function (frame) {
                         // console.log("decoded: " + frame.format + ", " + frame.codedWidth + "x" + frame.codedHeight);
                         let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
-                        let result = {"Ok": null};
+                        let result = {"Ok": {
+                            width: frame.codedWidth,
+                            height: frame.codedHeight,
+                        }};
                         let size = frame.allocationSize({format: "RGBA"});
                         let wasmBytes = wasmFunctions.allocateVec(size);
                         let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
@@ -88,17 +91,16 @@ let coderResultFutures = {};
                 const coderId = nextCoderId;
 
                 const params = {
-                    output: function (frame) {
-                        console.log("encoded");
-                        // let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
-                        // let result = {"Ok": null};
-                        // let size = frame.allocationSize({format: "RGBA"});
-                        // let wasmBytes = wasmFunctions.allocateVec(size);
-                        // let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
-                        // frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size), {format: "RGBA"});
-                        // frame.close();
-                        // wasmFunctions.notifyDecodeSampleResult(
-                        //     transcoder, future, valueToWasmJson(result), wasmBytes);
+                    output: function (chunk) {
+                        // console.log("encoded");
+                        let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
+                        let result = {"Ok": null};
+                        let size = chunk.byteLength;
+                        let wasmBytes = wasmFunctions.allocateVec(size);
+                        let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
+                        chunk.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size));
+                        wasmFunctions.notifyEncodeSampleResult(
+                            transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
                         // TODO: coderResultFutures も考慮する
@@ -116,6 +118,36 @@ let coderResultFutures = {};
                 let result = {"Ok": coderId};
                 console.log("createVideoEncoderResult: " + JSON.stringify(result));
                 wasmFunctions.notifyCreateVideoEncoderResult(transcoder, resultFuture, valueToWasmJson(result));
+            },
+            async encodeSample(resultFuture, coderId, isKey, width, height, dataBytes, dataBytesLen) {
+                // console.log("encodeSample: isKey=" + isKey);
+                if (coderErrors[coderId] !== undefined) {
+                    result = {"Err": {"message": coderErrors[coderId]}};
+                    wasmFunctons.notifyEncodeSampleResult(
+                        transcoder, resultFuture, valueToWasmJson(result), null);
+                    return;
+                }
+                if (coders[coderId] === undefined) {
+                    result = {"Err": {"message": "unknown encoder"}};
+                    wasmFunctons.notifyEncodeSampleResult(
+                        transcoder, resultFuture, valueToWasmJson(result), null);
+                    return;
+                }
+
+                const data = new Uint8Array(wasmMemory.buffer, dataBytes, dataBytesLen).slice();
+                const encoder = coders[coderId];
+                const frame = new VideoFrame(
+                    data,
+                    {
+                        format: "RGBA",
+                        codedWidth: width,
+                        codedHeight: height,
+                        timestamp: 0, // dummy value
+                        duration: 0, // dummy value
+                    });
+                encoder.encode(frame, {keyFrame: isKey === 1});
+                frame.close();
+                coderResultFutures[coderId] = resultFuture;
             },
         }
     };

@@ -2176,7 +2176,7 @@ impl BaseBox for SampleEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VisualSampleEntryFields {
-    pub data_reference_index: u16,
+    pub data_reference_index: u16, // TODO: NonZero
     pub width: u16,
     pub height: u16,
     pub horizresolution: FixedPointNumber<u16, u16>,
