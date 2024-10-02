@@ -1,5 +1,5 @@
 // TODO: output_mp4 と統合する
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use orfail::{Failure, OrFail};
 use shiguredo_mp4::{
@@ -163,12 +163,18 @@ impl InputMp4 {
     }
 
     fn build_stbl_box(&mut self, track: &Track) -> orfail::Result<StblBox> {
+        let mut uniq_sample_entries = HashMap::new();
+        let mut stsd_entries = Vec::new();
+        for chunk in &track.chunks {
+            if uniq_sample_entries.contains_key(&chunk.sample_entry) {
+                continue;
+            }
+            let index = uniq_sample_entries.len() as u32 + 1;
+            uniq_sample_entries.insert(chunk.sample_entry.clone(), index);
+            stsd_entries.push(chunk.sample_entry.clone());
+        }
         let stsd_box = StsdBox {
-            entries: track
-                .chunks
-                .iter()
-                .map(|c| c.sample_entry.clone())
-                .collect(),
+            entries: stsd_entries,
         };
         let stts_box = SttsBox {
             // TODO: 圧縮する
@@ -189,7 +195,7 @@ impl InputMp4 {
                 .map(|(i, c)| StscEntry {
                     first_chunk: i as u32 + 1,
                     sample_per_chunk: c.samples.len() as u32,
-                    sample_description_index: i as u32 + 1,
+                    sample_description_index: uniq_sample_entries[&c.sample_entry],
                 })
                 .collect(),
         };
