@@ -8,9 +8,9 @@ use shiguredo_mp4::{
     BaseBox, Encode,
 };
 
-use crate::mp4::{InputMp4, Track};
+use crate::mp4::{Chunk, InputMp4, Track};
 
-pub trait Codec {
+pub trait Codec: 'static {
     type Coder;
 
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
@@ -88,7 +88,10 @@ impl<CODEC: Codec> Transcoder<CODEC> {
         let (transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         let _ = self.options;
         for track in input_mp4.tracks {
-            let transcoder = TrackTranscoder { track };
+            let transcoder = TrackTranscoder {
+                track,
+                _codec: self._codec,
+            };
             let transcode_result_tx = transcode_result_tx.clone();
             self.executor
                 .spawner()
@@ -148,11 +151,12 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 }
 
 #[derive(Debug)]
-struct TrackTranscoder {
+struct TrackTranscoder<CODEC> {
     track: Track,
+    _codec: PhantomData<CODEC>,
 }
 
-impl TrackTranscoder {
+impl<CODEC: Codec> TrackTranscoder<CODEC> {
     async fn run(self) -> orfail::Result<Track> {
         let mut output_track = Track {
             is_audio: self.track.is_audio,
@@ -178,16 +182,29 @@ impl TrackTranscoder {
             output_track.chunks.push(chunk);
         }
 
-        // for chunk in &self.track.chunks {
-        //     let output_chunk = self.transcode_chunk(chunk).await.or_fail()?;
-        //     output_track.chunks.push(output_chunk);
-        // }
+        for chunk in &output_track.chunks {
+            if !matches!(chunk.sample_entry, SampleEntry::Avc1(_)) {
+                // H.264 以外 (= 音声) は無変換
+                continue;
+            }
+            self.transcode_chunk(chunk).await.or_fail()?;
+        }
 
         Ok(output_track)
     }
 
-    // async fn transcode_chunk(&self, input_chunk: &Chunk) -> orfail::Result<Chunk> {
-    //     // TODO: 入出力のチャンク数を一対一にマッピングする必要はない
-    //     Ok(input_chunk.clone())
-    // }
+    async fn transcode_chunk(&self, chunk: &Chunk) -> orfail::Result<()> {
+        let SampleEntry::Avc1(sample_entry) = &chunk.sample_entry else {
+            unreachable!();
+        };
+
+        let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
+        for sample in &chunk.samples {
+            CODEC::decode_sample(&mut decoder, &sample.data)
+                .await
+                .or_fail()?;
+        }
+
+        Ok(()) // TODO: 変換後のチャンクを返す
+    }
 }
