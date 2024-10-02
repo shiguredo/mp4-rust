@@ -13,6 +13,7 @@ use crate::mp4::{Chunk, InputMp4, Track};
 pub trait Codec: 'static {
     type Coder;
 
+    // TODO: close
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
     fn decode_sample(
         decoder: &mut Self::Coder,

@@ -2,9 +2,77 @@ let wasmInstance;
 let wasmMemory;
 let wasmFunctions;
 let transcoder;
+let nextCoderId = 0;
+let coders = {};
+let coderErrors = {};
 
 (async () => {
-    wasmInstance = (await WebAssembly.instantiateStreaming(fetch("transcode_wasm.wasm"))).instance;
+    const importObject = {
+        env: {
+            consoleLog(messageOffset, messageLen) {
+                console.log(new TextDecoder('utf-8').decode(
+                    new Uint8Array(wasmMemory.buffer,messageOffset, messageLen)));
+            },
+            async createVideoDecoder(resultFuture, configWasmJson) {
+                const config = wasmJsonToValue(configWasmJson);
+                console.log("createVideoDecoder: " + JSON.stringify(config));
+
+                const coderId = nextCoderId;
+
+                const params = {
+                    output: function (frame) {
+                        console.log("decoded");
+                        // TODO: wasm.buffer に直接コピーする
+
+                        // const buffer = new Float32Array(chunk.numberOfFrames);
+                        // chunk.copyTo(buffer, { planeIndex: 0 });
+                        // const result = {"Ok": [...buffer]};
+                        // wasmInstance.exports.notifyDecodeAudioSampleResult(
+                        //     mixer, decodeAudioSampleFuture, valueToWasmJson(result));
+                        frame.close();
+                    },
+                    error: function (error) {
+                        console.log("video decode error: " +  error);
+                        coderErrors[coderId] = error;
+                    }
+                };
+
+                const decoder = new VideoDecoder(params);
+                nextCoderId += 1;
+                coders[coderId] = decoder;
+                await decoder.configure(config);
+
+                // 不正な config を指定したとしても、ここは常に成功する
+                let result = {"Ok": coderId};
+                // TODO
+                // if (coderErrors[coderId] !== undefined) {
+                //     result = {"Err": {"message": coderErrors[coderId]}};
+                // }
+                console.log("createVideoDecoderResult: " + JSON.stringify(result));
+                wasmInstance.exports.notifyCreateVideoDecoderResult(
+                    transcoder, resultFuture, valueToWasmJson(result));
+            },
+            // async decodeSample(resultFuture, decoder, dataBytes, dataBytesLen) {
+            //     console.log("decodeSample");
+            //     if (decoder !== 0) {
+            //         throw "unexpected decoder";
+            //     }
+
+            //     // ある程度並行してデコードが行えるようにする
+            //     decodeAudioSampleFuture = resultFuture;
+            //     const chunk = new EncodedAudioChunk({
+            //         type: "key",
+            //         timestamp: 0, // TODO
+            //         duration: 20, // TODO
+            //         data: wasmBytesToUint8Array(dataBytes, dataBytesLen),
+            //     });
+            //     audioDecoder.decode(chunk);
+            //     await audioDecoder.flush();
+            //     console.log("decoded");
+            // },
+        }
+    };
+    wasmInstance = (await WebAssembly.instantiateStreaming(fetch("transcode_wasm.wasm"), importObject)).instance;
     wasmMemory = wasmInstance.exports.memory;
     wasmFunctions = wasmInstance.exports;
 })();
