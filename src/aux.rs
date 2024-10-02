@@ -3,7 +3,7 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    boxes::{StblBox, StszBox},
+    boxes::{SampleEntry, StblBox, StscEntry, StszBox},
     Either,
 };
 
@@ -56,7 +56,6 @@ impl<'a> SampleTableAccessor<'a> {
         let i = self
             .stts_table
             .binary_search_by_key(&(sample_index.get() - 1), |x| x.0)
-            .map(|i| i)
             .unwrap_or_else(|i| i);
         self.stts_table.get(i).map(|x| x.1)
     }
@@ -101,5 +100,68 @@ impl<'a> SampleTableAccessor<'a> {
             Either::A(b) => b.chunk_offsets.get(i).copied().map(|v| v as u64),
             Either::B(b) => b.chunk_offsets.get(i).copied(),
         }
+    }
+
+    /// 指定されたサンプルディスクリプション（サンプルエントリー）を返す
+    ///
+    /// 存在しないサンプルディスクリプションが指定された場合には [`None`] が返される
+    pub fn sample_description(&self, sample_description_index: NonZeroU32) -> Option<&SampleEntry> {
+        self.stbl_box
+            .stsd_box
+            .entries
+            .get(sample_description_index.get() as usize - 1)
+    }
+
+    /// このトラック内のチャンク一覧を返す
+    ///
+    /// [`StscBox`] の中身に不整合がある場合には [`None`] が返される
+    pub fn chunks(&self) -> Option<Vec<ExpandedStscEntry>> {
+        let mut chunks = Vec::new();
+        let mut chunk_end = self.chunk_count();
+        let mut sample_end = self.sample_count;
+        for StscEntry {
+            first_chunk,
+            sample_per_chunk,
+            sample_description_index,
+        } in self.stbl_box.stsc_box.entries.iter().cloned().rev()
+        {
+            let chunk_start = first_chunk.get() - 1;
+            for chunk in (chunk_start..chunk_end).rev() {
+                let sample_start = sample_end.checked_sub(sample_per_chunk)?;
+                chunks.push(ExpandedStscEntry {
+                    chunk_index: NonZeroU32::MIN.saturating_add(chunk),
+                    sample_description_index,
+                    sample_index_offset: NonZeroU32::MIN.saturating_add(sample_start),
+                    sample_count: sample_per_chunk,
+                });
+                sample_end = sample_start;
+            }
+            chunk_end = chunk_start;
+        }
+        chunks.reverse();
+        Some(chunks)
+    }
+}
+
+/// [`StscEntry`] を展開して、特定のチャンクに対応する情報を保持するようにした構造体
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ExpandedStscEntry {
+    /// チャンクインデックス
+    pub chunk_index: NonZeroU32,
+
+    /// このチャンクが参照するサンプルエントリーのインデックス
+    pub sample_description_index: NonZeroU32,
+
+    /// このチャンクが属する最初のサンプルのインデックス
+    pub sample_index_offset: NonZeroU32,
+
+    /// このチャンクに属するサンプルの数
+    pub sample_count: u32,
+}
+
+impl ExpandedStscEntry {
+    /// このチャンクに属するサンプル群のインデックスを走査するイテレーターを返す
+    pub fn sample_indices(&self) -> impl '_ + Iterator<Item = NonZeroU32> {
+        (0..self.sample_count).map(|i| self.sample_index_offset.saturating_add(i))
     }
 }
