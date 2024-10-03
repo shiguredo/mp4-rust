@@ -5,7 +5,7 @@ use shiguredo_mp4::{
     boxes::{
         Brand, DinfBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox, MvhdBox,
         RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StszBox,
-        SttsBox, SttsEntry, TkhdBox, TrakBox, VmhdBox,
+        SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
     BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime,
 };
@@ -176,16 +176,8 @@ impl InputMp4 {
         let stsd_box = StsdBox {
             entries: stsd_entries,
         };
-        let stts_box = SttsBox {
-            // TODO: 圧縮する
-            entries: track
-                .samples()
-                .map(|s| SttsEntry {
-                    sample_count: 1,
-                    sample_delta: s.duration.as_micros() as u32,
-                })
-                .collect(),
-        };
+        let stts_box =
+            SttsBox::from_sample_deltas(track.samples().map(|s| s.duration.as_micros() as u32));
         let stsc_box = StscBox {
             // TODO: 圧縮する
             entries: track
