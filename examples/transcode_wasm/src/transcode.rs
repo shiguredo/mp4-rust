@@ -5,6 +5,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
@@ -271,8 +272,6 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
             unreachable!();
         };
 
-        // TODO: key frame interval を指定可能にする
-
         let mut output_chunk = Chunk {
             sample_entry: SampleEntry::Vp08(Vp08Box {
                 visual: VisualSampleEntryFields {
@@ -305,21 +304,28 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
         let mut encoder = CODEC::create_encoder(&self.options.video_encoder_config)
             .await
             .or_fail()?;
-        let mut is_first = true;
+        let mut next_keyframe_time = Duration::ZERO;
+        let mut current_time = Duration::ZERO;
         for sample in &chunk.samples {
-            let frame = CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)
+            let keyframe = next_keyframe_time <= current_time;
+
+            let frame = CODEC::decode_sample(&mut decoder, sample.keyframe, &sample.data)
                 .await
                 .or_fail()?;
-            let encoded_data = CODEC::encode_sample(&mut encoder, is_first, &frame)
+            let encoded_data = CODEC::encode_sample(&mut encoder, keyframe, &frame)
                 .await
                 .or_fail()?;
             output_chunk.samples.push(Sample {
                 duration: sample.duration,
-                is_key: is_first,
+                keyframe,
                 data: encoded_data,
             });
-            is_first = false;
+
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
+            if keyframe {
+                next_keyframe_time += Duration::from_secs(self.options.keyframe_interval as u64);
+            }
+            current_time += sample.duration;
         }
         CODEC::close_coder(&mut decoder);
         CODEC::close_coder(&mut encoder);

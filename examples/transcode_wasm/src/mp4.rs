@@ -195,7 +195,7 @@ impl OutputMp4Builder {
             sample_numbers: track
                 .samples()
                 .enumerate()
-                .filter(|(_, s)| s.is_key)
+                .filter(|(_, s)| s.keyframe)
                 .map(|(i, _)| NonZeroU32::MIN.saturating_add(i as u32))
                 .collect(),
         });
@@ -254,7 +254,7 @@ impl InputMp4 {
                                 Sample {
                                     duration: Duration::from_secs(s.duration() as u64)
                                         / timescale.get(),
-                                    is_key: s.is_sync_sample(),
+                                    keyframe: s.is_sync_sample(),
                                     data,
                                 }
                             })
@@ -296,6 +296,6 @@ pub struct Chunk {
 #[derive(Debug, Clone)]
 pub struct Sample {
     pub duration: Duration,
-    pub is_key: bool,
+    pub keyframe: bool,
     pub data: Vec<u8>,
 }
