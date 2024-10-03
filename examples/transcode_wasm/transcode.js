@@ -161,6 +161,7 @@ let lastLogTime;
 async function startTranscode() {
     // 前回の状態をクリアする
     document.getElementById("output").classList.add('disabled-link');
+    URL.revokeObjectURL(document.getElementById("output"));
     logMessages = [];
     if (transcoder !== undefined) {
         wasmFunctions.freeTranscoder(transcoder);
