@@ -9,7 +9,6 @@ use transcode::{Codec, TranscodeOptions, TranscodeProgress, VideoEncoderConfig, 
 pub mod mp4;
 pub mod transcode;
 
-// TODO: transcode.rs に持っていく
 #[derive(Serialize)]
 pub struct VideoDecoderConfig {
     pub codec: String,
@@ -29,7 +28,7 @@ extern "C" {
     pub fn decodeSample(
         result_future: *mut oneshot::Sender<orfail::Result<VideoFrame>>,
         coder_id: CoderId,
-        is_key: bool,
+        keyframe: bool,
         data_offset: *const u8,
         data_len: u32,
     );
@@ -44,7 +43,7 @@ extern "C" {
     pub fn encodeSample(
         result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
         coder_id: CoderId,
-        is_key: bool,
+        keyframe: bool,
         width: u32,
         height: u32,
         data_offset: *const u8,
@@ -70,7 +69,7 @@ impl Codec for WebCodec {
             .avcc_box
             .encode(&mut description)
             .expect("unreachable");
-        description.drain(..8); // box header を取り除く
+        description.drain(..8); // box header 部分を取り除く
         let config = VideoDecoderConfig {
             codec: format!(
                 "avc1.{:02x}{:02x}{:02x}",
@@ -88,7 +87,7 @@ impl Codec for WebCodec {
 
     fn decode_sample(
         decoder: &mut Self::Coder,
-        is_key: bool,
+        keyframe: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<VideoFrame>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
@@ -96,7 +95,7 @@ impl Codec for WebCodec {
             decodeSample(
                 Box::into_raw(Box::new(tx)),
                 *decoder,
-                is_key,
+                keyframe,
                 encoded_data.as_ptr(),
                 encoded_data.len() as u32,
             );
@@ -116,7 +115,7 @@ impl Codec for WebCodec {
 
     fn encode_sample(
         encoder: &mut Self::Coder,
-        is_key: bool,
+        keyframe: bool,
         frame: &VideoFrame,
     ) -> impl Future<Output = orfail::Result<Vec<u8>>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
@@ -124,7 +123,7 @@ impl Codec for WebCodec {
             encodeSample(
                 Box::into_raw(Box::new(tx)),
                 *encoder,
-                is_key,
+                keyframe,
                 frame.width as u32,
                 frame.height as u32,
                 frame.data.as_ptr(),
@@ -161,7 +160,6 @@ pub fn freeTranscoder(transcoder: *mut Transcoder) {
     let _ = unsafe { Box::from_raw(transcoder) };
 }
 
-// TODO: 名前から "video" は外す
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyCreateVideoDecoderResult(

@@ -28,8 +28,7 @@ let lastLogTime;
 
                 const params = {
                     output: function (frame) {
-                        // console.log("decoded: " + frame.format + ", " + frame.codedWidth + "x" + frame.codedHeight);
-                        let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
+                        let future = coderResultFutures[coderId];
                         let result = {"Ok": {
                             width: frame.codedWidth,
                             height: frame.codedHeight,
@@ -43,25 +42,30 @@ let lastLogTime;
                             transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
-                        // TODO: coderResultFutures も考慮する
-                        console.log("video decode error: " +  error);
-                        coderErrors[coderId] = error;
+                        if (coderResultFutures[coderId] !== undefined) {
+                            // サンプルデコード中のエラー
+                            const result = {"Err": {"message": String(error)}};
+                            wasmFunctions.notifyDecodeSampleResult(
+                                transcoder, future, valueToWasmJson(result), wasmBytes);
+                        } else {
+                            // デコーダー初期化時のエラー
+                            coderErrors[coderId] = error;
+                        }
                     }
                 };
 
                 const decoder = new VideoDecoder(params);
                 nextCoderId += 1;
                 coders[coderId] = decoder;
+
+                // 不正な config を指定したとしても、この呼び出しは常に成功する
                 await decoder.configure(config);
 
-                // 不正な config を指定したとしても、ここは常に成功する
                 let result = {"Ok": coderId};
-                console.log("createVideoDecoderResult: " + JSON.stringify(result));
                 wasmInstance.exports.notifyCreateVideoDecoderResult(
                     transcoder, resultFuture, valueToWasmJson(result));
             },
             async decodeSample(resultFuture, coderId, isKey, dataBytes, dataBytesLen) {
-                // console.log("decodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
                     wasmFunctions.notifyDecodeSampleResult(
@@ -69,10 +73,8 @@ let lastLogTime;
                     return;
                 }
                 if (coders[coderId] === undefined) {
-                    result = {"Err": {"message": "unknown decoder"}};
-                    wasmFunctions.notifyDecodeSampleResult(
-                        transcoder, resultFuture, valueToWasmJson(result), null);
-                    return;
+                    // ここには来ないはず
+                    throw "unknown coder id";
                 }
 
                 const decoder = coders[coderId];
@@ -93,8 +95,7 @@ let lastLogTime;
 
                 const params = {
                     output: function (chunk) {
-                        // console.log("encoded");
-                        let future = coderResultFutures[coderId]; // TODO: 取り出したら削除する
+                        let future = coderResultFutures[coderId];
                         let result = {"Ok": null};
                         let size = chunk.byteLength;
                         let wasmBytes = wasmFunctions.allocateVec(size);
@@ -104,24 +105,31 @@ let lastLogTime;
                             transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
-                        // TODO: coderResultFutures も考慮する
-                        console.log("video encode error: " +  error);
-                        coderErrors[coderId] = String(error);
+                        if (coderResultFutures[coderId] !== undefined) {
+                            // サンプルエンコード中のエラー
+                            const result = {"Err": {"message": String(error)}};
+                            wasmFunctions.notifyEncodeSampleResult(
+                                transcoder, future, valueToWasmJson(result), wasmBytes);
+                        } else {
+                            // エンコーダー初期化時のエラー
+                            coderErrors[coderId] = error;
+                        }
                     }
                 };
 
                 const encoder = new VideoEncoder(params);
                 nextCoderId += 1;
                 coders[coderId] = encoder;
+
+                // 不正な config を指定したとしても、この呼び出しは常に成功する
                 await encoder.configure(config);
 
-                // 不正な config を指定したとしても、ここは常に成功する
                 let result = {"Ok": coderId};
                 console.log("createVideoEncoderResult: " + JSON.stringify(result));
                 wasmFunctions.notifyCreateVideoEncoderResult(transcoder, resultFuture, valueToWasmJson(result));
             },
             async encodeSample(resultFuture, coderId, isKey, width, height, dataBytes, dataBytesLen) {
-                // console.log("encodeSample: isKey=" + isKey);
+                console.log("encodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
                     wasmFunctions.notifyEncodeSampleResult(
@@ -129,10 +137,8 @@ let lastLogTime;
                     return;
                 }
                 if (coders[coderId] === undefined) {
-                    result = {"Err": {"message": "unknown encoder"}};
-                    wasmFunctions.notifyEncodeSampleResult(
-                        transcoder, resultFuture, valueToWasmJson(result), null);
-                    return;
+                    // ここには来ないはず
+                    throw "unknown coder id";
                 }
 
                 const data = new Uint8Array(wasmMemory.buffer, dataBytes, dataBytesLen).slice();
