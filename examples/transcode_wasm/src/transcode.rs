@@ -26,12 +26,18 @@ pub struct VideoFrame {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct VideoEncoderConfig {
     pub codec: String,
     pub bitrate: u32,
     pub width: u16,
     pub height: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeOptions {
+    #[serde(flatten)]
+    pub video_encoder_config: VideoEncoderConfig,
     pub keyframe_interval: u32,
 }
 
@@ -66,7 +72,7 @@ pub struct TranscodeProgress {
 
 #[derive(Debug)]
 pub struct Transcoder<CODEC> {
-    options: VideoEncoderConfig,
+    options: TranscodeOptions,
     input_mp4: Option<InputMp4>,
     output_mp4: Vec<u8>,
     executor: LocalPool,
@@ -75,11 +81,12 @@ pub struct Transcoder<CODEC> {
     output_tracks: Vec<Track>,
     transcode_target_sample_count: usize,
     transcoded_sample_count: Arc<AtomicUsize>,
+    transcode_error: Option<Failure>,
     _codec: PhantomData<CODEC>,
 }
 
 impl<CODEC: Codec> Transcoder<CODEC> {
-    pub fn new(options: VideoEncoderConfig) -> Self {
+    pub fn new(options: TranscodeOptions) -> Self {
         let (_transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         Self {
             options,
@@ -91,6 +98,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
             output_tracks: Vec::new(),
             transcode_target_sample_count: 0,
             transcoded_sample_count: Arc::new(AtomicUsize::new(0)),
+            transcode_error: None,
             _codec: PhantomData,
         }
     }
@@ -142,6 +150,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
             let transcoder = TrackTranscoder {
                 track,
                 transcoded_sample_count: Arc::clone(&self.transcoded_sample_count),
+                options: self.options.clone(),
                 _codec: self._codec,
             };
             let transcode_result_tx = transcode_result_tx.clone();
@@ -158,6 +167,10 @@ impl<CODEC: Codec> Transcoder<CODEC> {
     }
 
     pub fn poll_transcode(&mut self) -> orfail::Result<TranscodeProgress> {
+        if let Some(e) = self.transcode_error.clone() {
+            return Err(e);
+        }
+
         if !self.executing {
             self.executing = true;
             self.executor.run_until_stalled();
@@ -175,7 +188,9 @@ impl<CODEC: Codec> Transcoder<CODEC> {
                     }
                     Ok(Some(result)) => {
                         // 特定のトラックの変換が完了した or 失敗した
-                        self.output_tracks.push(result.or_fail()?);
+                        let result = result.or_fail();
+                        self.transcode_error = result.as_ref().err().cloned();
+                        self.output_tracks.push(result?);
                         do_continue = true;
                     }
                 }
@@ -210,6 +225,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 struct TrackTranscoder<CODEC> {
     track: Track,
     transcoded_sample_count: Arc<AtomicUsize>,
+    options: TranscodeOptions,
     _codec: PhantomData<CODEC>,
 }
 
@@ -285,15 +301,10 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
             samples: Vec::new(),
         };
 
-        let encoder_config = VideoEncoderConfig {
-            codec: "vp8".to_owned(),
-            bitrate: 1_000_000,
-            width: 640,
-            height: 480,
-            keyframe_interval: 1,
-        };
         let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
-        let mut encoder = CODEC::create_encoder(&encoder_config).await.or_fail()?;
+        let mut encoder = CODEC::create_encoder(&self.options.video_encoder_config)
+            .await
+            .or_fail()?;
         let mut is_first = true;
         for sample in &chunk.samples {
             let frame = CODEC::decode_sample(&mut decoder, sample.is_key, &sample.data)

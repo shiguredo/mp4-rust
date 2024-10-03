@@ -64,13 +64,13 @@ let lastLogTime;
                 // console.log("decodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
-                    wasmFunctons.notifyDecodeSampleResult(
+                    wasmFunctions.notifyDecodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
                 if (coders[coderId] === undefined) {
                     result = {"Err": {"message": "unknown decoder"}};
-                    wasmFunctons.notifyDecodeSampleResult(
+                    wasmFunctions.notifyDecodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
@@ -106,7 +106,7 @@ let lastLogTime;
                     error: function (error) {
                         // TODO: coderResultFutures も考慮する
                         console.log("video encode error: " +  error);
-                        coderErrors[coderId] = error;
+                        coderErrors[coderId] = String(error);
                     }
                 };
 
@@ -124,13 +124,13 @@ let lastLogTime;
                 // console.log("encodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
-                    wasmFunctons.notifyEncodeSampleResult(
+                    wasmFunctions.notifyEncodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
                 if (coders[coderId] === undefined) {
                     result = {"Err": {"message": "unknown encoder"}};
-                    wasmFunctons.notifyEncodeSampleResult(
+                    wasmFunctions.notifyEncodeSampleResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }

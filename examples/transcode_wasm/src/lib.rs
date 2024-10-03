@@ -4,7 +4,7 @@ use futures::{channel::oneshot, TryFutureExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{boxes::Avc1Box, Encode};
-use transcode::{Codec, TranscodeProgress, VideoEncoderConfig, VideoFrame};
+use transcode::{Codec, TranscodeOptions, TranscodeProgress, VideoEncoderConfig, VideoFrame};
 
 pub mod mp4;
 pub mod transcode;
@@ -143,7 +143,7 @@ impl Codec for WebCodec {
 
 #[no_mangle]
 #[expect(non_snake_case)]
-pub fn newTranscoder(options: JsonVec<VideoEncoderConfig>) -> *mut Transcoder {
+pub fn newTranscoder(options: JsonVec<TranscodeOptions>) -> *mut Transcoder {
     std::panic::set_hook(Box::new(|info| {
         let msg = info.to_string();
         unsafe {
