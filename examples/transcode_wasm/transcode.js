@@ -170,6 +170,13 @@ async function startTranscode() {
     if (lastTimeoutId !== undefined) {
         clearTimeout(lastTimeoutId);
     }
+    for (const key in coders) {
+        coders[key].close();
+    }
+    coders = {};
+    coderErrors = {};
+    coderResultFutures = {};
+
 
     // 新規変換を始める
     const input = document.getElementById("input");
