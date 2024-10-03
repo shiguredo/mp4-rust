@@ -157,6 +157,8 @@ let coderResultFutures = {};
 })();
 
 async function startTranscode() {
+    document.getElementById("output").classList.add('disabled-link');
+
     const input = document.getElementById("input");
 
     const files = input.files;
@@ -211,17 +213,12 @@ function pollTranscode() {
         throw JSON.stringify(result);
     }
     console.log("buildOutputMp4File: " + JSON.stringify(result));
-}
 
-function download() {
+    const output = document.getElementById("output");
+    output.classList.remove('disabled-link');
     const mp4 = getOutputMp4File();
     const blob = new Blob([mp4], { type: 'video/mp4' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'output.mp4';
-    a.click();
-    URL.revokeObjectURL(url);
+    output.href = URL.createObjectURL(blob);
 }
 
 function getOutputMp4File() {

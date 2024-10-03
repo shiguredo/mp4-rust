@@ -3,29 +3,42 @@
     <meta charset="utf-8">
     <title>MP4 Transcode</title>
 
+    <style>
+        .disabled-link {
+            pointer-events: none; /* クリック不可 */
+            color: gray; /* リンクの見た目を灰色に */
+        }
+    </style>
   </head>
   <body>
     <h1>MP4 Transcode</h1>
 
     <a href="https://github.com/shiguredo/mp4-rust">shiguredo/mp4-rust</a> の WebAssembly ビルドのサンプルページです。
     <br />
-    アップロードされた MP4 ファイルをパースして、その構造を JSON 形式で出力します。
+    アップロードされた MP4 ファイルを、<a href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API">WebCodecs</a>を使って再変換します。
     <br /><br />
     <small>
       [注意点]
       <ul>
         <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
-        <li>全部メモリに載せるので云々</li>
-        <li>作成日時などの再生には影響のない値には固定値が格納されている</li>
+        <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
+        <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されています</li>
       </ul>
     </small>
 
-    <h3>入力 MP4 ファイル</h3>
-    <input id="input" type="file" accept="video/mp4" onchange="startTranscode()" />
-
-    <h3>出力 MP4 ファイル</h3>
-    <input id="download" type="button" value="ダウンロード" onclick="download()" />
+    <h2>入力 MP4 ファイル</h2>
+    ファイル選択して変換を開始してください。
     <br />
+    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
+    <br /><br />
+    <input id="input" type="file" accept="video/mp4" onchange="startTranscode()" />
+    <br />
+
+    <h2>出力 MP4 ファイル</h2>
+    <a id="output" href="" class="disabled-link">ダウンロードリンク</a>
+    <br />
+
+    <h2>変換ログ</h2>
     <textarea id="log" cols="80" rows="30" style="font-family:monospace, serif;"></textarea>
 
     <script src="./transcode.js"></script>
