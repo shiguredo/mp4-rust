@@ -3266,6 +3266,27 @@ impl SttsBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stts");
 
+    /// サンプル群の尺を走査するイテレーターを受け取って、対応する [`SttsBox`] インスタンスを作成する
+    pub fn from_sample_deltas<I>(sample_deltas: I) -> Self
+    where
+        I: IntoIterator<Item = u32>,
+    {
+        let mut entries = Vec::<SttsEntry>::new();
+        for sample_delta in sample_deltas {
+            if let Some(last) = entries.last_mut() {
+                if last.sample_delta == sample_delta {
+                    last.sample_count += 1;
+                    continue;
+                }
+            }
+            entries.push(SttsEntry {
+                sample_count: 1,
+                sample_delta,
+            });
+        }
+        Self { entries }
+    }
+
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
         (self.entries.len() as u32).encode(writer)?;
