@@ -34,7 +34,7 @@
     <br />
     変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
     <br /><br />
-    <input id="input" type="file" accept="video/mp4" onchange="startTranscode()" />
+    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
     <br />
 
     <h3>出力 MP4 ファイル</h3>
@@ -48,7 +48,7 @@
       <option value="hev1.1.6.L93.B0">H.265 (1.6.L93.B0)</option>
       <option value="vp8">VP8</option>
       <option value="vp09.00.10.08">VP9 (00.10.08)</option>
-      <option value="av01.0.01M.08">AV1 (0.01M.08)</option>
+      <option value="av01.0.01M.08" selected>AV1 (0.01M.08)</option>
     </select>
     &nbsp;
     解像度:
