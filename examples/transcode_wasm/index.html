@@ -20,13 +20,15 @@
     <small>
       [注意点]
       <ul>
+        <li>入力 MP4 ファイル内の H.264 映像トラックのみが変換の対象となります</li>
         <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
         <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
-        <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されています</li>
+        <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されます</li>
+        <li>変換効率よりもサンプルコードの簡潔さを優先しています（例: 無駄なメモリコピーがある、変換を逐次的に実行している）</li>
       </ul>
     </small>
 
-    <h2>入力 MP4 ファイル</h2>
+    <h3>入力 MP4 ファイル</h3>
     <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
     <br />
     変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
@@ -34,11 +36,47 @@
     <input id="input" type="file" accept="video/mp4" onchange="startTranscode()" />
     <br />
 
-    <h2>出力 MP4 ファイル</h2>
+    <h3>出力 MP4 ファイル</h3>
     <a id="output" href="" target="_blank" class="disabled-link">ダウンロードリンク</a>
     <br />
 
-    <h2>変換ログ</h2>
+    <h3>変換設定</h3>
+    コーデック:
+    <select id="codec">
+      <option value="h264">H.264 (profile: )</option>
+      <option value="h265">H.265 (profile: )</option>
+      <option value="vp8">VP8</option>
+      <option value="vp9">VP9</option>
+      <option value="av1">AV1</option>
+    </select>
+    &nbsp;
+    解像度:
+    <select id="resolution">
+      <option value="320x180">320x180</option>
+      <option value="640x360">640x360</option>
+      <option value="1280x720">1280x720</option>
+      <option value="1920x1080">1920x1080</option>
+    </select>
+    &nbsp;
+    <br />
+    ビットレート:
+    <select id="bitrate">
+      <option value="102400">100 kbps</option>
+      <option value="512000" selected>500 kbps</option>
+      <option value="1048576">1 Mbps</option>
+      <option value="5242880">5 Mbps</option>
+    </select>
+    &nbsp;
+    キーフレーム間隔:
+    <select id="keyframeInterval">
+      <option value="1">1 秒</option>
+      <option value="10" selected>10 秒</option>
+      <option value="60">60 秒</option>
+    </select>
+    <br />
+    <small>※ 環境によっては、特定のコーデックが使用できないことがあります</small>
+
+    <h3>変換ログ</h3>
     <textarea id="log" cols="90" rows="30" style="font-family:monospace, serif;"></textarea>
 
     <script src="./transcode.js"></script>

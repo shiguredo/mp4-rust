@@ -23,7 +23,6 @@ let lastLogTime;
                 const config = wasmJsonToValue(configWasmJson);
                 console.log("createVideoDecoder: " + JSON.stringify(config));
                 config.description = new Uint8Array(config.description);
-                config.hardwareAcceleration = "prefer-hardware";
 
                 const coderId = nextCoderId;
 
@@ -176,7 +175,15 @@ async function startTranscode() {
     }
     const file = files[0];
 
-    const transcodeOptions = {};
+    const resolution = document.getElementById('resolution').value;
+    const [width, height] = resolution.split("x");
+    const transcodeOptions = {
+        codec: document.getElementById('codec').value,
+        bitrate: Number(document.getElementById('bitrate').value),
+        width: Number(width),
+        height: Number(height),
+        keyframeInterval: Number(document.getElementById('keyframeInterval').value),
+    };
     transcoder = wasmFunctions.newTranscoder(valueToWasmJson(transcodeOptions));
 
     let resultWasmJson;

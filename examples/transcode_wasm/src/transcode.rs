@@ -25,15 +25,14 @@ pub struct VideoFrame {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoEncoderConfig {
     pub codec: String,
     pub bitrate: u32,
-    pub framerate: u8,
-    pub hardware_acceleration: String,
     pub width: u16,
     pub height: u16,
+    pub keyframe_interval: u32,
 }
 
 pub trait Codec: 'static {
@@ -58,9 +57,6 @@ pub trait Codec: 'static {
     fn close_coder(coder: &mut Self::Coder);
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TranscodeOptions {}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeProgress {
@@ -70,7 +66,7 @@ pub struct TranscodeProgress {
 
 #[derive(Debug)]
 pub struct Transcoder<CODEC> {
-    options: TranscodeOptions,
+    options: VideoEncoderConfig,
     input_mp4: Option<InputMp4>,
     output_mp4: Vec<u8>,
     executor: LocalPool,
@@ -83,7 +79,7 @@ pub struct Transcoder<CODEC> {
 }
 
 impl<CODEC: Codec> Transcoder<CODEC> {
-    pub fn new(options: TranscodeOptions) -> Self {
+    pub fn new(options: VideoEncoderConfig) -> Self {
         let (_transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         Self {
             options,
@@ -292,11 +288,9 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
         let encoder_config = VideoEncoderConfig {
             codec: "vp8".to_owned(),
             bitrate: 1_000_000,
-            framerate: 10,
-            //hardware_acceleration: "prefer-hardware".to_owned(),
-            hardware_acceleration: "no-preference".to_owned(),
             width: 640,
             height: 480,
+            keyframe_interval: 1,
         };
         let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
         let mut encoder = CODEC::create_encoder(&encoder_config).await.or_fail()?;
