@@ -21,7 +21,6 @@ let lastLogTime;
             },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
-                console.log("createVideoDecoder: " + JSON.stringify(config));
                 config.description = new Uint8Array(config.description);
 
                 const coderId = nextCoderId;
@@ -49,7 +48,7 @@ let lastLogTime;
                                 transcoder, future, valueToWasmJson(result), wasmBytes);
                         } else {
                             // デコーダー初期化時のエラー
-                            coderErrors[coderId] = error;
+                            coderErrors[coderId] = String(error);
                         }
                     }
                 };
@@ -89,8 +88,6 @@ let lastLogTime;
             },
             async createVideoEncoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
-                console.log("createVideoEncoder: " + JSON.stringify(config));
-
                 const coderId = nextCoderId;
 
                 const params = {
@@ -112,7 +109,7 @@ let lastLogTime;
                                 transcoder, future, valueToWasmJson(result), wasmBytes);
                         } else {
                             // エンコーダー初期化時のエラー
-                            coderErrors[coderId] = error;
+                            coderErrors[coderId] = String(error);
                         }
                     }
                 };
@@ -125,11 +122,9 @@ let lastLogTime;
                 await encoder.configure(config);
 
                 let result = {"Ok": coderId};
-                console.log("createVideoEncoderResult: " + JSON.stringify(result));
                 wasmFunctions.notifyCreateVideoEncoderResult(transcoder, resultFuture, valueToWasmJson(result));
             },
             async encodeSample(resultFuture, coderId, isKey, width, height, dataBytes, dataBytesLen) {
-                console.log("encodeSample: isKey=" + isKey);
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
                     wasmFunctions.notifyEncodeSampleResult(
