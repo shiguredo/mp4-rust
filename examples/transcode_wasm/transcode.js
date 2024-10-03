@@ -6,6 +6,8 @@ let nextCoderId = 0;
 let coders = {};
 let coderErrors = {};
 let coderResultFutures = {};
+let logMessages = [];
+let lastLogTime;
 
 (async () => {
     const importObject = {
@@ -157,8 +159,14 @@ let coderResultFutures = {};
 })();
 
 async function startTranscode() {
+    // 前回の状態をクリアする
     document.getElementById("output").classList.add('disabled-link');
+    logMessages = [];
+    if (transcoder !== undefined) {
+        wasmFunctions.freeTranscoder(transcoder);
+    }
 
+    // 新規変換を始める
     const input = document.getElementById("input");
 
     const files = input.files;
@@ -167,24 +175,21 @@ async function startTranscode() {
     }
     const file = files[0];
 
-    if (transcoder !== undefined) {
-        wasmFunctions.freeTranscoder(transcoder);
-    }
     const transcodeOptions = {};
     transcoder = wasmFunctions.newTranscoder(valueToWasmJson(transcodeOptions));
-
-    // TODO: 所要時間を取る
 
     let resultWasmJson;
     let result;
     const inputBytes = new Uint8Array(await file.arrayBuffer());
     const inputWasmBytes = toWasmBytes(inputBytes);
+    log(`Parsing input MP4 file (${Math.floor(inputBytes.byteLength / 1024 / 1024)} MB) ...`);
     resultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
     result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
-        throw JSON.stringify(result);
+        logError(result);
+        return;
     }
-    console.log("Parsed: " + JSON.stringify(result));
+    logDone()
 
     resultWasmJson = wasmFunctions.startTranscode(transcoder);
     result = wasmJsonToValue(resultWasmJson);
@@ -251,4 +256,23 @@ function wasmJsonToValue(wasmJson) {
     const value = JSON.parse(new TextDecoder("utf-8").decode(buffer));
     wasmFunctions.freeVec(wasmJson);
     return value;
+}
+
+function log(message) {
+    lastLogTime = performance.now();
+    logMessages.push(message);
+    document.getElementById("log").value = logMessages.join("\n");
+}
+
+function logDone() {
+    const elapsed = (performance.now() - lastLogTime) / 1000;
+    const message = logMessages.pop();
+    log(`${message} done (${elapsed} seconds)`);
+}
+
+function logError(result) {
+    let detail = result["Err"];
+    const message = logMessages.pop();
+    log(`${message} error`);
+    log(JSON.stringify(detail, null, 2));
 }
