@@ -8,7 +8,7 @@ use shiguredo_mp4::{
         RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
         StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
-    BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime,
+    BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
 };
 
 // 出力側はマイクロ秒に決め打ち
@@ -142,7 +142,7 @@ impl OutputMp4Builder {
             } else {
                 HdlrBox::HANDLER_TYPE_VIDE
             },
-            name: vec![0],
+            name: Utf8String::EMPTY.into_null_terminated_bytes(),
         };
         let minf_box = MinfBox {
             smhd_or_vmhd_box: if track.is_audio {
