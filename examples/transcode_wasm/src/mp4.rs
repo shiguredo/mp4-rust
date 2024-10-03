@@ -224,14 +224,34 @@ impl InputMp4 {
             .or_fail_with(|()| "'moov' box not found".to_owned())?;
         let mut tracks = Vec::new();
         for trak_box in &moov_box.trak_boxes {
-            let builder = InputTrackBuilder {
-                mp4_file_bytes,
-                is_audio: trak_box.mdia_box.hdlr_box.handler_type == HdlrBox::HANDLER_TYPE_SOUN,
-                timescale: trak_box.mdia_box.mdhd_box.timescale, // TODO: NonZero にする
-                sample_table: SampleTableAccessor::new(&trak_box.mdia_box.minf_box.stbl_box)
-                    .or_fail()?,
-            };
-            tracks.push(builder.build().or_fail()?);
+            let is_audio = trak_box.mdia_box.hdlr_box.handler_type == HdlrBox::HANDLER_TYPE_SOUN;
+            let timescale = trak_box.mdia_box.mdhd_box.timescale;
+            let sample_table =
+                SampleTableAccessor::new(&trak_box.mdia_box.minf_box.stbl_box).or_fail()?;
+
+            tracks.push(Track {
+                is_audio,
+                chunks: sample_table
+                    .chunks()
+                    .map(|c| Chunk {
+                        sample_entry: c.sample_entry().clone(),
+                        samples: c
+                            .samples()
+                            .map(|s| {
+                                let offset = s.data_offset() as usize;
+                                let size = s.data_size() as usize;
+                                let data = mp4_file_bytes[offset..][..size].to_vec();
+                                Sample {
+                                    duration: Duration::from_secs(s.duration() as u64)
+                                        / timescale.get(),
+                                    is_key: s.is_sync_sample(),
+                                    data,
+                                }
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            });
         }
         Ok(Self {
             tracks,
@@ -260,45 +280,6 @@ impl Track {
 
     fn samples(&self) -> impl '_ + Iterator<Item = &Sample> {
         self.chunks.iter().flat_map(|c| c.samples.iter())
-    }
-}
-
-#[derive(Debug)]
-struct InputTrackBuilder<'a> {
-    mp4_file_bytes: &'a [u8],
-    is_audio: bool,
-    timescale: NonZeroU32,
-    sample_table: SampleTableAccessor<'a>,
-}
-
-impl<'a> InputTrackBuilder<'a> {
-    fn build(self) -> orfail::Result<Track> {
-        Ok(Track {
-            is_audio: self.is_audio,
-            chunks: self
-                .sample_table
-                .chunks()
-                .map(|c| self.build_chunk(c))
-                .collect(),
-        })
-    }
-
-    fn build_chunk(&self, chunk: ChunkAccessor) -> Chunk {
-        Chunk {
-            sample_entry: chunk.sample_entry().clone(),
-            samples: chunk.samples().map(|s| self.build_sample(s)).collect(),
-        }
-    }
-
-    fn build_sample(&self, sample: SampleAccessor) -> Sample {
-        let offset = sample.data_offset() as usize;
-        let size = sample.data_size() as usize;
-        let data = self.mp4_file_bytes[offset..][..size].to_vec();
-        Sample {
-            duration: Duration::from_secs(sample.duration() as u64) / self.timescale.get(),
-            is_key: sample.is_sync_sample(),
-            data,
-        }
     }
 }
 
