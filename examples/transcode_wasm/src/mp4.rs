@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, num::NonZeroU32, time::Duration};
 
 use orfail::{Failure, OrFail};
 use shiguredo_mp4::{
@@ -10,7 +10,7 @@ use shiguredo_mp4::{
     BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime,
 };
 
-const TIMESCALE: u32 = 1_000_000; // いったんマイクロ秒に決め打ち
+const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1); // マイクロ秒に決め打ち
 
 // TOOD: rename
 #[derive(Debug)]
@@ -169,7 +169,7 @@ impl InputMp4 {
             if uniq_sample_entries.contains_key(&chunk.sample_entry) {
                 continue;
             }
-            let index = uniq_sample_entries.len() as u32 + 1;
+            let index = NonZeroU32::MIN.saturating_add(uniq_sample_entries.len() as u32);
             uniq_sample_entries.insert(chunk.sample_entry.clone(), index);
             stsd_entries.push(chunk.sample_entry.clone());
         }
@@ -193,7 +193,7 @@ impl InputMp4 {
                 .iter()
                 .enumerate()
                 .map(|(i, c)| StscEntry {
-                    first_chunk: i as u32 + 1,
+                    first_chunk: NonZeroU32::MIN.saturating_add(i as u32),
                     sample_per_chunk: c.samples.len() as u32,
                     sample_description_index: uniq_sample_entries[&c.sample_entry],
                 })
@@ -275,7 +275,7 @@ struct InputTrackBuilder<'a> {
     track_index: usize,
     mp4_file_bytes: &'a [u8],
     is_audio: bool,
-    timescale: u32,
+    timescale: NonZeroU32,
     stbl_box: &'a StblBox,
 }
 
@@ -290,17 +290,8 @@ impl<'a> InputTrackBuilder<'a> {
             sample_description_index, // TODO: NonZero にする
         } in self.stbl_box.stsc_box.entries.iter().rev()
         {
-            let first_chunk_index = (*first_chunk as usize).checked_sub(1).or_fail_with(|()| {
-                format!("Invalid chunk index in {}-th track", self.track_index + 1)
-            })?;
-            let sample_entry_index = (*sample_description_index as usize)
-                .checked_sub(1)
-                .or_fail_with(|()| {
-                    format!(
-                        "Invalid sample description index in {}-th track",
-                        self.track_index + 1
-                    )
-                })?;
+            let first_chunk_index = first_chunk.get() as usize - 1;
+            let sample_entry_index = sample_description_index.get() as usize - 1;
             for chunk_index in (first_chunk_index..chunk_index_end).rev() {
                 let sample_index_start = sample_index_end
                     .checked_sub(*sample_per_chunk as usize)
@@ -405,8 +396,7 @@ impl<'a> InputTrackBuilder<'a> {
             return Ok(true);
         };
 
-        // TODO: optimize
-        let i = sample_index as u32 + 1; // 1 origin に直す
+        let i = NonZeroU32::MIN.saturating_add(sample_index as u32);
         Ok(stss_box.sample_numbers.contains(&i))
     }
 
@@ -416,7 +406,8 @@ impl<'a> InputTrackBuilder<'a> {
         for entry in &self.stbl_box.stts_box.entries {
             i = i.saturating_sub(entry.sample_count as usize);
             if i == 0 {
-                let duration = Duration::from_secs(entry.sample_delta as u64) / self.timescale;
+                let duration =
+                    Duration::from_secs(entry.sample_delta as u64) / self.timescale.get();
                 return Ok(duration);
             }
         }
