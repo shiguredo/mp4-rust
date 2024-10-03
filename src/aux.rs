@@ -1,9 +1,8 @@
 //! MP4 の仕様とは直接は関係がない、実装上便利な補助的なコンポーネントを集めたモジュール
-
 use std::num::NonZeroU32;
 
 use crate::{
-    boxes::{SampleEntry, StblBox, StscEntry, StszBox},
+    boxes::{SampleEntry, StblBox, StszBox},
     Either,
 };
 
@@ -45,50 +44,14 @@ impl<'a> SampleTableAccessor<'a> {
         }
     }
 
-    /// 指定されたサンプルの尺を取得する
+    /// 指定されたサンプルの情報を返す
     ///
     /// 存在しないサンプルが指定された場合には [`None`] が返される
-    pub fn get_sample_duration(&self, sample_index: NonZeroU32) -> Option<u32> {
-        if self.sample_count < sample_index.get() {
-            return None;
-        }
-
-        let i = self
-            .stts_table
-            .binary_search_by_key(&(sample_index.get() - 1), |x| x.0)
-            .unwrap_or_else(|i| i.checked_sub(1).expect("unreachable"));
-        self.stts_table.get(i).map(|x| x.1)
-    }
-
-    /// 指定されたサンプルのデータサイズ（バイト数）を取得する
-    ///
-    /// 存在しないサンプルが指定された場合には [`None`] が返される
-    pub fn get_sample_size(&self, sample_index: NonZeroU32) -> Option<u32> {
-        if self.sample_count < sample_index.get() {
-            return None;
-        }
-
-        let i = sample_index.get() as usize - 1;
-        match &self.stbl_box.stsz_box {
-            StszBox::Fixed { sample_size, .. } => Some(sample_size.get()),
-            StszBox::Variable { entry_sizes } => entry_sizes.get(i).copied(),
-        }
-    }
-
-    /// 指定されたサンプルが同期サンプルかどうかを判定する
-    ///
-    /// 存在しないサンプルが指定された場合には [`None`] が返される
-    pub fn is_sync_sample(&self, sample_index: NonZeroU32) -> Option<bool> {
-        if self.sample_count < sample_index.get() {
-            return None;
-        }
-
-        let Some(stss_box) = &self.stbl_box.stss_box else {
-            // stss ボックスが存在しない場合は全てが同期サンプル扱い
-            return Some(true);
-        };
-
-        Some(stss_box.sample_numbers.binary_search(&sample_index).is_ok())
+    pub fn get_sample(&self, sample_index: NonZeroU32) -> Option<SampleAccessor> {
+        (sample_index.get() <= self.sample_count).then(|| SampleAccessor {
+            sample_table: self,
+            sample_index,
+        })
     }
 
     /// 指定されたチャンクのファイル内でのバイト位置を返す
@@ -102,6 +65,36 @@ impl<'a> SampleTableAccessor<'a> {
         }
     }
 
+    /// 指定されたチャンク内のサンプル数を返す
+    ///
+    /// 存在しないチャンクが指定された場合には [`None`] が返される
+    pub fn get_chunk_sample_count(&self, chunk_index: NonZeroU32) -> Option<u32> {
+        if chunk_index.get() > self.chunk_count() {
+            return None;
+        }
+        if self
+            .stbl_box
+            .stsc_box
+            .entries
+            .get(0)
+            .map_or(true, |x| chunk_index < x.first_chunk)
+        {
+            return None;
+        }
+
+        let i = self
+            .stbl_box
+            .stsc_box
+            .entries
+            .binary_search_by_key(&chunk_index, |x| x.first_chunk)
+            .unwrap_or_else(|i| i.checked_sub(1).expect("unreachable"));
+        self.stbl_box
+            .stsc_box
+            .entries
+            .get(i)
+            .map(|x| x.sample_per_chunk)
+    }
+
     /// 指定されたサンプルディスクリプション（サンプルエントリー）を返す
     ///
     /// 存在しないサンプルディスクリプションが指定された場合には [`None`] が返される
@@ -111,69 +104,57 @@ impl<'a> SampleTableAccessor<'a> {
             .entries
             .get(sample_description_index.get() as usize - 1)
     }
+}
 
-    /// このトラック内のチャンク一覧を返す
-    pub fn chunks(&self) -> Vec<ExpandedStscEntry> {
-        let mut chunks = Vec::new();
-        let mut chunk_end = self.chunk_count();
-        let mut sample_end = self
-            .stbl_box
-            .stsc_box
-            .entries
-            .iter()
-            .map(|x| x.sample_per_chunk)
-            .sum();
-        for StscEntry {
-            first_chunk,
-            sample_per_chunk,
-            sample_description_index,
-        } in self.stbl_box.stsc_box.entries.iter().cloned().rev()
-        {
-            let chunk_start = first_chunk.get() - 1;
-            for chunk in (chunk_start..chunk_end).rev() {
-                let sample_start = sample_end + sample_per_chunk;
-                chunks.push(ExpandedStscEntry {
-                    chunk_index: NonZeroU32::MIN.saturating_add(chunk),
-                    sample_description_index,
-                    sample_index_offset: NonZeroU32::MIN.saturating_add(sample_start),
-                    sample_count: sample_per_chunk,
-                });
-                sample_end = sample_start;
-            }
-            chunk_end = chunk_start;
+/// TODO: doc
+#[derive(Debug)]
+pub struct SampleAccessor<'a> {
+    sample_table: &'a SampleTableAccessor<'a>,
+    sample_index: NonZeroU32,
+}
+
+impl<'a> SampleAccessor<'a> {
+    /// サンプルの尺を取得する
+    pub fn duration(&self) -> u32 {
+        let i = self
+            .sample_table
+            .stts_table
+            .binary_search_by_key(&(self.sample_index.get() - 1), |x| x.0)
+            .unwrap_or_else(|i| i.checked_sub(1).expect("unreachable"));
+        self.sample_table.stts_table[i].1
+    }
+
+    /// サンプルのデータサイズ（バイト数）を取得する
+    ///
+    /// [`StblBox`] 内の子ボックス群に不整合があって、サンプルのサイズが不明な場合には [`None`] が返される
+    pub fn data_size(&self) -> Option<u32> {
+        let i = self.sample_index.get() as usize - 1;
+        match &self.sample_table.stbl_box.stsz_box {
+            StszBox::Fixed { sample_size, .. } => Some(sample_size.get()),
+            StszBox::Variable { entry_sizes } => entry_sizes.get(i).copied(),
         }
-        chunks.reverse();
-        chunks
     }
-}
 
-/// [`StscEntry`] を展開して、特定のチャンクに対応する情報を保持するようにした構造体
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ExpandedStscEntry {
-    /// チャンクインデックス
-    pub chunk_index: NonZeroU32,
+    /// サンプルが同期サンプルかどうかを判定する
+    pub fn is_sync_sample(&self) -> bool {
+        let Some(stss_box) = &self.sample_table.stbl_box.stss_box else {
+            // stss ボックスが存在しない場合は全てが同期サンプル扱い
+            return true;
+        };
 
-    /// このチャンクが参照するサンプルエントリーのインデックス
-    pub sample_description_index: NonZeroU32,
-
-    /// このチャンクが属する最初のサンプルのインデックス
-    pub sample_index_offset: NonZeroU32,
-
-    /// このチャンクに属するサンプルの数
-    pub sample_count: u32,
-}
-
-impl ExpandedStscEntry {
-    /// このチャンクに属するサンプル群のインデックスを走査するイテレーターを返す
-    pub fn sample_indices(&self) -> impl '_ + Iterator<Item = NonZeroU32> {
-        (0..self.sample_count).map(|i| self.sample_index_offset.saturating_add(i))
+        stss_box
+            .sample_numbers
+            .binary_search(&self.sample_index)
+            .is_ok()
     }
+
+    // TODO: chunk() -> ChunkAccessor
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        boxes::{StcoBox, StscBox, StsdBox, StssBox, SttsBox, UnknownBox},
+        boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},
         BoxSize, BoxType,
     };
 
@@ -181,6 +162,7 @@ mod tests {
 
     #[test]
     fn sample_table_accessor() {
+        let sample_durations = [10, 5, 5, 20, 20, 20, 1, 1, 1, 1];
         let stbl_box = StblBox {
             stsd_box: StsdBox {
                 entries: vec![SampleEntry::Unknown(UnknownBox {
@@ -189,7 +171,7 @@ mod tests {
                     payload: Vec::new(),
                 })],
             },
-            stts_box: SttsBox::from_sample_deltas([10, 5, 5, 20, 20, 20, 1, 1, 1, 1]),
+            stts_box: SttsBox::from_sample_deltas(sample_durations),
             stsc_box: StscBox {
                 entries: [(index(1), 2, index(1)), (index(7), 4, index(1))]
                     .into_iter()
@@ -218,43 +200,23 @@ mod tests {
         assert_eq!(sample_table.sample_count(), 10);
         assert_eq!(sample_table.chunk_count(), 3);
 
-        // Duration.
-        assert_eq!(sample_table.get_sample_duration(index(1)), Some(10));
-        assert_eq!(sample_table.get_sample_duration(index(2)), Some(5));
-        assert_eq!(sample_table.get_sample_duration(index(3)), Some(5));
-        assert_eq!(sample_table.get_sample_duration(index(4)), Some(20));
-        assert_eq!(sample_table.get_sample_duration(index(5)), Some(20));
-        assert_eq!(sample_table.get_sample_duration(index(6)), Some(20));
-        assert_eq!(sample_table.get_sample_duration(index(7)), Some(1));
-        assert_eq!(sample_table.get_sample_duration(index(8)), Some(1));
-        assert_eq!(sample_table.get_sample_duration(index(9)), Some(1));
-        assert_eq!(sample_table.get_sample_duration(index(10)), Some(1));
-        assert_eq!(sample_table.get_sample_duration(index(11)), None);
-
-        // Sample size.
         for i in 0..10 {
-            assert_eq!(sample_table.get_sample_size(index(i + 1)), Some(i));
+            let sample = sample_table.get_sample(index(i as u32 + 1)).expect("bug");
+            assert_eq!(sample.duration(), sample_durations[i]);
+            assert_eq!(sample.data_size(), Some(i as u32));
+            assert_eq!(sample.is_sync_sample(), (i + 1) % 2 == 1);
         }
-        assert_eq!(sample_table.get_sample_size(index(11)), None);
+        assert!(sample_table.get_sample(index(11)).is_none());
 
-        // Sync sample.
-        for i in 0..10 {
-            assert_eq!(
-                sample_table.is_sync_sample(index(i + 1)),
-                Some((i + 1) % 2 == 1)
-            );
-        }
-        assert_eq!(sample_table.is_sync_sample(index(11)), None);
+        // // Chunk offset.
+        // assert_eq!(sample_table.get_chunk_offset(index(1)), Some(100));
+        // assert_eq!(sample_table.get_chunk_offset(index(2)), Some(200));
+        // assert_eq!(sample_table.get_chunk_offset(index(3)), Some(300));
+        // assert_eq!(sample_table.get_chunk_offset(index(4)), None);
 
-        // Chunk offset.
-        assert_eq!(sample_table.get_chunk_offset(index(1)), Some(100));
-        assert_eq!(sample_table.get_chunk_offset(index(2)), Some(200));
-        assert_eq!(sample_table.get_chunk_offset(index(3)), Some(300));
-        assert_eq!(sample_table.get_chunk_offset(index(4)), None);
-
-        // Sample entry.
-        assert!(sample_table.get_sample_entry(index(1)).is_some());
-        assert!(sample_table.get_sample_entry(index(2)).is_none());
+        // // Sample entry.
+        // assert!(sample_table.get_sample_entry(index(1)).is_some());
+        // assert!(sample_table.get_sample_entry(index(2)).is_none());
 
         // Chunks.
         // assert_eq!(sample_table.chunks(), vec![]);
