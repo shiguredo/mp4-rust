@@ -246,6 +246,12 @@ impl<'a> SampleAccessor<'a> {
         }
     }
 
+    /// サンプルデータのファイル内でのバイト位置を返す
+    pub fn data_offset(&self) -> u64 {
+        //self.chunk().offset()
+        todo!()
+    }
+
     /// サンプルが同期サンプルかどうかを判定する
     pub fn is_sync_sample(&self) -> bool {
         let Some(stss_box) = &self.sample_table.stbl_box.stss_box else {
