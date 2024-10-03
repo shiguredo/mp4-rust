@@ -2,8 +2,8 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    boxes::{SampleEntry, StblBox, StscEntry, StszBox},
-    Either,
+    boxes::{SampleEntry, StblBox, StscBox, StscEntry, StszBox},
+    BoxType, Either,
 };
 
 /// [`StblBox`] をラップして、その中の情報を簡単かつ効率的に取り出せるようにするための構造体
@@ -18,9 +18,7 @@ pub struct SampleTableAccessor<'a> {
 
 impl<'a> SampleTableAccessor<'a> {
     /// 引数で渡された [`StblBox`] 用の [`SampleTableAccessor`] インスタンスを生成する
-    ///
-    /// [`StblBox`] の子ボックス群に不整合がある場合には [`None`] が返される
-    pub fn new(stbl_box: &'a StblBox) -> Option<Self> {
+    pub fn new(stbl_box: &'a StblBox) -> Result<Self, SampleTableAccessorError> {
         let mut sample_count = 0;
         let mut sample_durations = Vec::new();
         for entry in &stbl_box.stts_box.entries {
@@ -31,7 +29,11 @@ impl<'a> SampleTableAccessor<'a> {
         if let StszBox::Variable { entry_sizes } = &stbl_box.stsz_box {
             if entry_sizes.len() != sample_count as usize {
                 // stts と stsz でサンプル数が異なる
-                return None;
+                return Err(SampleTableAccessorError::InconsistentSampleCount {
+                    stts_sample_count: sample_count,
+                    other_box_type: StszBox::TYPE,
+                    other_sample_count: entry_sizes.len() as u32,
+                });
             }
         }
 
@@ -40,23 +42,23 @@ impl<'a> SampleTableAccessor<'a> {
             Either::B(b) => b.chunk_offsets.len() as u32,
         };
 
-        if stbl_box
-            .stsc_box
-            .entries
-            .first()
-            .map_or(false, |x| x.first_chunk.get() != 1)
-        {
-            // チャンクインデックスが 1 以外から始まっている
-            return None;
+        if let Some(x) = stbl_box.stsc_box.entries.first() {
+            if x.first_chunk.get() != 1 {
+                // チャンクインデックスが 1 以外から始まっている
+                return Err(SampleTableAccessorError::FirstChunkIndexIsNotOne {
+                    actual_chunk_index: x.first_chunk,
+                });
+            }
         }
-        if stbl_box
-            .stsc_box
-            .entries
-            .iter()
-            .any(|x| stbl_box.stsd_box.entries.len() < x.sample_description_index.get() as usize)
-        {
+        if let Some(i) = stbl_box.stsc_box.entries.iter().position(|x| {
+            stbl_box.stsd_box.entries.len() < x.sample_description_index.get() as usize
+        }) {
             // 存在しないサンプルエントリーを参照しているチャンクがある
-            return None;
+            return Err(SampleTableAccessorError::MissingSampleEntry {
+                stsc_entry_index: i,
+                sample_description_index: stbl_box.stsc_box.entries[i].sample_description_index,
+                sample_entry_count: stbl_box.stsd_box.entries.len(),
+            });
         }
         if stbl_box
             .stsc_box
@@ -66,7 +68,7 @@ impl<'a> SampleTableAccessor<'a> {
             .any(|(prev, next)| prev.first_chunk >= next.first_chunk)
         {
             // stsc 内のチャンクインデックスが短調増加していない
-            return None;
+            return Err(SampleTableAccessorError::ChunkIndicesNotMonotonicallyIncreasing);
         }
 
         let mut sample_index_offsets = Vec::new();
@@ -85,10 +87,14 @@ impl<'a> SampleTableAccessor<'a> {
         }
         if first_sample_index.get() != sample_count {
             // stts と stsc でサンプル数が異なる
-            return None;
+            return Err(SampleTableAccessorError::InconsistentSampleCount {
+                stts_sample_count: sample_count,
+                other_box_type: StscBox::TYPE,
+                other_sample_count: first_sample_index.get(),
+            });
         }
 
-        Some(Self {
+        Ok(Self {
             stbl_box,
             chunk_count,
             sample_count,
@@ -143,6 +149,70 @@ impl<'a> SampleTableAccessor<'a> {
         })
     }
 }
+
+/// [`SampleTableAccessor::new()`] で発生する可能性があるエラー
+#[derive(Debug)]
+pub enum SampleTableAccessorError {
+    /// [`SttsBox`] と他のボックスで、表現しているサンプル数が異なる
+    InconsistentSampleCount {
+        /// [`SttsBox`] 準拠のサンプル数
+        stts_sample_count: u32,
+
+        /// [`SttsBox`] とは異なるサンプル数を表しているボックスの種別
+        other_box_type: BoxType,
+
+        /// `other_box_type` 準拠のサンプル数
+        other_sample_count: u32,
+    },
+
+    /// [`StscBox`] の最初のエントリのチャンクインデックスが 1 ではない
+    FirstChunkIndexIsNotOne {
+        /// 実際の最初のチャンクインデックスの値
+        actual_chunk_index: NonZeroU32,
+    },
+
+    /// [`StscBox`] が存在しない [`SampleEntry`] を参照している
+    MissingSampleEntry {
+        /// [`StscEntry`] のインデックス
+        stsc_entry_index: usize,
+
+        /// 存在しないサンプルエントリーのインデックス
+        sample_description_index: NonZeroU32,
+
+        /// サンプルエントリーの総数
+        sample_entry_count: usize,
+    },
+
+    /// [`StscBox`] のチャンクインデックスが短調増加していない
+    ChunkIndicesNotMonotonicallyIncreasing,
+}
+
+impl std::fmt::Display for SampleTableAccessorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SampleTableAccessorError::InconsistentSampleCount {
+                stts_sample_count,
+                other_box_type,
+                other_sample_count,
+            } => write!(f, "Sample count in `stts` box is {stts_sample_count}, but `{other_box_type}` has sample count {other_sample_count}"),
+            SampleTableAccessorError::FirstChunkIndexIsNotOne { actual_chunk_index } => {
+                write!(f,"First chunk index in `stsc` box is expected to 1, but got {actual_chunk_index}")
+            }
+            SampleTableAccessorError::MissingSampleEntry {
+                stsc_entry_index,
+                sample_description_index,
+                sample_entry_count,
+            } => {
+                write!(f, "{stsc_entry_index}-th entry in `stsc` box refers to a missing sample entry {sample_description_index} (sample entry count is {sample_entry_count})")
+            }
+            SampleTableAccessorError::ChunkIndicesNotMonotonicallyIncreasing => {
+                write!(f,"Chunk indices in `stsc` box is not monotonically increasing")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SampleTableAccessorError {}
 
 /// [`StblBox`] 内の個々のサンプルの情報を取得するための構造体
 #[derive(Debug)]
