@@ -160,7 +160,7 @@ impl Decode for Brand {
 }
 
 /// [ISO/IEC 14496-12] FileTypeBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct FtypBox {
     pub major_brand: Brand,
@@ -226,7 +226,7 @@ impl BaseBox for FtypBox {
 }
 
 /// [`Mp4File`](crate::Mp4File) のトップレベルに位置するボックス群のデフォルト実装
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum RootBox {
     Free(FreeBox),
@@ -292,7 +292,7 @@ impl BaseBox for RootBox {
 }
 
 /// [ISO/IEC 14496-12] FreeSpaceBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct FreeBox {
     pub payload: Vec<u8>,
@@ -337,7 +337,7 @@ impl BaseBox for FreeBox {
 }
 
 /// [ISO/IEC 14496-12] MediaDataBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MdatBox {
     /// ペイロードが可変長かどうか
     pub is_variable_size: bool,
@@ -396,7 +396,7 @@ impl BaseBox for MdatBox {
 }
 
 /// [ISO/IEC 14496-12] MovieBox class
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
@@ -483,12 +483,12 @@ impl BaseBox for MoovBox {
 }
 
 /// [ISO/IEC 14496-12] MovieHeaderBox class (親: [`MoovBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MvhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
-    pub timescale: u32,
+    pub timescale: NonZeroU32,
     pub duration: u64,
     pub rate: FixedPointNumber<i16, u16>,
     pub volume: FixedPointNumber<i8, u8>,
@@ -536,7 +536,7 @@ impl MvhdBox {
         let mut this = Self {
             creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
-            timescale: 0,
+            timescale: NonZeroU32::MIN,
             duration: 0,
             rate: Self::DEFAULT_RATE,
             volume: Self::DEFAULT_VOLUME,
@@ -547,13 +547,13 @@ impl MvhdBox {
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
             this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u64::decode(reader)?;
         } else {
             this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
                 u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u32::decode(reader)? as u64;
         }
 
@@ -616,7 +616,7 @@ impl FullBox for MvhdBox {
 }
 
 /// [ISO/IEC 14496-12] TrackBox class (親: [`MoovBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct TrakBox {
     pub tkhd_box: TkhdBox,
@@ -712,7 +712,7 @@ impl BaseBox for TrakBox {
 }
 
 /// [ISO/IEC 14496-12] TrackHeaderBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct TkhdBox {
     pub flag_track_enabled: bool,
@@ -883,7 +883,7 @@ impl FullBox for TkhdBox {
 }
 
 /// [ISO/IEC 14496-12] EditBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct EdtsBox {
     pub elst_box: Option<ElstBox>,
@@ -960,7 +960,7 @@ impl BaseBox for EdtsBox {
 }
 
 /// [`ElstBox`] に含まれるエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct ElstEntry {
     pub edit_duration: u64,
@@ -969,7 +969,7 @@ pub struct ElstEntry {
 }
 
 /// [ISO/IEC 14496-12] EditListBox class (親: [`EdtsBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct ElstBox {
     pub entries: Vec<ElstEntry>,
@@ -1072,7 +1072,7 @@ impl FullBox for ElstBox {
 }
 
 /// [ISO/IEC 14496-12] MediaBox class (親: [`TrakBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MdiaBox {
     pub mdhd_box: MdhdBox,
@@ -1166,12 +1166,12 @@ impl BaseBox for MdiaBox {
 }
 
 /// [ISO/IEC 14496-12] MediaHeaderBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MdhdBox {
     pub creation_time: Mp4FileTime,
     pub modification_time: Mp4FileTime,
-    pub timescale: u32,
+    pub timescale: NonZeroU32,
     pub duration: u64,
 
     /// ISO-639-2/T language code
@@ -1217,7 +1217,7 @@ impl MdhdBox {
         let mut this = Self {
             creation_time: Default::default(),
             modification_time: Default::default(),
-            timescale: Default::default(),
+            timescale: NonZeroU32::MIN,
             duration: Default::default(),
             language: Default::default(),
         };
@@ -1225,13 +1225,13 @@ impl MdhdBox {
         if full_header.version == 1 {
             this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
             this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u64::decode(reader)?;
         } else {
             this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
                 u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = u32::decode(reader)?;
+            this.timescale = NonZeroU32::decode(reader)?;
             this.duration = u32::decode(reader)? as u64;
         }
 
@@ -1296,7 +1296,7 @@ impl FullBox for MdhdBox {
 }
 
 /// [ISO/IEC 14496-12] HandlerBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HdlrBox {
     pub handler_type: [u8; 4],
@@ -1382,7 +1382,7 @@ impl FullBox for HdlrBox {
 }
 
 /// [ISO/IEC 14496-12] MediaInformationBox class (親: [`MdiaBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MinfBox {
     pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
@@ -1486,7 +1486,7 @@ impl BaseBox for MinfBox {
 }
 
 /// [ISO/IEC 14496-12] SoundMediaHeaderBox class (親: [`MinfBox`]）
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SmhdBox {
     pub balance: FixedPointNumber<u8, u8>,
@@ -1555,7 +1555,7 @@ impl FullBox for SmhdBox {
 }
 
 /// [ISO/IEC 14496-12] VideoMediaHeaderBox class (親: [`MinfBox`]）
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VmhdBox {
     pub graphicsmode: u16,
@@ -1638,7 +1638,7 @@ impl FullBox for VmhdBox {
 }
 
 /// [ISO/IEC 14496-12] DataInformationBox class (親: [`MinfBox`]）
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct DinfBox {
     pub dref_box: DrefBox,
@@ -1720,7 +1720,7 @@ impl BaseBox for DinfBox {
 }
 
 /// [ISO/IEC 14496-12] DataReferenceBox class (親: [`DinfBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct DrefBox {
     pub url_box: Option<UrlBox>,
@@ -1818,7 +1818,7 @@ impl FullBox for DrefBox {
 }
 
 /// [ISO/IEC 14496-12] DataEntryUrlBox class (親: [`DrefBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct UrlBox {
     pub location: Option<Utf8String>,
@@ -1891,7 +1891,7 @@ impl FullBox for UrlBox {
 }
 
 /// [ISO/IEC 14496-12] SampleTableBox class (親: [`MinfBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StblBox {
     pub stsd_box: StsdBox,
@@ -2023,7 +2023,7 @@ impl BaseBox for StblBox {
 }
 
 /// [ISO/IEC 14496-12] SampleDescriptionBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StsdBox {
     pub entries: Vec<SampleEntry>,
@@ -3248,7 +3248,7 @@ impl BaseBox for Av1cBox {
 }
 
 /// [`SttsBox`] が保持するエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SttsEntry {
     pub sample_count: u32,
@@ -3256,7 +3256,7 @@ pub struct SttsEntry {
 }
 
 /// [ISO/IEC 14496-12] TimeToSampleBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct SttsBox {
     pub entries: Vec<SttsEntry>,
@@ -3265,6 +3265,27 @@ pub struct SttsBox {
 impl SttsBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stts");
+
+    /// サンプル群の尺を走査するイテレーターを受け取って、対応する [`SttsBox`] インスタンスを作成する
+    pub fn from_sample_deltas<I>(sample_deltas: I) -> Self
+    where
+        I: IntoIterator<Item = u32>,
+    {
+        let mut entries = Vec::<SttsEntry>::new();
+        for sample_delta in sample_deltas {
+            if let Some(last) = entries.last_mut() {
+                if last.sample_delta == sample_delta {
+                    last.sample_count += 1;
+                    continue;
+                }
+            }
+            entries.push(SttsEntry {
+                sample_count: 1,
+                sample_delta,
+            });
+        }
+        Self { entries }
+    }
 
     fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(writer)?;
@@ -3331,16 +3352,16 @@ impl FullBox for SttsBox {
 }
 
 /// [`StscBox`] が保持するエントリー
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StscEntry {
-    pub first_chunk: u32,
+    pub first_chunk: NonZeroU32,
     pub sample_per_chunk: u32,
-    pub sample_description_index: u32,
+    pub sample_description_index: NonZeroU32,
 }
 
 /// [ISO/IEC 14496-12] SampleToChunkBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StscBox {
     pub entries: Vec<StscEntry>,
@@ -3367,9 +3388,9 @@ impl StscBox {
         let mut entries = Vec::with_capacity(count);
         for _ in 0..count {
             entries.push(StscEntry {
-                first_chunk: u32::decode(reader)?,
+                first_chunk: NonZeroU32::decode(reader)?,
                 sample_per_chunk: u32::decode(reader)?,
-                sample_description_index: u32::decode(reader)?,
+                sample_description_index: NonZeroU32::decode(reader)?,
             });
         }
         Ok(Self { entries })
@@ -3417,7 +3438,7 @@ impl FullBox for StscBox {
 }
 
 /// [ISO/IEC 14496-12] SampleSizeBox class (親: [`StblBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum StszBox {
     Fixed {
@@ -3514,7 +3535,7 @@ impl FullBox for StszBox {
 }
 
 /// [ISO/IEC 14496-12] ChunkOffsetBox class (親: [`StcoBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StcoBox {
     pub chunk_offsets: Vec<u32>,
@@ -3585,7 +3606,7 @@ impl FullBox for StcoBox {
 }
 
 /// [ISO/IEC 14496-12] ChunkLargeOffsetBox class (親: [`Co64Box`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Co64Box {
     pub chunk_offsets: Vec<u64>,
@@ -3656,10 +3677,10 @@ impl FullBox for Co64Box {
 }
 
 /// [ISO/IEC 14496-12] SyncSampleBox class (親: [`StssBox`])
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StssBox {
-    pub sample_numbers: Vec<u32>,
+    pub sample_numbers: Vec<NonZeroU32>,
 }
 
 impl StssBox {
@@ -3680,7 +3701,7 @@ impl StssBox {
         let count = u32::decode(reader)? as usize;
         let mut sample_numbers = Vec::with_capacity(count);
         for _ in 0..count {
-            sample_numbers.push(u32::decode(reader)?);
+            sample_numbers.push(NonZeroU32::decode(reader)?);
         }
         Ok(Self { sample_numbers })
     }

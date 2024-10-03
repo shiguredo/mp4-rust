@@ -507,6 +507,13 @@ impl Utf8String {
     pub fn get(&self) -> &str {
         &self.0
     }
+
+    /// このインスタンスを、null 終端部分を含むバイト列へと変換する
+    pub fn into_null_terminated_bytes(self) -> Vec<u8> {
+        let mut v = self.0.into_bytes();
+        v.push(0);
+        v
+    }
 }
 
 impl Encode for Utf8String {
