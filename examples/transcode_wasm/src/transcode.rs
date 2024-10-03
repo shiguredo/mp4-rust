@@ -1,4 +1,11 @@
-use std::{future::Future, marker::PhantomData};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
 use orfail::{Failure, OrFail};
@@ -70,6 +77,8 @@ pub struct Transcoder<CODEC> {
     executing: bool,
     transcode_result_rx: futures::channel::mpsc::UnboundedReceiver<orfail::Result<Track>>,
     output_tracks: Vec<Track>,
+    transcode_target_sample_count: usize,
+    transcoded_sample_count: Arc<AtomicUsize>,
     _codec: PhantomData<CODEC>,
 }
 
@@ -84,6 +93,8 @@ impl<CODEC: Codec> Transcoder<CODEC> {
             executing: false,
             transcode_result_rx,
             output_tracks: Vec::new(),
+            transcode_target_sample_count: 0,
+            transcoded_sample_count: Arc::new(AtomicUsize::new(0)),
             _codec: PhantomData,
         }
     }
@@ -125,8 +136,16 @@ impl<CODEC: Codec> Transcoder<CODEC> {
         let (transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         let _ = self.options;
         for track in input_mp4.tracks {
+            self.transcode_target_sample_count += track
+                .chunks
+                .iter()
+                .filter(|c| matches!(c.sample_entry, SampleEntry::Avc1(_)))
+                .map(|c| c.samples.len())
+                .sum::<usize>();
+
             let transcoder = TrackTranscoder {
                 track,
+                transcoded_sample_count: Arc::clone(&self.transcoded_sample_count),
                 _codec: self._codec,
             };
             let transcode_result_tx = transcode_result_tx.clone();
@@ -169,7 +188,12 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 
         Ok(TranscodeProgress {
             done: self.transcode_result_rx.is_terminated(),
-            rate: 0.0,
+            rate: if self.transcode_target_sample_count > 0 {
+                self.transcoded_sample_count.load(Ordering::SeqCst) as f32
+                    / self.transcode_target_sample_count as f32
+            } else {
+                1.0
+            },
         })
     }
 
@@ -189,6 +213,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 #[derive(Debug)]
 struct TrackTranscoder<CODEC> {
     track: Track,
+    transcoded_sample_count: Arc<AtomicUsize>,
     _codec: PhantomData<CODEC>,
 }
 
@@ -289,6 +314,7 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
                 data: encoded_data,
             });
             is_first = false;
+            self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
         CODEC::close_coder(&mut decoder);
         CODEC::close_coder(&mut encoder);

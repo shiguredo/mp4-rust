@@ -182,7 +182,7 @@ async function startTranscode() {
     let result;
     const inputBytes = new Uint8Array(await file.arrayBuffer());
     const inputWasmBytes = toWasmBytes(inputBytes);
-    log(`Parsing input MP4 file (${Math.floor(inputBytes.byteLength / 1024 / 1024)} MB) ...`);
+    log(`Parsing input MP4 file ...`);
     resultWasmJson = wasmFunctions.parseInputMp4File(transcoder, inputWasmBytes);
     result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
@@ -190,6 +190,7 @@ async function startTranscode() {
         return;
     }
     logDone()
+    log(`Input MP4 file size: ${Math.floor(inputBytes.byteLength / 1024 / 1024)} MB`);
     log(`Input MP4 file duration: ${result["Ok"]} seconds`);
     log("");
 
@@ -213,12 +214,11 @@ function pollTranscode() {
     }
 
     const progress = result["Ok"];
-    updateLog(`Transcoding ... ${progress.rate * 100} %`);
+    updateLog(`Transcoding ... ${(progress.rate * 100).toFixed(3)} %`);
     if (!progress.done) {
         return setTimeout(pollTranscode, 1000);
     }
-    updateLog("Transcoding ...");
-    logDone();
+    logDone("Transcoding ...");
     log("");
 
     log("Building output MP4 file ...");
@@ -277,15 +277,20 @@ function log(message) {
 }
 
 function updateLog(message) {
+    const elapsed = (performance.now() - lastLogTime) / 1000;
     logMessages.pop();
-    logMessages.push(message);
+    logMessages.push(`${message} (elapsed ${elapsed.toFixed(3)} seconds)`);
     document.getElementById("log").value = logMessages.join("\n");
 }
 
-function logDone() {
+function logDone(message) {
     const elapsed = (performance.now() - lastLogTime) / 1000;
-    const message = logMessages.pop();
-    log(`${message} done (${elapsed} seconds)`);
+    if (message === undefined) {
+        message = logMessages.pop();
+    } else {
+        logMessages.pop();
+    }
+    log(`${message} done (elapsed ${elapsed.toFixed(3)} seconds)`);
 }
 
 function logError(result) {
