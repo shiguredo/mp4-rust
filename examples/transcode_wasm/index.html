@@ -21,6 +21,7 @@
       [注意点]
       <ul>
         <li>入力 MP4 ファイル内の H.264 映像トラックのみが変換の対象となります</li>
+        <li>動作確認は最新の Chrome でのみ行っています。また H.265 で変換する場合には Chrome Canary で H.265 機能を有効にする必要があります (2024 年 10 月現在)</li>
         <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
         <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
         <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されます</li>
@@ -43,11 +44,11 @@
     <h3>変換設定</h3>
     コーデック:
     <select id="codec">
-      <option value="avc1.42e02a">H.264 (profile: 42e02a)</option>
-      <option value="h265">H.265 (profile: )</option>
+      <option value="avc1.42e02a">H.264 (42e02a)</option>
+      <option value="hev1.1.6.L93.B0">H.265 (1.6.L93.B0)</option>
       <option value="vp8">VP8</option>
-      <option value="vp9">VP9</option>
-      <option value="av1">AV1</option>
+      <option value="vp09.00.10.08">VP9 (00.10.08)</option>
+      <option value="av01.0.01M.08">AV1 (0.01M.08)</option>
     </select>
     &nbsp;
     解像度:
@@ -74,7 +75,6 @@
       <option value="60">60 秒</option>
     </select>
     <br />
-    <small>※ ブラウザやバージョンによって使用可能なコーデックは異なります</small>
 
     <h3>変換ログ</h3>
     <textarea id="log" cols="90" rows="30" style="font-family:monospace, serif;"></textarea>
