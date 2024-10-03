@@ -11,6 +11,10 @@
 
 ## develop
 
+- [ADD] `StblBox` の情報へのアクセスを簡単かつ安全にするための `SampleTableAccessor` 構造体を追加する
+  - @sile
+- [ADD] `SttsBox::from_sample_deltas()` 関数を追加する
+  - @sile
 - [ADD] `Utf8String::into_null_terminated_bytes()` メソッドを追加する
   - @sile
 - [CHANGE] 仕様上 0 を取らないフィールドの型は `NonZeroXXX` にする
