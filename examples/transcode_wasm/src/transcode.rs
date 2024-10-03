@@ -8,7 +8,7 @@ use shiguredo_mp4::{
     BaseBox, Encode, Uint,
 };
 
-use crate::mp4::{Chunk, InputMp4, Sample, Track};
+use crate::mp4::{Chunk, InputMp4, OutputMp4Builder, Sample, Track};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoFrame {
@@ -169,7 +169,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
     }
 
     pub fn build_output_mp4_file(&mut self) -> orfail::Result<()> {
-        let builder = InputMp4::new(std::mem::take(&mut self.output_tracks));
+        let builder = OutputMp4Builder::new(std::mem::take(&mut self.output_tracks));
         let mp4 = builder.build().or_fail()?;
         self.output_mp4.clear();
         mp4.encode(&mut self.output_mp4).or_fail()?;

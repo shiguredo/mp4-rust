@@ -1,27 +1,27 @@
-use std::{collections::HashMap, num::NonZeroU32, time::Duration};
+use std::{num::NonZeroU32, time::Duration};
 
 use orfail::OrFail;
 use shiguredo_mp4::{
-    aux::{ChunkAccessor, SampleAccessor, SampleTableAccessor},
+    aux::SampleTableAccessor,
     boxes::{
         Brand, DinfBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox, MvhdBox,
-        RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StszBox,
-        SttsBox, TkhdBox, TrakBox, VmhdBox,
+        RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
+        StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
     BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime,
 };
 
-const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1); // マイクロ秒に決め打ち
+// 出力側はマイクロ秒に決め打ち
+const OUTPUT_TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
 
-// TOOD: rename
 #[derive(Debug)]
-pub struct InputMp4 {
-    pub tracks: Vec<Track>,
-    pub chunk_offsets: Vec<u32>,
-    pub file_size: u32,
+pub struct OutputMp4Builder {
+    tracks: Vec<Track>,
+    chunk_offsets: Vec<u32>,
+    file_size: u32,
 }
 
-impl InputMp4 {
+impl OutputMp4Builder {
     pub fn new(tracks: Vec<Track>) -> Self {
         Self {
             tracks,
@@ -77,9 +77,9 @@ impl InputMp4 {
 
     fn build_moov_box(&mut self) -> orfail::Result<MoovBox> {
         let mvhd_box = MvhdBox {
-            creation_time: Mp4FileTime::default(), // TODO: 現在時刻を使う
+            creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
-            timescale: TIMESCALE,
+            timescale: OUTPUT_TIMESCALE,
             duration: self
                 .tracks
                 .iter()
@@ -109,7 +109,7 @@ impl InputMp4 {
             flag_track_in_movie: true,
             flag_track_in_preview: false,
             flag_track_size_is_aspect_ratio: false,
-            creation_time: Mp4FileTime::default(), // TODO
+            creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
             track_id,
             duration: track.duration().as_micros() as u64,
@@ -117,7 +117,7 @@ impl InputMp4 {
             alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
             volume: TkhdBox::DEFAULT_AUDIO_VOLUME,
             matrix: TkhdBox::DEFAULT_MATRIX,
-            width: FixedPointNumber::default(), // TODO: ちゃんと値を設定する
+            width: FixedPointNumber::default(),
             height: FixedPointNumber::default(),
         };
         Ok(TrakBox {
@@ -132,7 +132,7 @@ impl InputMp4 {
         let mdhd_box = MdhdBox {
             creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
-            timescale: TIMESCALE,
+            timescale: OUTPUT_TIMESCALE,
             duration: track.duration().as_micros() as u64,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -142,7 +142,7 @@ impl InputMp4 {
             } else {
                 HdlrBox::HANDLER_TYPE_VIDE
             },
-            name: vec![0], // TODO: Utf8String::to_vec()
+            name: vec![0],
         };
         let minf_box = MinfBox {
             smhd_or_vmhd_box: if track.is_audio {
@@ -163,24 +163,16 @@ impl InputMp4 {
     }
 
     fn build_stbl_box(&mut self, track: &Track) -> orfail::Result<StblBox> {
-        // TODO: 映像なら sync table を設定する
-        let mut uniq_sample_entries = HashMap::new(); // TODO: これはもう不要かも
-        let mut stsd_entries = Vec::new();
-        for chunk in &track.chunks {
-            if uniq_sample_entries.contains_key(&chunk.sample_entry) {
-                continue;
-            }
-            let index = NonZeroU32::MIN.saturating_add(uniq_sample_entries.len() as u32);
-            uniq_sample_entries.insert(chunk.sample_entry.clone(), index);
-            stsd_entries.push(chunk.sample_entry.clone());
-        }
         let stsd_box = StsdBox {
-            entries: stsd_entries,
+            entries: track
+                .chunks
+                .iter()
+                .map(|c| c.sample_entry.clone())
+                .collect(),
         };
         let stts_box =
             SttsBox::from_sample_deltas(track.samples().map(|s| s.duration.as_micros() as u32));
         let stsc_box = StscBox {
-            // TODO: 圧縮する
             entries: track
                 .chunks
                 .iter()
@@ -188,7 +180,7 @@ impl InputMp4 {
                 .map(|(i, c)| StscEntry {
                     first_chunk: NonZeroU32::MIN.saturating_add(i as u32),
                     sample_per_chunk: c.samples.len() as u32,
-                    sample_description_index: uniq_sample_entries[&c.sample_entry],
+                    sample_description_index: NonZeroU32::MIN.saturating_add(i as u32),
                 })
                 .collect(),
         };
@@ -198,17 +190,34 @@ impl InputMp4 {
         let stco_box = StcoBox {
             chunk_offsets: self.chunk_offsets.drain(0..track.chunks.len()).collect(),
         };
+
+        let stss_box = (!track.is_audio).then(|| StssBox {
+            sample_numbers: track
+                .samples()
+                .enumerate()
+                .filter(|(_, s)| s.is_key)
+                .map(|(i, _)| NonZeroU32::MIN.saturating_add(i as u32))
+                .collect(),
+        });
+
         Ok(StblBox {
             stsd_box,
             stts_box,
             stsc_box,
             stsz_box,
             stco_or_co64_box: Either::A(stco_box),
-            stss_box: None,
+            stss_box,
             unknown_boxes: Vec::new(),
         })
     }
+}
 
+#[derive(Debug)]
+pub struct InputMp4 {
+    pub tracks: Vec<Track>,
+}
+
+impl InputMp4 {
     pub fn parse(mp4_file_bytes: &[u8]) -> orfail::Result<Self> {
         let mp4_file = Mp4File::decode(&mut &mp4_file_bytes[..]).or_fail()?;
         let moov_box = mp4_file
@@ -222,6 +231,7 @@ impl InputMp4 {
                 }
             })
             .or_fail_with(|()| "'moov' box not found".to_owned())?;
+
         let mut tracks = Vec::new();
         for trak_box in &moov_box.trak_boxes {
             let is_audio = trak_box.mdia_box.hdlr_box.handler_type == HdlrBox::HANDLER_TYPE_SOUN;
@@ -253,17 +263,11 @@ impl InputMp4 {
                     .collect(),
             });
         }
-        Ok(Self {
-            tracks,
 
-            // TODO:
-            chunk_offsets: Vec::new(),
-            file_size: mp4_file_bytes.len() as u32,
-        })
+        Ok(Self { tracks })
     }
 }
 
-// TODO: move
 #[derive(Debug)]
 pub struct Track {
     pub is_audio: bool,
