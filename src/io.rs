@@ -1,7 +1,7 @@
 use std::{
     backtrace::Backtrace,
     io::{Cursor, ErrorKind, Read, Write},
-    num::NonZeroU32,
+    num::{NonZeroU16, NonZeroU32},
     panic::Location,
 };
 
@@ -164,6 +164,12 @@ impl Encode for i64 {
     }
 }
 
+impl Encode for NonZeroU16 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.get().encode(writer)
+    }
+}
+
 impl Encode for NonZeroU32 {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         self.get().encode(writer)
@@ -246,6 +252,14 @@ impl Decode for i64 {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
+    }
+}
+
+impl Decode for NonZeroU16 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let v = u16::decode(reader)?;
+        NonZeroU16::new(v)
+            .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
     }
 }
 

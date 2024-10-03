@@ -1,7 +1,7 @@
 //! ボックス群
 use std::{
     io::{Read, Write},
-    num::NonZeroU32,
+    num::{NonZeroU16, NonZeroU32},
 };
 
 use crate::{
@@ -2176,7 +2176,7 @@ impl BaseBox for SampleEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct VisualSampleEntryFields {
-    pub data_reference_index: u16, // TODO: NonZero
+    pub data_reference_index: NonZeroU16,
     pub width: u16,
     pub height: u16,
     pub horizresolution: FixedPointNumber<u16, u16>,
@@ -2187,6 +2187,9 @@ pub struct VisualSampleEntryFields {
 }
 
 impl VisualSampleEntryFields {
+    /// [`VisualSampleEntryFields::data_reference_index`] のデフォルト値
+    pub const DEFAULT_DATA_REFERENCE_INDEX: NonZeroU16 = NonZeroU16::MIN;
+
     /// [`VisualSampleEntryFields::horizresolution`] のデフォルト値 (72 dpi)
     pub const DEFAULT_HORIZRESOLUTION: FixedPointNumber<u16, u16> = FixedPointNumber::new(0x48, 0);
 
@@ -2224,7 +2227,7 @@ impl Encode for VisualSampleEntryFields {
 impl Decode for VisualSampleEntryFields {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let _ = <[u8; 6]>::decode(reader)?;
-        let data_reference_index = u16::decode(reader)?;
+        let data_reference_index = NonZeroU16::decode(reader)?;
         let _ = <[u8; 2 + 2 + 4 * 3]>::decode(reader)?;
         let width = u16::decode(reader)?;
         let height = u16::decode(reader)?;
