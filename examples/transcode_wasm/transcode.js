@@ -8,6 +8,7 @@ let coderErrors = {};
 let coderResultFutures = {};
 let logMessages = [];
 let lastLogTime;
+let lastTimeoutId;
 
 (async () => {
     const importObject = {
@@ -166,6 +167,9 @@ async function startTranscode() {
     if (transcoder !== undefined) {
         wasmFunctions.freeTranscoder(transcoder);
     }
+    if (lastTimeoutId !== undefined) {
+        clearTimeout(lastTimeoutId);
+    }
 
     // 新規変換を始める
     const input = document.getElementById("input");
@@ -225,7 +229,8 @@ function pollTranscode() {
     const progress = result["Ok"];
     updateLog(`Transcoding ... ${(progress.rate * 100).toFixed(3)} %`);
     if (!progress.done) {
-        return setTimeout(pollTranscode, 1000);
+        lastTimeoutId = setTimeout(pollTranscode, 1000);
+        return;
     }
     logDone("Transcoding ...");
     log("");
