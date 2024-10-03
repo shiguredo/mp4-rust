@@ -85,12 +85,12 @@ impl<'a> SampleTableAccessor<'a> {
             first_sample_index =
                 first_sample_index.saturating_add(stbl_box.stsc_box.entries[j].sample_per_chunk);
         }
-        if first_sample_index.get() != sample_count {
+        if first_sample_index.get() - 1 != sample_count {
             // stts と stsc でサンプル数が異なる
             return Err(SampleTableAccessorError::InconsistentSampleCount {
                 stts_sample_count: sample_count,
                 other_box_type: StscBox::TYPE,
-                other_sample_count: first_sample_index.get(),
+                other_sample_count: first_sample_index.get() - 1,
             });
         }
 
@@ -332,7 +332,7 @@ impl<'a> ChunkAccessor<'a> {
 mod tests {
     use crate::{
         boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},
-        BoxSize, BoxType,
+        BaseBox, BoxSize, BoxType,
     };
 
     use super::*;
@@ -340,6 +340,7 @@ mod tests {
     #[test]
     fn sample_table_accessor() {
         let sample_durations = [10, 5, 5, 20, 20, 20, 1, 1, 1, 1];
+        let chunk_offsets = [100, 200, 300, 400];
         let stbl_box = StblBox {
             stsd_box: StsdBox {
                 entries: vec![SampleEntry::Unknown(UnknownBox {
@@ -350,7 +351,7 @@ mod tests {
             },
             stts_box: SttsBox::from_sample_deltas(sample_durations),
             stsc_box: StscBox {
-                entries: [(index(1), 2, index(1)), (index(7), 4, index(1))]
+                entries: [(index(1), 2, index(1)), (index(3), 3, index(1))]
                     .into_iter()
                     .map(
                         |(first_chunk, sample_per_chunk, sample_description_index)| StscEntry {
@@ -365,7 +366,7 @@ mod tests {
                 entry_sizes: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             },
             stco_or_co64_box: Either::A(StcoBox {
-                chunk_offsets: vec![100, 200, 300],
+                chunk_offsets: chunk_offsets.to_vec(),
             }),
             stss_box: Some(StssBox {
                 sample_numbers: vec![index(1), index(3), index(5), index(7), index(9)],
@@ -375,28 +376,27 @@ mod tests {
 
         let sample_table = SampleTableAccessor::new(&stbl_box).expect("bug");
         assert_eq!(sample_table.sample_count(), 10);
-        assert_eq!(sample_table.chunk_count(), 3);
+        assert_eq!(sample_table.chunk_count(), 4);
 
+        let sample_chunks = [1, 1, 2, 2, 3, 3, 3, 4, 4, 4];
         for i in 0..10 {
             let sample = sample_table.get_sample(index(i as u32 + 1)).expect("bug");
             assert_eq!(sample.duration(), sample_durations[i]);
             assert_eq!(sample.data_size(), i as u32);
             assert_eq!(sample.is_sync_sample(), (i + 1) % 2 == 1);
+            assert_eq!(sample.chunk().index().get(), sample_chunks[i]);
         }
         assert!(sample_table.get_sample(index(11)).is_none());
 
-        // // Chunk offset.
-        // assert_eq!(sample_table.get_chunk_offset(index(1)), Some(100));
-        // assert_eq!(sample_table.get_chunk_offset(index(2)), Some(200));
-        // assert_eq!(sample_table.get_chunk_offset(index(3)), Some(300));
-        // assert_eq!(sample_table.get_chunk_offset(index(4)), None);
-
-        // // Sample entry.
-        // assert!(sample_table.get_sample_entry(index(1)).is_some());
-        // assert!(sample_table.get_sample_entry(index(2)).is_none());
-
-        // Chunks.
-        // assert_eq!(sample_table.chunks(), vec![]);
+        let sample_counts = [2, 2, 3, 3];
+        for i in 0..4 {
+            let chunk = sample_table.get_chunk(index(i as u32 + 1)).expect("bug");
+            assert_eq!(chunk.offset(), chunk_offsets[i] as u64);
+            assert_eq!(chunk.sample_entry().box_type().as_bytes(), b"test");
+            assert_eq!(chunk.sample_count(), sample_counts[i]);
+            assert_eq!(chunk.samples().count(), sample_counts[i] as usize);
+        }
+        assert!(sample_table.get_chunk(index(5)).is_none());
     }
 
     fn index(i: u32) -> NonZeroU32 {
