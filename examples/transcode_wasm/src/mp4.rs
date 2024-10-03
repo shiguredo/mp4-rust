@@ -275,7 +275,7 @@ pub struct Track {
 }
 
 impl Track {
-    fn duration(&self) -> Duration {
+    pub fn duration(&self) -> Duration {
         self.chunks
             .iter()
             .flat_map(|c| c.samples.iter().map(|s| s.duration))

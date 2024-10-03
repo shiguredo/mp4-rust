@@ -224,7 +224,7 @@ pub fn notifyEncodeSampleResult(
 pub fn parseInputMp4File(
     transcoder: *mut Transcoder,
     input_mp4: *mut Vec<u8>,
-) -> JsonVec<orfail::Result<()>> {
+) -> JsonVec<orfail::Result<u32>> {
     let transcoder = unsafe { &mut *transcoder };
     let input_mp4 = unsafe { Box::from_raw(input_mp4) };
     let result = transcoder.parse_input_mp4_file(&input_mp4).or_fail();

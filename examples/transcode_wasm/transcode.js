@@ -190,13 +190,16 @@ async function startTranscode() {
         return;
     }
     logDone()
+    log(`Input MP4 file duration: ${result["Ok"]} seconds`);
+    log("");
 
     resultWasmJson = wasmFunctions.startTranscode(transcoder);
     result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
-        throw JSON.stringify(result);
+        logError(result);
+        return;
     }
-    console.log("startTranscode: " + JSON.stringify(result));
+    log("Transcoding ...");
 
     pollTranscode();
 }
@@ -205,23 +208,32 @@ function pollTranscode() {
     let resultWasmJson = wasmFunctions.pollTranscode(transcoder);
     let result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
-        throw JSON.stringify(result);
-    }
-    console.log("pollTranscode: " + JSON.stringify(result));
-    if (!result["Ok"].done) {
-        return setTimeout(pollTranscode, 1000); // TODO: もっと短くする
+        logError(result);
+        return;
     }
 
+    const progress = result["Ok"];
+    updateLog(`Transcoding ... ${progress.rate * 100} %`);
+    if (!progress.done) {
+        return setTimeout(pollTranscode, 1000);
+    }
+    updateLog("Transcoding ...");
+    logDone();
+    log("");
+
+    log("Building output MP4 file ...");
     resultWasmJson = wasmFunctions.buildOutputMp4File(transcoder);
     result = wasmJsonToValue(resultWasmJson);
     if (result["Err"] !== undefined) {
-        throw JSON.stringify(result);
+        logError(result);
+        return;
     }
-    console.log("buildOutputMp4File: " + JSON.stringify(result));
+    logDone();
 
     const output = document.getElementById("output");
     output.classList.remove('disabled-link');
     const mp4 = getOutputMp4File();
+    log(`Output MP4 file size: ${Math.floor(mp4.byteLength / 1024 / 1024)} MB`);
     const blob = new Blob([mp4], { type: 'video/mp4' });
     output.href = URL.createObjectURL(blob);
 }
@@ -260,6 +272,12 @@ function wasmJsonToValue(wasmJson) {
 
 function log(message) {
     lastLogTime = performance.now();
+    logMessages.push(message);
+    document.getElementById("log").value = logMessages.join("\n");
+}
+
+function updateLog(message) {
+    logMessages.pop();
     logMessages.push(message);
     document.getElementById("log").value = logMessages.join("\n");
 }
