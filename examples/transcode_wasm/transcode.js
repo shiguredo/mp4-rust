@@ -19,6 +19,7 @@ let lastTimeoutId;
             },
             async closeCoder(coderId) {
                 coders[coderId].close();
+                delete coders[coderId];
             },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
