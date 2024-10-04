@@ -291,7 +291,9 @@ impl ExternalBytes {
     {
         let mut external_bytes = Self(0);
 
-        // TODO: 途中で失敗した場合は、それまでに書き込まれたサイズでいい理由を書く
+        // エンコード処理が途中で失敗した場合には、失敗時点までに書き込まれたバイト数が採用される。
+        // その失敗時の値は不正確であるが、いずれにせよここで失敗するということは、
+        // 後続の実際のエンコード処理でも失敗するはずなので、その際のサイズ値が不正確でも問題はない。
         let _ = f(&mut external_bytes);
         external_bytes.0
     }
@@ -324,7 +326,6 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
         }
     }
 
-    // TODO: rename
     pub fn into_reader(self) -> impl Read {
         Read::chain(
             Cursor::new(self.buf).take(self.buf_start as u64),
