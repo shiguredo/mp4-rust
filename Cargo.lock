@@ -197,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "shiguredo_mp4"
-version = "2024.1.0"
+version = "2024.2.0"
 
 [[package]]
 name = "slab"
