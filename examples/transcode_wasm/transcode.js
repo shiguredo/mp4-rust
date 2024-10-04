@@ -9,6 +9,7 @@ let coderResultFutures = {};
 let logMessages = [];
 let lastLogTime;
 let lastTimeoutId;
+let frameFormat = "RGBA";
 
 (async () => {
     const importObject = {
@@ -35,10 +36,18 @@ let lastTimeoutId;
                             width: frame.codedWidth,
                             height: frame.codedHeight,
                         }};
-                        let size = frame.allocationSize({format: "RGBA"});
+                        let size = frame.allocationSize({format: frameFormat});
+                        if (frameFormat === "RGBA" && size !== frame.codedWidth * frame.codedHeight * 4) {
+                            // Safari の場合には format 指定が無視されるようなので、
+                            // デコードフレームのフォーマットをそのまま使う。
+                            // なお Chrome の場合にはデコードフレームの値をそのまま使うとエンコード時に
+                            // エラーとなる。
+                            frameFormat = frame.format;
+                        }
                         let wasmBytes = wasmFunctions.allocateVec(size);
                         let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
-                        frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size), {format: "RGBA"});
+                        frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size),
+                                     {format: frameFormat});
                         frame.close();
                         wasmFunctions.notifyDecodeResult(
                             transcoder, future, valueToWasmJson(result), wasmBytes);
@@ -160,7 +169,7 @@ let lastTimeoutId;
                 const frame = new VideoFrame(
                     data,
                     {
-                        format: "RGBA",
+                        format: frameFormat,
                         codedWidth: width,
                         codedHeight: height,
                         timestamp: 0, // dummy value

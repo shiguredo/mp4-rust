@@ -261,9 +261,9 @@ impl TrackTranscoder {
 
         let decoder_id = decoder.0;
         let encoder_id = encoder.0;
-        let mut futures = VecDeque::new();
+        let mut transcoded_samples = VecDeque::new();
         for mut sample in std::mem::take(&mut chunk.samples) {
-            futures.push_back(
+            transcoded_samples.push_back(
                 self.spawner
                     .spawn_local_with_handle(async move {
                         let decoded = WebCodec::decode(decoder_id, sample.keyframe, &sample.data)
@@ -277,17 +277,16 @@ impl TrackTranscoder {
                     })
                     .or_fail()?,
             );
-            if futures.len() > DECODE_QUEQUE_SIZE {
-                let sample = futures.pop_front().or_fail()?.await.or_fail()?;
+            if transcoded_samples.len() > DECODE_QUEQUE_SIZE {
+                let sample = transcoded_samples.pop_front().or_fail()?.await.or_fail()?;
                 chunk.samples.push(sample);
                 self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
             }
         }
         std::mem::drop(decoder); // もうデコードすべきサンプルがないことをデコーダーに伝える
 
-        for future in futures {
-            let sample = future.await.or_fail()?;
-            chunk.samples.push(sample);
+        for transcoded_sample in transcoded_samples {
+            chunk.samples.push(transcoded_sample.await.or_fail()?);
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
 
