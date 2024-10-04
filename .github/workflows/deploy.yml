@@ -22,7 +22,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target wasm32-unknown-unknown -p dump_wasm
+          args: --release --target wasm32-unknown-unknown -p dump_wasm -p transcode_wasm
       - name: Prepare static files
         run: |
           mkdir -p _site/examples/dump/
