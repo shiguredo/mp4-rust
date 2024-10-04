@@ -1,6 +1,7 @@
 use std::{future::Future, marker::PhantomData};
 
 use futures::{channel::oneshot, TryFutureExt};
+use mp4::Mp4FileSummary;
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{boxes::Avc1Box, Encode};
@@ -25,7 +26,7 @@ extern "C" {
     );
 
     #[expect(improper_ctypes)]
-    pub fn decodeSample(
+    pub fn decode(
         result_future: *mut oneshot::Sender<orfail::Result<VideoFrame>>,
         coder_id: CoderId,
         keyframe: bool,
@@ -40,7 +41,7 @@ extern "C" {
     );
 
     #[expect(improper_ctypes)]
-    pub fn encodeSample(
+    pub fn encode(
         result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
         coder_id: CoderId,
         keyframe: bool,
@@ -85,14 +86,14 @@ impl Codec for WebCodec {
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
 
-    fn decode_sample(
-        decoder: &mut Self::Coder,
+    fn decode(
+        decoder: &Self::Coder,
         keyframe: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<VideoFrame>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
         unsafe {
-            decodeSample(
+            decode(
                 Box::into_raw(Box::new(tx)),
                 *decoder,
                 keyframe,
@@ -113,14 +114,14 @@ impl Codec for WebCodec {
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
 
-    fn encode_sample(
-        encoder: &mut Self::Coder,
+    fn encode(
+        encoder: &Self::Coder,
         keyframe: bool,
-        frame: &VideoFrame,
+        frame: VideoFrame,
     ) -> impl Future<Output = orfail::Result<Vec<u8>>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
         unsafe {
-            encodeSample(
+            encode(
                 Box::into_raw(Box::new(tx)),
                 *encoder,
                 keyframe,
@@ -133,7 +134,7 @@ impl Codec for WebCodec {
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
 
-    fn close_coder(coder: &mut Self::Coder) {
+    fn close_coder(coder: &Self::Coder) {
         unsafe {
             closeCoder(*coder);
         }
@@ -188,7 +189,7 @@ pub fn notifyCreateVideoEncoderResult(
 
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
-pub fn notifyDecodeSampleResult(
+pub fn notifyDecodeResult(
     transcoder: *mut Transcoder,
     result_future: *mut oneshot::Sender<orfail::Result<VideoFrame>>,
     result: JsonVec<orfail::Result<VideoFrame>>,
@@ -205,7 +206,7 @@ pub fn notifyDecodeSampleResult(
 
 #[no_mangle]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
-pub fn notifyEncodeSampleResult(
+pub fn notifyEncodeResult(
     transcoder: *mut Transcoder,
     result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
     result: JsonVec<orfail::Result<()>>,

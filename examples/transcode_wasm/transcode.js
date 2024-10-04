@@ -18,8 +18,11 @@ let lastTimeoutId;
                     new Uint8Array(wasmMemory.buffer,messageOffset, messageLen)));
             },
             async closeCoder(coderId) {
-                coders[coderId].close();
-                delete coders[coderId];
+                if (coders[coderId] !== undefined && coders[coderId].state !== "closed") {
+                    await coders[coderId].flush();
+                    coders[coderId].close();
+                    delete coders[coderId];
+                }
             },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
@@ -29,7 +32,7 @@ let lastTimeoutId;
 
                 const params = {
                     output: function (frame) {
-                        let future = coderResultFutures[coderId];
+                        let future = coderResultFutures[coderId].shift();
                         let result = {"Ok": {
                             width: frame.codedWidth,
                             height: frame.codedHeight,
@@ -39,15 +42,15 @@ let lastTimeoutId;
                         let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
                         frame.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size), {format: "RGBA"});
                         frame.close();
-                        wasmFunctions.notifyDecodeSampleResult(
+                        wasmFunctions.notifyDecodeResult(
                             transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
-                        if (coderResultFutures[coderId] !== undefined) {
+                        let future = coderResultFutures[coderId].shift();
+                        if (future !== undefined) {
                             // サンプルデコード中のエラー
                             const result = {"Err": {"message": String(error)}};
-                            wasmFunctions.notifyDecodeSampleResult(
-                                transcoder, future, valueToWasmJson(result), wasmBytes);
+                            wasmFunctions.notifyDecodeResult(transcoder, future, valueToWasmJson(result));
                         } else {
                             // デコーダー初期化時のエラー
                             coderErrors[coderId] = String(error);
@@ -55,21 +58,29 @@ let lastTimeoutId;
                     }
                 };
 
+                if (!(await VideoDecoder.isConfigSupported(config)).supported) {
+                    let result = {"Err": {"message": "unsupported decoder config: " + JSON.stringify(config)}};
+                    wasmFunctions.notifyCreateVideoDecoderResult(
+                        transcoder, resultFuture, valueToWasmJson(result));
+                    return;
+                }
+
                 const decoder = new VideoDecoder(params);
                 nextCoderId += 1;
                 coders[coderId] = decoder;
+                coderResultFutures[coderId] = [];
 
                 // 不正な config を指定したとしても、この呼び出しは常に成功する
                 await decoder.configure(config);
 
                 let result = {"Ok": coderId};
-                wasmInstance.exports.notifyCreateVideoDecoderResult(
+                wasmFunctions.notifyCreateVideoDecoderResult(
                     transcoder, resultFuture, valueToWasmJson(result));
             },
-            async decodeSample(resultFuture, coderId, isKey, dataBytes, dataBytesLen) {
+            async decode(resultFuture, coderId, isKey, dataBytes, dataBytesLen) {
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
-                    wasmFunctions.notifyDecodeSampleResult(
+                    wasmFunctions.notifyDecodeResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
@@ -86,7 +97,7 @@ let lastTimeoutId;
                     data: new Uint8Array(wasmMemory.buffer, dataBytes, dataBytesLen).slice(),
                 });
                 decoder.decode(chunk);
-                coderResultFutures[coderId] = resultFuture;
+                coderResultFutures[coderId].push(resultFuture);
             },
             async createVideoEncoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
@@ -94,21 +105,21 @@ let lastTimeoutId;
 
                 const params = {
                     output: function (chunk) {
-                        let future = coderResultFutures[coderId];
+                        let future = coderResultFutures[coderId].shift();
                         let result = {"Ok": null};
                         let size = chunk.byteLength;
                         let wasmBytes = wasmFunctions.allocateVec(size);
                         let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
                         chunk.copyTo(new Uint8Array(wasmMemory.buffer, wasmBytesOffset, size));
-                        wasmFunctions.notifyEncodeSampleResult(
+                        wasmFunctions.notifyEncodeResult(
                             transcoder, future, valueToWasmJson(result), wasmBytes);
                     },
                     error: function (error) {
-                        if (coderResultFutures[coderId] !== undefined) {
+                        let future = coderResultFutures[coderId].shift();
+                        if (future !== undefined) {
                             // サンプルエンコード中のエラー
                             const result = {"Err": {"message": String(error)}};
-                            wasmFunctions.notifyEncodeSampleResult(
-                                transcoder, future, valueToWasmJson(result), wasmBytes);
+                            wasmFunctions.notifyEncodeResult(transcoder, future, valueToWasmJson(result));
                         } else {
                             // エンコーダー初期化時のエラー
                             coderErrors[coderId] = String(error);
@@ -116,9 +127,17 @@ let lastTimeoutId;
                     }
                 };
 
+                if (!(await VideoEncoder.isConfigSupported(config)).supported) {
+                    let result = {"Err": {"message": "unsupported encoder config: " + JSON.stringify(config)}};
+                    wasmFunctions.notifyCreateVideoEncoderResult(
+                        transcoder, resultFuture, valueToWasmJson(result));
+                    return;
+                }
+
                 const encoder = new VideoEncoder(params);
                 nextCoderId += 1;
                 coders[coderId] = encoder;
+                coderResultFutures[coderId] = [];
 
                 // 不正な config を指定したとしても、この呼び出しは常に成功する
                 await encoder.configure(config);
@@ -126,10 +145,10 @@ let lastTimeoutId;
                 let result = {"Ok": coderId};
                 wasmFunctions.notifyCreateVideoEncoderResult(transcoder, resultFuture, valueToWasmJson(result));
             },
-            async encodeSample(resultFuture, coderId, isKey, width, height, dataBytes, dataBytesLen) {
+            async encode(resultFuture, coderId, isKey, width, height, dataBytes, dataBytesLen) {
                 if (coderErrors[coderId] !== undefined) {
                     result = {"Err": {"message": coderErrors[coderId]}};
-                    wasmFunctions.notifyEncodeSampleResult(
+                    wasmFunctions.notifyEncodeResult(
                         transcoder, resultFuture, valueToWasmJson(result), null);
                     return;
                 }
@@ -151,7 +170,7 @@ let lastTimeoutId;
                     });
                 encoder.encode(frame, {keyFrame: isKey === 1});
                 frame.close();
-                coderResultFutures[coderId] = resultFuture;
+                coderResultFutures[coderId].push(resultFuture);
             },
         }
     };
@@ -195,7 +214,6 @@ async function startTranscode() {
         bitrate: Number(document.getElementById('bitrate').value),
         width: Number(width),
         height: Number(height),
-        keyframeInterval: Number(document.getElementById('keyframeInterval').value),
     };
     transcoder = wasmFunctions.newTranscoder(valueToWasmJson(transcodeOptions));
 
@@ -211,8 +229,13 @@ async function startTranscode() {
         return;
     }
     logDone()
+
+    const summary = result["Ok"];
     log(`Input MP4 file size: ${Math.floor(inputBytes.byteLength / 1024 / 1024)} MB`);
-    log(`Input MP4 file duration: ${result["Ok"]} seconds`);
+    if (summary.width > 0) {
+        log(`Input MP4 file resolution: ${summary.width}x${summary.height}`);
+    }
+    log(`Input MP4 file duration: ${summary.duration} seconds`);
     log("");
 
     resultWasmJson = wasmFunctions.startTranscode(transcoder);

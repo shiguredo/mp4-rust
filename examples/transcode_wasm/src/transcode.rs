@@ -1,14 +1,18 @@
 use std::{
+    collections::VecDeque,
     future::Future,
     marker::PhantomData,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
 };
 
-use futures::{executor::LocalPool, stream::FusedStream, task::LocalSpawnExt};
+use futures::{
+    executor::{LocalPool, LocalSpawner},
+    stream::FusedStream,
+    task::LocalSpawnExt,
+};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
@@ -16,7 +20,12 @@ use shiguredo_mp4::{
     BaseBox, Encode, Uint,
 };
 
-use crate::mp4::{Chunk, InputMp4, OutputMp4Builder, Sample, Track};
+use crate::mp4::{Chunk, InputMp4, Mp4FileSummary, OutputMp4Builder, Track};
+
+// B フレームが使われている場合には（おそらく）デコーダーのキューをある程度埋める必要があるので、
+// どの程度の個数を一度に詰め込むかを指定するための定数値。
+// 理想的には、入力ストリームから適切な値を取得すべきだが、簡単のために十分に大きな固定値を使用している。
+const DECODE_QUEQUE_SIZE: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoFrame {
@@ -39,15 +48,14 @@ pub struct VideoEncoderConfig {
 pub struct TranscodeOptions {
     #[serde(flatten)]
     pub video_encoder_config: VideoEncoderConfig,
-    pub keyframe_interval: u32,
 }
 
 pub trait Codec: 'static {
-    type Coder;
+    type Coder: Copy;
 
     fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
-    fn decode_sample(
-        decoder: &mut Self::Coder,
+    fn decode(
+        decoder: &Self::Coder,
         is_key: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<VideoFrame>>;
@@ -55,13 +63,13 @@ pub trait Codec: 'static {
     fn create_encoder(
         config: &VideoEncoderConfig,
     ) -> impl Future<Output = orfail::Result<Self::Coder>>;
-    fn encode_sample(
-        encoder: &mut Self::Coder,
+    fn encode(
+        encoder: &Self::Coder,
         is_key: bool,
-        frame: &VideoFrame,
+        frame: VideoFrame,
     ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
 
-    fn close_coder(coder: &mut Self::Coder);
+    fn close_coder(coder: &Self::Coder);
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -145,6 +153,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 
             let transcoder = TrackTranscoder {
                 track,
+                spawner: self.executor.spawner(),
                 transcoded_sample_count: Arc::clone(&self.transcoded_sample_count),
                 options: self.options.clone(),
                 _codec: self._codec,
@@ -220,6 +229,7 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 #[derive(Debug)]
 struct TrackTranscoder<CODEC> {
     track: Track,
+    spawner: LocalSpawner,
     transcoded_sample_count: Arc<AtomicUsize>,
     options: TranscodeOptions,
     _codec: PhantomData<CODEC>,
@@ -256,75 +266,87 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
                 // H.264 以外 (= 音声) は無変換
                 continue;
             }
-            *chunk = self.transcode_chunk(chunk).await.or_fail()?;
+            self.transcode_chunk(chunk).await.or_fail()?;
         }
 
         Ok(output_track)
     }
 
-    async fn transcode_chunk(&self, chunk: &Chunk) -> orfail::Result<Chunk> {
+    async fn transcode_chunk(&self, chunk: &mut Chunk) -> orfail::Result<()> {
         let SampleEntry::Avc1(sample_entry) = &chunk.sample_entry else {
             unreachable!();
         };
 
-        let mut output_chunk = Chunk {
-            sample_entry: SampleEntry::Vp08(Vp08Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: 1,
-                    width: 640,
-                    height: 480,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                vpcc_box: VpccBox {
-                    profile: 0,
-                    level: 0,
-                    bit_depth: Uint::new(8),
-                    chroma_subsampling: Uint::new(1),
-                    video_full_range_flag: Uint::new(0),
-                    colour_primaries: 1,
-                    transfer_characteristics: 1,
-                    matrix_coefficients: 1,
-                    codec_initialization_data: Vec::new(),
-                },
-                unknown_boxes: Vec::new(),
-            }),
-            samples: Vec::new(),
-        };
-
-        let mut decoder = CODEC::create_h264_decoder(sample_entry).await.or_fail()?;
-        let mut encoder = CODEC::create_encoder(&self.options.video_encoder_config)
-            .await
-            .or_fail()?;
-        let mut next_keyframe_time = Duration::ZERO;
-        let mut current_time = Duration::ZERO;
-        for sample in &chunk.samples {
-            let keyframe = next_keyframe_time <= current_time;
-
-            let frame = CODEC::decode_sample(&mut decoder, sample.keyframe, &sample.data)
+        let decoder: Coder<CODEC> =
+            Coder(CODEC::create_h264_decoder(sample_entry).await.or_fail()?);
+        let encoder: Coder<CODEC> = Coder(
+            CODEC::create_encoder(&self.options.video_encoder_config)
                 .await
-                .or_fail()?;
-            let encoded_data = CODEC::encode_sample(&mut encoder, keyframe, &frame)
-                .await
-                .or_fail()?;
-            output_chunk.samples.push(Sample {
-                duration: sample.duration,
-                keyframe,
-                data: encoded_data,
-            });
+                .or_fail()?,
+        );
 
-            self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
-            if keyframe {
-                next_keyframe_time += Duration::from_secs(self.options.keyframe_interval as u64);
+        let mut futures = VecDeque::new();
+        for mut sample in std::mem::take(&mut chunk.samples) {
+            futures.push_back(
+                self.spawner
+                    .spawn_local_with_handle(async move {
+                        let decoded = CODEC::decode(&decoder.0, sample.keyframe, &sample.data)
+                            .await
+                            .or_fail()?;
+                        let encoded = CODEC::encode(&encoder.0, sample.keyframe, decoded)
+                            .await
+                            .or_fail()?;
+                        sample.data = encoded;
+                        Ok::<_, Failure>(sample)
+                    })
+                    .or_fail()?,
+            );
+            if futures.len() > DECODE_QUEQUE_SIZE {
+                let sample = futures.pop_front().or_fail()?.await.or_fail()?;
+                chunk.samples.push(sample);
+                self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
             }
-            current_time += sample.duration;
         }
-        CODEC::close_coder(&mut decoder);
-        CODEC::close_coder(&mut encoder);
+        std::mem::drop(decoder);
+        for future in futures {
+            let sample = future.await.or_fail()?;
+            chunk.samples.push(sample);
+            self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
+        }
 
-        Ok(output_chunk)
+        chunk.sample_entry = SampleEntry::Vp08(Vp08Box {
+            visual: VisualSampleEntryFields {
+                data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                width: self.options.video_encoder_config.width,
+                height: self.options.video_encoder_config.height,
+                horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+            },
+            vpcc_box: VpccBox {
+                profile: 0,
+                level: 0,
+                bit_depth: Uint::new(8),
+                chroma_subsampling: Uint::new(1),
+                video_full_range_flag: Uint::new(0),
+                colour_primaries: 1,
+                transfer_characteristics: 1,
+                matrix_coefficients: 1,
+                codec_initialization_data: Vec::new(),
+            },
+            unknown_boxes: Vec::new(),
+        });
+
+        Ok(())
+    }
+}
+
+struct Coder<C: Codec>(C::Coder);
+
+impl<C: Codec> Drop for Coder<C> {
+    fn drop(&mut self) {
+        C::close_coder(&mut self.0);
     }
 }
