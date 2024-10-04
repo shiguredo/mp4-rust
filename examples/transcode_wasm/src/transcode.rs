@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    io::Read,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -295,7 +294,7 @@ impl TrackTranscoder {
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
 
-        chunk.sample_entry = self.build_output_sample_entry(&chunk).or_fail()?;
+        chunk.sample_entry = self.build_output_sample_entry(chunk).or_fail()?;
 
         Ok(())
     }
