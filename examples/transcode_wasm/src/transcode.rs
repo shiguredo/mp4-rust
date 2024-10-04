@@ -15,10 +15,10 @@ use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
     boxes::{
-        Av01Box, Av1cBox, Avc1Box, AvccBox, SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box,
-        VpccBox,
+        Av01Box, Av1cBox, Avc1Box, AvccBox, Hev1Box, HvccBox, SampleEntry, VisualSampleEntryFields,
+        Vp08Box, Vp09Box, VpccBox,
     },
-    BaseBox, BoxHeader, BoxSize, Decode, Encode, Uint,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Encode, Uint,
 };
 
 use crate::{
@@ -264,9 +264,9 @@ impl TrackTranscoder {
 
         let decoder_id = decoder.0;
         let encoder_id = encoder.0;
-        let mut transcoded_samples = VecDeque::new();
+        let mut transcodings = VecDeque::new();
         for mut sample in std::mem::take(&mut chunk.samples) {
-            transcoded_samples.push_back(
+            transcodings.push_back(
                 self.spawner
                     .spawn_local_with_handle(async move {
                         let decoded = WebCodec::decode(decoder_id, sample.keyframe, &sample.data)
@@ -281,16 +281,16 @@ impl TrackTranscoder {
                     })
                     .or_fail()?,
             );
-            if transcoded_samples.len() > DECODE_QUEQUE_SIZE {
-                let sample = transcoded_samples.pop_front().or_fail()?.await.or_fail()?;
+            if transcodings.len() > DECODE_QUEQUE_SIZE {
+                let sample = transcodings.pop_front().or_fail()?.await.or_fail()?;
                 chunk.samples.push(sample);
                 self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
             }
         }
         std::mem::drop(decoder); // もうデコードすべきサンプルがないことをデコーダーに伝える
 
-        for transcoded_sample in transcoded_samples {
-            chunk.samples.push(transcoded_sample.await.or_fail()?);
+        for sample in transcodings {
+            chunk.samples.push(sample.await.or_fail()?);
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
 
@@ -368,14 +368,19 @@ impl TrackTranscoder {
             }
             "avc1.42e02a" => Ok(SampleEntry::Avc1(Avc1Box {
                 visual,
-                avcc_box: Self::get_avcc_box(chunk).or_fail()?,
+                avcc_box: Self::decode_description(chunk, AvccBox::TYPE).or_fail()?,
+                unknown_boxes: Vec::new(),
+            })),
+            "hev1.1.6.L90.B0" => Ok(SampleEntry::Hev1(Hev1Box {
+                visual,
+                hvcc_box: Self::decode_description(chunk, HvccBox::TYPE).or_fail()?,
                 unknown_boxes: Vec::new(),
             })),
             codec => Err(Failure::new(format!("Not yet implemented: {codec}"))),
         }
     }
 
-    fn get_avcc_box(chunk: &Chunk) -> orfail::Result<AvccBox> {
+    fn decode_description<T: Decode>(chunk: &Chunk, box_type: BoxType) -> orfail::Result<T> {
         let description = &chunk
             .samples
             .first()
@@ -384,13 +389,13 @@ impl TrackTranscoder {
             .as_ref()
             .or_fail()?;
         let header = BoxHeader {
-            box_type: AvccBox::TYPE,
-            box_size: BoxSize::with_payload_size(AvccBox::TYPE, description.len() as u64),
+            box_type,
+            box_size: BoxSize::with_payload_size(box_type, description.len() as u64),
         };
         let mut data = Vec::new();
         header.encode(&mut data).or_fail()?;
         data.extend_from_slice(description);
 
-        AvccBox::decode(&mut &data[..]).or_fail()
+        T::decode(&mut &data[..]).or_fail()
     }
 }
