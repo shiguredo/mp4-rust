@@ -32,18 +32,6 @@
       </ul>
     </small>
 
-    <h3>入力 MP4 ファイル</h3>
-    <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
-    <br />
-    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
-    <br /><br />
-    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
-    <br />
-
-    <h3>出力 MP4 ファイル</h3>
-    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
-    <br />
-
     <h3>変換設定</h3>
     コーデック:
     <select id="codec">
@@ -69,6 +57,18 @@
       <option value="1048576">1 Mbps</option>
       <option value="5242880">5 Mbps</option>
     </select>
+    <br />
+
+    <h3>入力 MP4 ファイル</h3>
+    <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
+    <br />
+    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
+    <br /><br />
+    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
+    <br />
+
+    <h3>出力 MP4 ファイル</h3>
+    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
     <br />
 
     <h3>変換ログ</h3>
