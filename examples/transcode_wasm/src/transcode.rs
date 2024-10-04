@@ -1,7 +1,5 @@
 use std::{
     collections::VecDeque,
-    future::Future,
-    marker::PhantomData,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -16,11 +14,14 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
-    boxes::{Avc1Box, SampleEntry, VisualSampleEntryFields, Vp08Box, VpccBox},
+    boxes::{SampleEntry, VisualSampleEntryFields, Vp08Box, VpccBox},
     BaseBox, Encode, Uint,
 };
 
-use crate::mp4::{Chunk, InputMp4, Mp4FileSummary, OutputMp4Builder, Track};
+use crate::{
+    mp4::{Chunk, InputMp4, Mp4FileSummary, OutputMp4Builder, Track},
+    wasm::WebCodec,
+};
 
 // B フレームが使われている場合には（おそらく）デコーダーのキューをある程度埋める必要があるので、
 // どの程度の個数を一度に詰め込むかを指定するための定数値。
@@ -50,28 +51,6 @@ pub struct TranscodeOptions {
     pub video_encoder_config: VideoEncoderConfig,
 }
 
-pub trait Codec: 'static {
-    type Coder: Copy;
-
-    fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>>;
-    fn decode(
-        decoder: &Self::Coder,
-        is_key: bool,
-        encoded_data: &[u8],
-    ) -> impl Future<Output = orfail::Result<VideoFrame>>;
-
-    fn create_encoder(
-        config: &VideoEncoderConfig,
-    ) -> impl Future<Output = orfail::Result<Self::Coder>>;
-    fn encode(
-        encoder: &Self::Coder,
-        is_key: bool,
-        frame: VideoFrame,
-    ) -> impl Future<Output = orfail::Result<Vec<u8>>>;
-
-    fn close_coder(coder: &Self::Coder);
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeProgress {
@@ -80,7 +59,7 @@ pub struct TranscodeProgress {
 }
 
 #[derive(Debug)]
-pub struct Transcoder<CODEC> {
+pub struct Transcoder {
     options: TranscodeOptions,
     input_mp4: Option<InputMp4>,
     output_mp4: Vec<u8>,
@@ -91,10 +70,9 @@ pub struct Transcoder<CODEC> {
     transcode_target_sample_count: usize,
     transcoded_sample_count: Arc<AtomicUsize>,
     transcode_error: Option<Failure>,
-    _codec: PhantomData<CODEC>,
 }
 
-impl<CODEC: Codec> Transcoder<CODEC> {
+impl Transcoder {
     pub fn new(options: TranscodeOptions) -> Self {
         let (_transcode_result_tx, transcode_result_rx) = futures::channel::mpsc::unbounded(); // dummy
         Self {
@@ -108,7 +86,6 @@ impl<CODEC: Codec> Transcoder<CODEC> {
             transcode_target_sample_count: 0,
             transcoded_sample_count: Arc::new(AtomicUsize::new(0)),
             transcode_error: None,
-            _codec: PhantomData,
         }
     }
 
@@ -156,7 +133,6 @@ impl<CODEC: Codec> Transcoder<CODEC> {
                 spawner: self.executor.spawner(),
                 transcoded_sample_count: Arc::clone(&self.transcoded_sample_count),
                 options: self.options.clone(),
-                _codec: self._codec,
             };
             let transcode_result_tx = transcode_result_tx.clone();
             self.executor
@@ -227,15 +203,14 @@ impl<CODEC: Codec> Transcoder<CODEC> {
 }
 
 #[derive(Debug)]
-struct TrackTranscoder<CODEC> {
+struct TrackTranscoder {
     track: Track,
     spawner: LocalSpawner,
     transcoded_sample_count: Arc<AtomicUsize>,
     options: TranscodeOptions,
-    _codec: PhantomData<CODEC>,
 }
 
-impl<CODEC: Codec> TrackTranscoder<CODEC> {
+impl TrackTranscoder {
     async fn run(self) -> orfail::Result<Track> {
         let mut output_track = Track {
             is_audio: self.track.is_audio,
@@ -277,23 +252,24 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
             unreachable!();
         };
 
-        let decoder: Coder<CODEC> =
-            Coder(CODEC::create_h264_decoder(sample_entry).await.or_fail()?);
-        let encoder: Coder<CODEC> = Coder(
-            CODEC::create_encoder(&self.options.video_encoder_config)
-                .await
-                .or_fail()?,
-        );
+        let decoder = WebCodec::create_h264_decoder(sample_entry)
+            .await
+            .or_fail()?;
+        let encoder = WebCodec::create_encoder(&self.options.video_encoder_config)
+            .await
+            .or_fail()?;
 
+        let decoder_id = decoder.0;
+        let encoder_id = encoder.0;
         let mut futures = VecDeque::new();
         for mut sample in std::mem::take(&mut chunk.samples) {
             futures.push_back(
                 self.spawner
                     .spawn_local_with_handle(async move {
-                        let decoded = CODEC::decode(&decoder.0, sample.keyframe, &sample.data)
+                        let decoded = WebCodec::decode(decoder_id, sample.keyframe, &sample.data)
                             .await
                             .or_fail()?;
-                        let encoded = CODEC::encode(&encoder.0, sample.keyframe, decoded)
+                        let encoded = WebCodec::encode(encoder_id, sample.keyframe, decoded)
                             .await
                             .or_fail()?;
                         sample.data = encoded;
@@ -307,7 +283,8 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
                 self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
             }
         }
-        std::mem::drop(decoder);
+        std::mem::drop(decoder); // もうデコードすべきサンプルがないことをデコーダーに伝える
+
         for future in futures {
             let sample = future.await.or_fail()?;
             chunk.samples.push(sample);
@@ -340,13 +317,5 @@ impl<CODEC: Codec> TrackTranscoder<CODEC> {
         });
 
         Ok(())
-    }
-}
-
-struct Coder<C: Codec>(C::Coder);
-
-impl<C: Codec> Drop for Coder<C> {
-    fn drop(&mut self) {
-        C::close_coder(&self.0);
     }
 }

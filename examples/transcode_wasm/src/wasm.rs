@@ -7,7 +7,7 @@ use shiguredo_mp4::{boxes::Avc1Box, Encode};
 
 use crate::mp4::Mp4FileSummary;
 use crate::transcode::{
-    Codec, TranscodeOptions, TranscodeProgress, VideoEncoderConfig, VideoFrame,
+    TranscodeOptions, TranscodeProgress, Transcoder, VideoEncoderConfig, VideoFrame,
 };
 
 #[derive(Serialize)]
@@ -57,12 +57,9 @@ extern "C" {
 pub struct WebCodec;
 
 pub type CoderId = u32;
-pub type Transcoder = crate::transcode::Transcoder<WebCodec>;
 
-impl Codec for WebCodec {
-    type Coder = CoderId;
-
-    fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Self::Coder>> {
+impl WebCodec {
+    pub fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
 
         let mut description = Vec::new();
@@ -83,11 +80,14 @@ impl Codec for WebCodec {
         unsafe {
             createVideoDecoder(Box::into_raw(Box::new(tx)), JsonVec::new(config));
         }
-        rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
+        rx.map_ok_or_else(
+            |e| Err(Failure::new(e.to_string())),
+            |r| r.or_fail().map(Coder),
+        )
     }
 
-    fn decode(
-        decoder: &Self::Coder,
+    pub fn decode(
+        decoder: CoderId,
         keyframe: bool,
         encoded_data: &[u8],
     ) -> impl Future<Output = orfail::Result<VideoFrame>> {
@@ -95,7 +95,7 @@ impl Codec for WebCodec {
         unsafe {
             decode(
                 Box::into_raw(Box::new(tx)),
-                *decoder,
+                decoder,
                 keyframe,
                 encoded_data.as_ptr(),
                 encoded_data.len() as u32,
@@ -104,18 +104,21 @@ impl Codec for WebCodec {
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
 
-    fn create_encoder(
+    pub fn create_encoder(
         config: &VideoEncoderConfig,
-    ) -> impl Future<Output = orfail::Result<Self::Coder>> {
+    ) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
         unsafe {
             createVideoEncoder(Box::into_raw(Box::new(tx)), JsonVec::new(config.clone()));
         }
-        rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
+        rx.map_ok_or_else(
+            |e| Err(Failure::new(e.to_string())),
+            |r| r.or_fail().map(Coder),
+        )
     }
 
-    fn encode(
-        encoder: &Self::Coder,
+    pub fn encode(
+        encoder: CoderId,
         keyframe: bool,
         frame: VideoFrame,
     ) -> impl Future<Output = orfail::Result<Vec<u8>>> {
@@ -123,7 +126,7 @@ impl Codec for WebCodec {
         unsafe {
             encode(
                 Box::into_raw(Box::new(tx)),
-                *encoder,
+                encoder,
                 keyframe,
                 frame.width as u32,
                 frame.height as u32,
@@ -133,10 +136,15 @@ impl Codec for WebCodec {
         }
         rx.map_ok_or_else(|e| Err(Failure::new(e.to_string())), |r| r.or_fail())
     }
+}
 
-    fn close_coder(coder: &Self::Coder) {
+#[derive(Debug)]
+pub struct Coder(pub CoderId);
+
+impl Drop for Coder {
+    fn drop(&mut self) {
         unsafe {
-            closeCoder(*coder);
+            closeCoder(self.0);
         }
     }
 }
