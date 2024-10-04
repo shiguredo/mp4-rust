@@ -235,7 +235,7 @@ pub struct SampleAccessor<'a> {
     index: NonZeroU32,
 }
 
-impl<'a> SampleAccessor<'a> {
+impl SampleAccessor<'_> {
     /// このサンプルのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
@@ -296,7 +296,7 @@ pub struct ChunkAccessor<'a> {
     index: NonZeroU32,
 }
 
-impl<'a> ChunkAccessor<'a> {
+impl ChunkAccessor<'_> {
     /// このチャンクのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
