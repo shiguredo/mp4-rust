@@ -25,6 +25,7 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 
 - [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
+- [MP4 Transcode](https://shiguredo.github.io/mp4-rust/examples/transcode/)
 
 ## ライセンス
 
