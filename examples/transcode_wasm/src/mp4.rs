@@ -1,6 +1,7 @@
 use std::{num::NonZeroU32, time::Duration};
 
 use orfail::OrFail;
+use serde::Serialize;
 use shiguredo_mp4::{
     aux::SampleTableAccessor,
     boxes::{
@@ -212,6 +213,13 @@ impl OutputMp4Builder {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct Mp4FileSummary {
+    pub duration: u32,
+    pub width: u16,
+    pub height: u16,
+}
+
 #[derive(Debug)]
 pub struct InputMp4 {
     pub tracks: Vec<Track>,
@@ -265,6 +273,33 @@ impl InputMp4 {
         }
 
         Ok(Self { tracks })
+    }
+
+    pub fn summary(&self) -> Mp4FileSummary {
+        let duration = self
+            .tracks
+            .iter()
+            .map(|t| t.duration())
+            .max()
+            .unwrap_or_default()
+            .as_secs() as u32;
+        let (width, height) = self
+            .tracks
+            .iter()
+            .filter_map(|t| {
+                if let Some(SampleEntry::Avc1(x)) = t.chunks.first().map(|c| &c.sample_entry) {
+                    Some((x.visual.width, x.visual.height))
+                } else {
+                    None
+                }
+            })
+            .max()
+            .unwrap_or_default();
+        Mp4FileSummary {
+            duration,
+            width,
+            height,
+        }
     }
 }
 

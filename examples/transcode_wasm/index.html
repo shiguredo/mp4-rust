@@ -15,7 +15,7 @@
 
     <a href="https://github.com/shiguredo/mp4-rust">shiguredo/mp4-rust</a> の WebAssembly ビルドのサンプルページです。
     <br />
-    アップロードされた MP4 ファイルの映像トラックを、 <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API">WebCodecs</a> を使って変換します。
+    選択された MP4 ファイルを、 <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API">WebCodecs</a> を使ってローカルで変換します。
     <br /><br />
     <small>
       [注意点]
@@ -25,7 +25,7 @@
         <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
         <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
         <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されます</li>
-        <li>変換効率よりもサンプルコードの簡潔さを優先しています（例: 無駄なメモリコピーがある、変換を逐次的に実行している）</li>
+        <li>変換速度よりもサンプルコードの簡潔さを優先しています（例: 無駄なメモリコピーがある、変換を逐次的に実行している）</li>
       </ul>
     </small>
 
@@ -38,7 +38,7 @@
     <br />
 
     <h3>出力 MP4 ファイル</h3>
-    <a id="output" href="" target="_blank" class="disabled-link">ダウンロードリンク</a>
+    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
     <br />
 
     <h3>変換設定</h3>
@@ -59,20 +59,12 @@
       <option value="1920x1080">1920x1080</option>
     </select>
     &nbsp;
-    <br />
     ビットレート:
     <select id="bitrate">
       <option value="102400">100 kbps</option>
       <option value="512000" selected>500 kbps</option>
       <option value="1048576">1 Mbps</option>
       <option value="5242880">5 Mbps</option>
-    </select>
-    &nbsp;
-    キーフレーム間隔:
-    <select id="keyframeInterval">
-      <option value="1">1 秒</option>
-      <option value="10" selected>10 秒</option>
-      <option value="60">60 秒</option>
     </select>
     <br />
 

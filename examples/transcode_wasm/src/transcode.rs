@@ -104,16 +104,11 @@ impl<CODEC: Codec> Transcoder<CODEC> {
         }
     }
 
-    pub fn parse_input_mp4_file(&mut self, mp4: &[u8]) -> orfail::Result<u32> {
+    pub fn parse_input_mp4_file(&mut self, mp4: &[u8]) -> orfail::Result<Mp4FileSummary> {
         let mp4 = InputMp4::parse(mp4).or_fail()?;
-        let duration = mp4
-            .tracks
-            .iter()
-            .map(|t| t.duration())
-            .max()
-            .unwrap_or_default();
+        let summary = mp4.summary();
         self.input_mp4 = Some(mp4);
-        Ok(duration.as_secs() as u32)
+        Ok(summary)
     }
 
     pub fn start_transcode(&mut self) -> orfail::Result<()> {
