@@ -347,6 +347,6 @@ struct Coder<C: Codec>(C::Coder);
 
 impl<C: Codec> Drop for Coder<C> {
     fn drop(&mut self) {
-        C::close_coder(&mut self.0);
+        C::close_coder(&self.0);
     }
 }
