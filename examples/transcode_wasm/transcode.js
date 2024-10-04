@@ -207,7 +207,7 @@ async function startTranscode() {
     }
     coders = {};
     coderErrors = {};
-    coderResultFutures = {};
+    coderResultFutures = {}; // oneshot channel がリークする可能性があるけど軽微なので許容する
 
 
     // 新規変換を始める
