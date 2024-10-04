@@ -14,7 +14,7 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
-    boxes::{SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox},
+    boxes::{Av01Box, Av1cBox, SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox},
     BaseBox, Encode, Uint,
 };
 
@@ -324,18 +324,40 @@ impl TrackTranscoder {
             })),
             "vp09.00.10.08" => {
                 // See: https://www.webmproject.org/vp9/mp4/ (Codecs Parameter String)
+                //      `vp09.<profile>.<level>.<bitDepth>[...]`
                 Ok(SampleEntry::Vp09(Vp09Box {
                     visual,
                     vpcc_box: VpccBox {
-                        profile: 0,              // codec 文字列内の最初の数値
-                        level: 10,               // codec 文字列内の次の数値
-                        bit_depth: Uint::new(8), // codec 文字列内の最後の数値
+                        profile: 0,
+                        level: 10,
+                        bit_depth: Uint::new(8),
                         chroma_subsampling: Uint::new(1),
                         video_full_range_flag: Uint::new(0),
                         colour_primaries: 1,
                         transfer_characteristics: 1,
                         matrix_coefficients: 1,
                         codec_initialization_data: Vec::new(),
+                    },
+                    unknown_boxes: Vec::new(),
+                }))
+            }
+            "av01.0.01M.08" => {
+                // See: https://aomediacodec.github.io/av1-isobmff/#codecsparam
+                //      `av01.<profile>.<level><tier>.<bitDepth>[...]`
+                Ok(SampleEntry::Av01(Av01Box {
+                    visual,
+                    av1c_box: Av1cBox {
+                        seq_profile: Uint::new(0),
+                        seq_level_idx_0: Uint::new(1),
+                        seq_tier_0: Uint::new(0),
+                        high_bitdepth: Uint::new(0),
+                        twelve_bit: Uint::new(0),
+                        monochrome: Uint::new(0),
+                        chroma_subsampling_x: Uint::new(1),
+                        chroma_subsampling_y: Uint::new(1),
+                        chroma_sample_position: Uint::new(0),
+                        initial_presentation_delay_minus_one: None,
+                        config_obus: Vec::new(),
                     },
                     unknown_boxes: Vec::new(),
                 }))
