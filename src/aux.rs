@@ -14,6 +14,7 @@ pub struct SampleTableAccessor<'a> {
     sample_count: u32,
     sample_durations: Vec<(u32, u32)>,     // (累計サンプル数、尺）
     sample_index_offsets: Vec<NonZeroU32>, // チャンク先頭のサンプルインデックス
+    sample_data_offsets: Vec<u64>,
 }
 
 impl<'a> SampleTableAccessor<'a> {
@@ -94,13 +95,26 @@ impl<'a> SampleTableAccessor<'a> {
             });
         }
 
-        Ok(Self {
+        let mut this = Self {
             stbl_box,
             chunk_count,
             sample_count,
             sample_durations,
             sample_index_offsets,
-        })
+            sample_data_offsets: Vec::new(),
+        };
+
+        let mut sample_data_offsets = Vec::with_capacity(sample_count as usize);
+        for chunk in this.chunks() {
+            let mut offset = chunk.offset();
+            for sample in chunk.samples() {
+                sample_data_offsets.push(offset);
+                offset += sample.data_size() as u64;
+            }
+        }
+        this.sample_data_offsets = sample_data_offsets;
+
+        Ok(this)
     }
 
     /// トラック内のサンプルの数を取得する
@@ -221,7 +235,7 @@ pub struct SampleAccessor<'a> {
     index: NonZeroU32,
 }
 
-impl<'a> SampleAccessor<'a> {
+impl SampleAccessor<'_> {
     /// このサンプルのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
@@ -244,6 +258,11 @@ impl<'a> SampleAccessor<'a> {
             StszBox::Fixed { sample_size, .. } => sample_size.get(),
             StszBox::Variable { entry_sizes } => entry_sizes[i],
         }
+    }
+
+    /// サンプルデータのファイル内でのバイト位置を返す
+    pub fn data_offset(&self) -> u64 {
+        self.sample_table.sample_data_offsets[self.index.get() as usize - 1]
     }
 
     /// サンプルが同期サンプルかどうかを判定する
@@ -277,7 +296,7 @@ pub struct ChunkAccessor<'a> {
     index: NonZeroU32,
 }
 
-impl<'a> ChunkAccessor<'a> {
+impl ChunkAccessor<'_> {
     /// このチャンクのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
@@ -363,7 +382,7 @@ mod tests {
                     .collect(),
             },
             stsz_box: StszBox::Variable {
-                entry_sizes: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                entry_sizes: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             },
             stco_or_co64_box: Either::A(StcoBox {
                 chunk_offsets: chunk_offsets.to_vec(),
@@ -379,10 +398,12 @@ mod tests {
         assert_eq!(sample_table.chunk_count(), 4);
 
         let sample_chunks = [1, 1, 2, 2, 3, 3, 3, 4, 4, 4];
+        let sample_offsets = [100, 101, 200, 203, 300, 305, 311, 400, 408, 417];
         for i in 0..10 {
             let sample = sample_table.get_sample(index(i as u32 + 1)).expect("bug");
             assert_eq!(sample.duration(), sample_durations[i]);
-            assert_eq!(sample.data_size(), i as u32);
+            assert_eq!(sample.data_size(), i as u32 + 1);
+            assert_eq!(sample.data_offset(), sample_offsets[i] as u64);
             assert_eq!(sample.is_sync_sample(), (i + 1) % 2 == 1);
             assert_eq!(sample.chunk().index().get(), sample_chunks[i]);
         }

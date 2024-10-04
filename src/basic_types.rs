@@ -493,6 +493,9 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
 pub struct Utf8String(String);
 
 impl Utf8String {
+    /// 空文字列
+    pub const EMPTY: Self = Utf8String(String::new());
+
     /// 終端の null を含まない文字列を受け取って [`Utf8String`] インスタンスを作成する
     ///
     /// 引数の文字列内の null 文字が含まれている場合には [`None`] が返される

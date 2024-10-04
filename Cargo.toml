@@ -12,4 +12,4 @@ readme = "README.md"
 [dependencies]
 
 [workspace]
-members = ["examples/dump_wasm"]
+members = ["examples/dump_wasm", "examples/transcode_wasm"]

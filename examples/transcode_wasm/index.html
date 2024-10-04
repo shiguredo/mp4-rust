@@ -1,0 +1,79 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>MP4 Transcode</title>
+
+    <style>
+        .disabled-link {
+            pointer-events: none; /* クリック不可 */
+            color: gray; /* リンクの見た目を灰色に */
+        }
+    </style>
+  </head>
+  <body>
+    <h1>MP4 Transcode</h1>
+
+    <a href="https://github.com/shiguredo/mp4-rust">shiguredo/mp4-rust</a> の WebAssembly ビルドのサンプルページです。
+    <br />
+    選択された MP4 ファイルを、 <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API">WebCodecs</a> を使ってローカルで変換します。
+    <br /><br />
+    <small>
+      [注意点]
+      <ul>
+        <li>入力 MP4 ファイル内の H.264 映像トラックのみが変換の対象となります</li>
+        <li>動作確認は最新の Chrome と Safari でのみ行っています (2024 年 10 月現在)</li>
+        <ul>
+          <li>Safari では AV1 での変換は行えません</li>
+          <li>H.265 で変換する場合には Safari TP か H.265 機能を有効にした Chrome Canary を使う必要があります</li>
+        </ul>
+        <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
+        <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
+        <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されます</li>
+      </ul>
+    </small>
+
+    <h3>入力 MP4 ファイル</h3>
+    <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
+    <br />
+    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
+    <br /><br />
+    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
+    <br />
+
+    <h3>出力 MP4 ファイル</h3>
+    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
+    <br />
+
+    <h3>変換設定</h3>
+    コーデック:
+    <select id="codec">
+      <option value="avc1.42e02a">H.264 (avc1.42e02a)</option>
+      <option value="hev1.1.6.L90.B0">H.265 (hev1.1.6.L90.B0)</option>
+      <option value="vp8">VP8 (vp8)</option>
+      <option value="vp09.00.10.08">VP9 (vp09.00.10.08)</option>
+      <option value="av01.0.01M.08" selected>AV1 (av01.0.01M.08)</option>
+    </select>
+    &nbsp;
+    解像度:
+    <select id="resolution">
+      <option value="320x180">320x180</option>
+      <option value="640x360">640x360</option>
+      <option value="1280x720">1280x720</option>
+      <option value="1920x1080">1920x1080</option>
+    </select>
+    &nbsp;
+    ビットレート:
+    <select id="bitrate">
+      <option value="102400">100 kbps</option>
+      <option value="512000" selected>500 kbps</option>
+      <option value="1048576">1 Mbps</option>
+      <option value="5242880">5 Mbps</option>
+    </select>
+    <br />
+
+    <h3>変換ログ</h3>
+    <textarea id="log" cols="90" rows="30" style="font-family:monospace, serif;"></textarea>
+
+    <script src="./transcode.js"></script>
+  </body>
+</html>
