@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    io::Read,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -14,8 +15,11 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
-    boxes::{Av01Box, Av1cBox, SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox},
-    BaseBox, Encode, Uint,
+    boxes::{
+        Av01Box, Av1cBox, Avc1Box, AvccBox, SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box,
+        VpccBox,
+    },
+    BaseBox, BoxHeader, BoxSize, Decode, Encode, Uint,
 };
 
 use crate::{
@@ -272,7 +276,8 @@ impl TrackTranscoder {
                         let encoded = WebCodec::encode(encoder_id, sample.keyframe, decoded)
                             .await
                             .or_fail()?;
-                        sample.data = encoded;
+                        sample.description = encoded.description;
+                        sample.data = encoded.data;
                         Ok::<_, Failure>(sample)
                     })
                     .or_fail()?,
@@ -290,12 +295,12 @@ impl TrackTranscoder {
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
 
-        chunk.sample_entry = self.build_output_sample_entry().or_fail()?;
+        chunk.sample_entry = self.build_output_sample_entry(&chunk).or_fail()?;
 
         Ok(())
     }
 
-    fn build_output_sample_entry(&self) -> orfail::Result<SampleEntry> {
+    fn build_output_sample_entry(&self, chunk: &Chunk) -> orfail::Result<SampleEntry> {
         let visual = VisualSampleEntryFields {
             data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
             width: self.options.video_encoder_config.width,
@@ -362,7 +367,31 @@ impl TrackTranscoder {
                     unknown_boxes: Vec::new(),
                 }))
             }
+            "avc1.42e02a" => Ok(SampleEntry::Avc1(Avc1Box {
+                visual,
+                avcc_box: Self::get_avcc_box(chunk).or_fail()?,
+                unknown_boxes: Vec::new(),
+            })),
             codec => Err(Failure::new(format!("Not yet implemented: {codec}"))),
         }
+    }
+
+    fn get_avcc_box(chunk: &Chunk) -> orfail::Result<AvccBox> {
+        let description = &chunk
+            .samples
+            .first()
+            .or_fail()?
+            .description
+            .as_ref()
+            .or_fail()?;
+        let header = BoxHeader {
+            box_type: AvccBox::TYPE,
+            box_size: BoxSize::with_payload_size(AvccBox::TYPE, description.len() as u64),
+        };
+        let mut data = Vec::new();
+        header.encode(&mut data).or_fail()?;
+        data.extend_from_slice(description);
+
+        AvccBox::decode(&mut &data[..]).or_fail()
     }
 }

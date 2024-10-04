@@ -266,6 +266,7 @@ impl InputMp4 {
                                     )
                                     .or_fail()?;
                                     Ok(Sample {
+                                        description: None,
                                         duration: Duration::from_secs(s.duration() as u64)
                                             / timescale.get(),
                                         keyframe: s.is_sync_sample(),
@@ -383,6 +384,7 @@ pub struct Chunk {
 
 #[derive(Debug, Clone)]
 pub struct Sample {
+    pub description: Option<Vec<u8>>,
     pub duration: Duration,
     pub keyframe: bool,
     pub data: Vec<u8>,

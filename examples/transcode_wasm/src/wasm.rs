@@ -15,6 +15,11 @@ pub struct VideoDecoderConfig {
     pub codec: String,
 }
 
+pub struct Encoded {
+    pub description: Option<Vec<u8>>,
+    pub data: Vec<u8>,
+}
+
 extern "C" {
     pub fn consoleLog(msg: *const u8, msg_len: i32);
 
@@ -41,7 +46,7 @@ extern "C" {
 
     #[expect(improper_ctypes)]
     pub fn encode(
-        result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
+        result_future: *mut oneshot::Sender<orfail::Result<Encoded>>,
         coder_id: CoderId,
         keyframe: bool,
         width: u32,
@@ -113,7 +118,7 @@ impl WebCodec {
         encoder: CoderId,
         keyframe: bool,
         frame: VideoFrame,
-    ) -> impl Future<Output = orfail::Result<Vec<u8>>> {
+    ) -> impl Future<Output = orfail::Result<Encoded>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
         unsafe {
             encode(
@@ -208,13 +213,16 @@ pub fn notifyDecodeResult(
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyEncodeResult(
     transcoder: *mut Transcoder,
-    result_future: *mut oneshot::Sender<orfail::Result<Vec<u8>>>,
-    result: JsonVec<orfail::Result<()>>,
+    result_future: *mut oneshot::Sender<orfail::Result<Encoded>>,
+    result: JsonVec<orfail::Result<Option<Vec<u8>>>>,
     encoded_data: *mut Vec<u8>,
 ) {
     let result = unsafe { result.into_value() };
     let tx = unsafe { Box::from_raw(result_future) };
-    let _ = tx.send(result.map(|()| *unsafe { Box::from_raw(encoded_data) }));
+    let _ = tx.send(result.map(|description| Encoded {
+        description,
+        data: *unsafe { Box::from_raw(encoded_data) },
+    }));
     let _ = pollTranscode(transcoder);
 }
 

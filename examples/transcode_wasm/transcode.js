@@ -111,9 +111,14 @@ let frameFormat = "RGBA";
                 const coderId = nextCoderId;
 
                 const params = {
-                    output: function (chunk) {
+                    output: function (chunk, metadata) {
+                        let description = null;
+                        if (metadata.decoderConfig !== undefined &&
+                            metadata.decoderConfig.description !== undefined) {
+                            description = [...new Uint8Array(metadata.decoderConfig.description)];
+                        }
                         let future = coderResultFutures[coderId].shift();
-                        let result = {"Ok": null};
+                        let result = {"Ok": description};
                         let size = chunk.byteLength;
                         let wasmBytes = wasmFunctions.allocateVec(size);
                         let wasmBytesOffset = wasmFunctions.vecOffset(wasmBytes);
