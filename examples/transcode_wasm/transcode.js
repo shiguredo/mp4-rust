@@ -26,8 +26,6 @@ let lastTimeoutId;
             },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
-                config.description = new Uint8Array(config.description);
-
                 const coderId = nextCoderId;
 
                 const params = {

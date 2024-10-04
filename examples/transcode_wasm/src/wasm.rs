@@ -3,7 +3,7 @@ use std::{future::Future, marker::PhantomData};
 use futures::{channel::oneshot, TryFutureExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::{boxes::Avc1Box, Encode};
+use shiguredo_mp4::boxes::Avc1Box;
 
 use crate::mp4::Mp4FileSummary;
 use crate::transcode::{
@@ -13,7 +13,6 @@ use crate::transcode::{
 #[derive(Serialize)]
 pub struct VideoDecoderConfig {
     pub codec: String,
-    pub description: Vec<u8>,
 }
 
 extern "C" {
@@ -62,12 +61,6 @@ impl WebCodec {
     pub fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
 
-        let mut description = Vec::new();
-        config
-            .avcc_box
-            .encode(&mut description)
-            .expect("unreachable");
-        description.drain(..8); // box header 部分を取り除く
         let config = VideoDecoderConfig {
             codec: format!(
                 "avc1.{:02x}{:02x}{:02x}",
@@ -75,7 +68,6 @@ impl WebCodec {
                 config.avcc_box.profile_compatibility,
                 config.avcc_box.avc_level_indication
             ),
-            description,
         };
         unsafe {
             createVideoDecoder(Box::into_raw(Box::new(tx)), JsonVec::new(config));

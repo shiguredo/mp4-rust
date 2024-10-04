@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, time::Duration};
+use std::{io::Read, num::NonZeroU32, time::Duration};
 
 use orfail::OrFail;
 use serde::Serialize;
@@ -251,28 +251,81 @@ impl InputMp4 {
                 is_audio,
                 chunks: sample_table
                     .chunks()
-                    .map(|c| Chunk {
-                        sample_entry: c.sample_entry().clone(),
-                        samples: c
-                            .samples()
-                            .map(|s| {
-                                let offset = s.data_offset() as usize;
-                                let size = s.data_size() as usize;
-                                let data = mp4_file_bytes[offset..][..size].to_vec();
-                                Sample {
-                                    duration: Duration::from_secs(s.duration() as u64)
-                                        / timescale.get(),
-                                    keyframe: s.is_sync_sample(),
-                                    data,
-                                }
-                            })
-                            .collect(),
+                    .map(|c| {
+                        Ok(Chunk {
+                            sample_entry: c.sample_entry().clone(),
+                            samples: c
+                                .samples()
+                                .map(|s| {
+                                    let offset = s.data_offset() as usize;
+                                    let size = s.data_size() as usize;
+                                    let data = Self::maybe_convert_to_annex_b(
+                                        c.sample_entry(),
+                                        s.is_sync_sample(),
+                                        &mp4_file_bytes[offset..][..size],
+                                    )
+                                    .or_fail()?;
+                                    Ok(Sample {
+                                        duration: Duration::from_secs(s.duration() as u64)
+                                            / timescale.get(),
+                                        keyframe: s.is_sync_sample(),
+                                        data,
+                                    })
+                                })
+                                .collect::<orfail::Result<_>>()?,
+                        })
                     })
-                    .collect(),
+                    .collect::<orfail::Result<_>>()?,
             });
         }
 
         Ok(Self { tracks })
+    }
+
+    // H.264 の場合には Annex B 形式にデータを変換する（Safari が AVCC 形式をサポートしていないため）
+    fn maybe_convert_to_annex_b(
+        sample_entry: &SampleEntry,
+        keyframe: bool,
+        mut data: &[u8],
+    ) -> orfail::Result<Vec<u8>> {
+        let SampleEntry::Avc1(sample_entry) = sample_entry else {
+            // H.264 以外
+            return Ok(data.to_vec());
+        };
+
+        // 簡単のために 4 bytes サイズ以外はエラーにしておく
+        // もしエラーになる入力ファイルが多いようならそれ以外もサポートする
+        (sample_entry.avcc_box.length_size_minus_one.get() == 3).or_fail_with(|()| {
+            format!(
+                "Unsupported H.264 stream: avcC.length_size_minus_one is not 3: value={}",
+                sample_entry.avcc_box.length_size_minus_one.get()
+            )
+        })?;
+
+        let mut annex_b_data = Vec::with_capacity(data.len());
+        if keyframe {
+            for nalu in sample_entry
+                .avcc_box
+                .sps_list
+                .iter()
+                .chain(sample_entry.avcc_box.pps_list.iter())
+                .chain(sample_entry.avcc_box.sps_ext_list.iter())
+            {
+                annex_b_data.extend_from_slice(&[0, 0, 1]);
+                annex_b_data.extend_from_slice(nalu);
+            }
+        }
+        while !data.is_empty() {
+            let size = u32::decode(&mut data).or_fail()? as usize;
+            annex_b_data.extend_from_slice(&[0, 0, 1]);
+
+            let offset = annex_b_data.len();
+            annex_b_data.resize(offset + size, 0);
+            (&mut data)
+                .read_exact(&mut annex_b_data[offset..][..size])
+                .or_fail()?;
+        }
+        Ok(annex_b_data)
     }
 
     pub fn summary(&self) -> Mp4FileSummary {
