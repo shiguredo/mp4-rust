@@ -31,6 +31,7 @@ jobs:
 
           mkdir -p _site/examples/transcode/
           cp examples/transcode_wasm/index.html _site/examples/transcode/
+          cp examples/transcode_wasm/transcode.js _site/examples/transcode/
           cp target/wasm32-unknown-unknown/release/transcode_wasm.wasm _site/examples/transcode/
       - name: Upload files
         uses: actions/upload-pages-artifact@v1
