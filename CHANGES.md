@@ -11,6 +11,8 @@
 
 ## develop
 
+- [ADD] WebCodecs を使ってローカルで MP4 ファイルを変換するサンプルを追加する
+  - @sile
 - [ADD] `StblBox` の情報へのアクセスを簡単かつ安全にするための `SampleTableAccessor` 構造体を追加する
   - @sile
 - [ADD] `SttsBox::from_sample_deltas()` 関数を追加する
