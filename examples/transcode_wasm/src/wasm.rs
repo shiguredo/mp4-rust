@@ -4,6 +4,7 @@ use futures::{channel::oneshot, TryFutureExt};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::boxes::Avc1Box;
+use shiguredo_mp4::Encode;
 
 use crate::mp4::Mp4FileSummary;
 use crate::transcode::{
@@ -11,8 +12,12 @@ use crate::transcode::{
 };
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoDecoderConfig {
     pub codec: String,
+    pub coded_width: u16,
+    pub coded_height: u16,
+    pub description: Vec<u8>,
 }
 
 pub struct Encoded {
@@ -66,6 +71,13 @@ impl WebCodec {
     pub fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
 
+        let mut description = Vec::new();
+        config
+            .avcc_box
+            .encode(&mut description)
+            .expect("unreachable");
+        description.drain(..8); // ボックスヘッダ部分を取り除く
+
         let config = VideoDecoderConfig {
             codec: format!(
                 "avc1.{:02x}{:02x}{:02x}",
@@ -73,6 +85,9 @@ impl WebCodec {
                 config.avcc_box.profile_compatibility,
                 config.avcc_box.avc_level_indication
             ),
+            description,
+            coded_width: config.visual.width,
+            coded_height: config.visual.height,
         };
         unsafe {
             createVideoDecoder(Box::into_raw(Box::new(tx)), JsonVec::new(config));
