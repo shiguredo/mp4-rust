@@ -1,6 +1,6 @@
 [package]
 name = "shiguredo_mp4"
-version = "2024.1.0"
+version = "2024.2.0"
 edition = "2021"
 authors = ["Shiguredo Inc."]
 license = "Apache-2.0"
@@ -12,4 +12,4 @@ readme = "README.md"
 [dependencies]
 
 [workspace]
-members = ["examples/dump_wasm"]
+members = ["examples/dump_wasm", "examples/transcode_wasm"]

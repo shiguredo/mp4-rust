@@ -1,6 +1,8 @@
 use std::{
     backtrace::Backtrace,
     io::{Cursor, ErrorKind, Read, Write},
+    num::{NonZeroU16, NonZeroU32},
+    panic::Location,
 };
 
 use crate::BoxType;
@@ -13,6 +15,12 @@ pub struct Error {
     /// 具体的なエラー理由
     pub io_error: std::io::Error,
 
+    /// エラー発生場所
+    pub location: Option<&'static Location<'static>>,
+
+    /// エラーが発生したボックスの種別
+    pub box_type: Option<BoxType>,
+
     /// エラー発生箇所を示すバックトレース
     ///
     /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
@@ -20,29 +28,43 @@ pub struct Error {
 }
 
 impl Error {
+    #[track_caller]
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidData, message))
     }
 
+    #[track_caller]
     pub(crate) fn invalid_input(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::InvalidInput, message))
     }
 
+    #[track_caller]
     pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
         Self::invalid_data(&format!(
             "Missing mandatory '{missing_box}' box in '{parent_box}' box"
         ))
     }
 
+    #[track_caller]
     pub(crate) fn unsupported(message: &str) -> Self {
         Self::from(std::io::Error::new(ErrorKind::Other, message))
+    }
+
+    pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {
+        if self.box_type.is_none() {
+            self.box_type = Some(box_type);
+        }
+        self
     }
 }
 
 impl From<std::io::Error> for Error {
+    #[track_caller]
     fn from(value: std::io::Error) -> Self {
         Self {
             io_error: value,
+            location: Some(std::panic::Location::caller()),
+            box_type: None,
             backtrace: Backtrace::capture(),
         }
     }
@@ -62,11 +84,21 @@ impl std::fmt::Debug for Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-            write!(f, "{}\n\nBacktrace:\n{}", self.io_error, self.backtrace)
-        } else {
-            write!(f, "{}", self.io_error)
+        if let Some(ty) = self.box_type {
+            write!(f, "[{ty}] ")?;
         }
+
+        write!(f, "{}", self.io_error)?;
+
+        if let Some(l) = &self.location {
+            write!(f, " (at {}:{})", l.file(), l.line())?;
+        }
+
+        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
+            write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -129,6 +161,18 @@ impl Encode for i64 {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
+    }
+}
+
+impl Encode for NonZeroU16 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.get().encode(writer)
+    }
+}
+
+impl Encode for NonZeroU32 {
+    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+        self.get().encode(writer)
     }
 }
 
@@ -211,6 +255,22 @@ impl Decode for i64 {
     }
 }
 
+impl Decode for NonZeroU16 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let v = u16::decode(reader)?;
+        NonZeroU16::new(v)
+            .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
+    }
+}
+
+impl Decode for NonZeroU32 {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let v = u32::decode(reader)?;
+        NonZeroU32::new(v)
+            .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
+    }
+}
+
 impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
         let mut items = [T::default(); N];
@@ -231,7 +291,9 @@ impl ExternalBytes {
     {
         let mut external_bytes = Self(0);
 
-        // TODO: 途中で失敗した場合は、それまでに書き込まれたサイズでいい理由を書く
+        // エンコード処理が途中で失敗した場合には、失敗時点までに書き込まれたバイト数が採用される。
+        // その失敗時の値は不正確であるが、いずれにせよここで失敗するということは、
+        // 後続の実際のエンコード処理でも失敗するはずなので、その際のサイズ値が不正確でも問題はない。
         let _ = f(&mut external_bytes);
         external_bytes.0
     }
@@ -264,7 +326,6 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
         }
     }
 
-    // TODO: rename
     pub fn into_reader(self) -> impl Read {
         Read::chain(
             Cursor::new(self.buf).take(self.buf_start as u64),

@@ -11,6 +11,32 @@
 
 ## develop
 
+## 2024.2.0
+
+- [ADD] WebCodecs を使ってローカルで MP4 ファイルを変換するサンプルを追加する
+  - @sile
+- [ADD] `StblBox` の情報へのアクセスを簡単かつ安全にするための `SampleTableAccessor` 構造体を追加する
+  - @sile
+- [ADD] `SttsBox::from_sample_deltas()` 関数を追加する
+  - @sile
+- [ADD] `Utf8String::into_null_terminated_bytes()` メソッドを追加する
+  - @sile
+- [CHANGE] 仕様上 0 を取らないフィールドの型は `NonZeroXXX` にする
+  -  @sile
+- [UPDATE] ボックスに `Hash` を実装する
+  - @sile
+- [CHANGE] `BoxHeader` 書き込み時に large size にするかどうかの自動判定は行わないようにする
+  - `BoxSize` 自体はどちらを使うべきかの情報を有しているので、それをそのまま反映するようにした
+  - @sile
+- [UPDATE] `Error` 構造体にエラー発生箇所特定用のフィールドを追加する
+  - エラー発生時のボック種別、および、エラー発生ファイルと行番号、の情報を取得できるようにした
+  - @sile
+- [FIX] hdlr ボックスの name フィールドは単なるバイト列として扱うようにする
+  - ISO の仕様上は、このフィールドは null 終端の UTF-8 文字列であるべきだが、それに準拠しない MP4 ファイルを生成する実装が普通に存在するため、中身を厳密にチェックしないようにした
+  - @sile
+- [FIX] 64 bit のボックスサイズが使われていた場合にペイロードのデコードに失敗する問題を修正する
+  - @sile
+
 ## 2024.1.0
 
 **公開**

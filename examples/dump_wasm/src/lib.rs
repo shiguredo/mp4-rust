@@ -9,7 +9,7 @@ struct BoxInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<bool>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub childre: Vec<Self>,
+    pub children: Vec<Self>,
 }
 
 impl BoxInfo {
@@ -18,7 +18,7 @@ impl BoxInfo {
             ty: b.box_type().to_string(),
             size: b.box_size().get(),
             unknown: b.is_unknown_box().then_some(true),
-            childre: b.children().map(Self::new).collect(),
+            children: b.children().map(Self::new).collect(),
         }
     }
 }

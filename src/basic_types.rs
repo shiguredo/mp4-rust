@@ -141,17 +141,19 @@ impl BoxHeader {
                         self.box_size.get(),
                         self.external_size()
                     ))
+                    .with_box_type(self.box_type)
                 })?;
             reader.take(payload_size)
         };
 
-        let value = f(&mut reader)?;
+        let value = f(&mut reader).map_err(|e| e.with_box_type(self.box_type))?;
         if reader.limit() != 0 {
             return Err(Error::invalid_data(&format!(
-                "Unconsumed {} bytes at the end of the box {:?}",
+                "Unconsumed {} bytes at the end of the box '{}'",
                 reader.limit(),
                 self.box_type
-            )));
+            ))
+            .with_box_type(self.box_type));
         }
         Ok(value)
     }
@@ -168,12 +170,16 @@ impl BoxHeader {
 
 impl Encode for BoxHeader {
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let large_size = self.box_size.get() > u32::MAX as u64;
-        if large_size {
-            1u32.encode(writer)?;
-        } else {
-            (self.box_size.get() as u32).encode(writer)?;
-        }
+        let large_size = match self.box_size {
+            BoxSize::U32(size) => {
+                size.encode(writer)?;
+                None
+            }
+            BoxSize::U64(size) => {
+                1u32.encode(writer)?;
+                Some(size)
+            }
+        };
 
         match self.box_type {
             BoxType::Normal(ty) => {
@@ -185,8 +191,8 @@ impl Encode for BoxHeader {
             }
         }
 
-        if large_size {
-            self.box_size.get().encode(writer)?;
+        if let Some(large_size) = large_size {
+            large_size.encode(writer)?;
         }
 
         Ok(())
@@ -195,7 +201,7 @@ impl Encode for BoxHeader {
 
 impl Decode for BoxHeader {
     fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut box_size = u32::decode(reader)? as u64;
+        let box_size = u32::decode(reader)?;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -208,16 +214,21 @@ impl Decode for BoxHeader {
             BoxType::Normal(box_type)
         };
 
-        if box_size == 1 {
-            box_size = u64::decode(reader)?;
-        }
-        let box_size = BoxSize::new(box_type, box_size).ok_or_else(|| {
-            Error::invalid_data(&format!(
+        let box_size = if box_size == 1 {
+            BoxSize::U64(u64::decode(reader)?)
+        } else {
+            BoxSize::U32(box_size)
+        };
+        if box_size.get() != 0
+            && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
+        {
+            return Err(Error::invalid_data(&format!(
                 "Too small box size: actual={}, expected={} or more",
-                box_size,
-                4 + box_type.external_size()
+                box_size.get(),
+                box_size.external_size() + box_type.external_size()
             ))
-        })?;
+            .with_box_type(box_type));
+        };
 
         Ok(Self { box_type, box_size })
     }
@@ -315,47 +326,40 @@ impl Decode for FullBoxFlags {
 /// ボックスのサイズは原則として、ヘッダー部分とペイロード部分のサイズを足した値となる。
 /// ただし、MP4 ファイルの末尾にあるボックスについてはサイズを 0 とすることで、ペイロードが可変長（追記可能）なボックスとして扱うことが可能となっている。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BoxSize(u64);
+#[allow(missing_docs)]
+pub enum BoxSize {
+    U32(u32),
+    U64(u64),
+}
 
 impl BoxSize {
     /// ファイル末尾に位置する可変長のボックスを表すための特別な値
-    pub const VARIABLE_SIZE: Self = Self(0);
-
-    /// [`u64`] のサイズ値を受け取って、それが適切な場合には `Some(BoxSize)` が返される
-    ///
-    /// `box_size` の値が、指定されたボックス種別を保持するために必要な最小サイズを下回っている場合には [`None`] が返される
-    pub fn new(box_type: BoxType, box_size: u64) -> Option<Self> {
-        if box_size == 0 {
-            return Some(Self(0));
-        }
-
-        if box_size < 4 + box_type.external_size() as u64 {
-            None
-        } else {
-            Some(Self(box_size))
-        }
-    }
+    pub const VARIABLE_SIZE: Self = Self::U32(0);
 
     /// ボックス種別とペイロードサイズを受け取って、対応する [`BoxSize`] インスタンスを作成する
-    pub const fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
+    pub fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
         let mut size = 4 + box_type.external_size() as u64 + payload_size;
-        if size > u32::MAX as u64 {
+        if let Ok(size) = u32::try_from(size) {
+            Self::U32(size)
+        } else {
             size += 8;
+            Self::U64(size)
         }
-        Self(size)
     }
 
     /// ボックスのサイズの値を取得する
     pub const fn get(self) -> u64 {
-        self.0
+        match self {
+            BoxSize::U32(v) => v as u64,
+            BoxSize::U64(v) => v,
+        }
     }
 
     /// [`BoxHeader`] 内のサイズフィールドをエンコードする際に必要となるバイト数を返す
     pub const fn external_size(self) -> usize {
-        if self.0 > u32::MAX as u64 {
-            4 + 8
-        } else {
-            4
+        match self {
+            BoxSize::U32(_) => 4,
+            BoxSize::U64(_) => 4 + 8,
         }
     }
 }
@@ -394,7 +398,7 @@ impl BoxType {
             Ok(())
         } else {
             Err(Error::invalid_data(&format!(
-                "Expected box type {:?}, but got {:?}",
+                "Expected box type `{}`, but got `{}`",
                 expected, self
             )))
         }
@@ -489,6 +493,9 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
 pub struct Utf8String(String);
 
 impl Utf8String {
+    /// 空文字列
+    pub const EMPTY: Self = Utf8String(String::new());
+
     /// 終端の null を含まない文字列を受け取って [`Utf8String`] インスタンスを作成する
     ///
     /// 引数の文字列内の null 文字が含まれている場合には [`None`] が返される
@@ -502,6 +509,13 @@ impl Utf8String {
     /// このインスタンスが保持する、null 終端部分を含まない文字列を返す
     pub fn get(&self) -> &str {
         &self.0
+    }
+
+    /// このインスタンスを、null 終端部分を含むバイト列へと変換する
+    pub fn into_null_terminated_bytes(self) -> Vec<u8> {
+        let mut v = self.0.into_bytes();
+        v.push(0);
+        v
     }
 }
 
