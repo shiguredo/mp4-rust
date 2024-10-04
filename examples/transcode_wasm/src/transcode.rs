@@ -14,7 +14,7 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
-    boxes::{SampleEntry, VisualSampleEntryFields, Vp08Box, VpccBox},
+    boxes::{SampleEntry, VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox},
     BaseBox, Encode, Uint,
 };
 
@@ -290,31 +290,57 @@ impl TrackTranscoder {
             self.transcoded_sample_count.fetch_add(1, Ordering::SeqCst);
         }
 
-        chunk.sample_entry = SampleEntry::Vp08(Vp08Box {
-            visual: VisualSampleEntryFields {
-                data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                width: self.options.video_encoder_config.width,
-                height: self.options.video_encoder_config.height,
-                horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-            },
-            vpcc_box: VpccBox {
-                profile: 0,
-                level: 0,
-                bit_depth: Uint::new(8),
-                chroma_subsampling: Uint::new(1),
-                video_full_range_flag: Uint::new(0),
-                colour_primaries: 1,
-                transfer_characteristics: 1,
-                matrix_coefficients: 1,
-                codec_initialization_data: Vec::new(),
-            },
-            unknown_boxes: Vec::new(),
-        });
+        chunk.sample_entry = self.build_output_sample_entry().or_fail()?;
 
         Ok(())
+    }
+
+    fn build_output_sample_entry(&self) -> orfail::Result<SampleEntry> {
+        let visual = VisualSampleEntryFields {
+            data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width: self.options.video_encoder_config.width,
+            height: self.options.video_encoder_config.height,
+            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+        };
+        match self.options.video_encoder_config.codec.as_str() {
+            "vp8" => Ok(SampleEntry::Vp08(Vp08Box {
+                visual,
+                vpcc_box: VpccBox {
+                    profile: 0,
+                    level: 0,
+                    bit_depth: Uint::new(8),
+                    chroma_subsampling: Uint::new(1),
+                    video_full_range_flag: Uint::new(0),
+                    colour_primaries: 1,
+                    transfer_characteristics: 1,
+                    matrix_coefficients: 1,
+                    codec_initialization_data: Vec::new(),
+                },
+                unknown_boxes: Vec::new(),
+            })),
+            "vp09.00.10.08" => {
+                // See: https://www.webmproject.org/vp9/mp4/ (Codecs Parameter String)
+                Ok(SampleEntry::Vp09(Vp09Box {
+                    visual,
+                    vpcc_box: VpccBox {
+                        profile: 0,              // codec 文字列内の最初の数値
+                        level: 10,               // codec 文字列内の次の数値
+                        bit_depth: Uint::new(8), // codec 文字列内の最後の数値
+                        chroma_subsampling: Uint::new(1),
+                        video_full_range_flag: Uint::new(0),
+                        colour_primaries: 1,
+                        transfer_characteristics: 1,
+                        matrix_coefficients: 1,
+                        codec_initialization_data: Vec::new(),
+                    },
+                    unknown_boxes: Vec::new(),
+                }))
+            }
+            codec => Err(Failure::new(format!("Not yet implemented: {codec}"))),
+        }
     }
 }
