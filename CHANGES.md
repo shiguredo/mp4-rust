@@ -15,7 +15,7 @@
    - @sile
 - [ADD] `SampleAccessor::timestamp()` を追加する
    - @sile
-- [ADD] `SampleAccessor::sync_sample_index()` を追加する
+- [ADD] `SampleAccessor::sync_sample()` を追加する
   - @sile
 - [CHANGE] `SampleTableAccessor::new()` で stco ボックスと stsc ボックスの不整合をチェックするようにする
   - @sile

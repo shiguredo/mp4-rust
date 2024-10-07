@@ -350,20 +350,24 @@ impl<T: AsRef<StblBox>> SampleAccessor<'_, T> {
         stss_box.sample_numbers.binary_search(&self.index).is_ok()
     }
 
-    /// このサンプルをデコードするために必要となる同期サンプルのインデックスを返す
+    /// このサンプルをデコードするために必要となる同期サンプルへの参照を返す
     ///
-    /// 自分自身が同期サンプルの場合には、自分のインデックスが返される。
+    /// 自分自身が同期サンプルの場合には、自分が返される。
     /// 自分よりも前方に同期サンプルが存在しない場合には [`None`] が返される。
-    pub fn sync_sample_index(&self) -> Option<NonZeroU32> {
-        let Some(stss_box) = &self.sample_table.stbl_box().stss_box else {
-            return Some(self.index);
+    pub fn sync_sample(&self) -> Option<Self> {
+        let index = if let Some(stss_box) = &self.sample_table.stbl_box().stss_box {
+            match stss_box.sample_numbers.binary_search(&self.index) {
+                Ok(_) => self.index,
+                Err(0) => return None,
+                Err(i) => stss_box.sample_numbers[i - 1],
+            }
+        } else {
+            self.index
         };
-
-        match stss_box.sample_numbers.binary_search(&self.index) {
-            Ok(_) => Some(self.index),
-            Err(0) => None,
-            Err(i) => Some(stss_box.sample_numbers[i - 1]),
-        }
+        Some(Self {
+            index,
+            sample_table: self.sample_table,
+        })
     }
 
     /// サンプルが属するチャンクの情報を返す
@@ -501,7 +505,7 @@ mod tests {
             assert_eq!(sample.data_offset(), sample_offsets[i] as u64);
             assert_eq!(sample.is_sync_sample(), (i + 1) % 2 == 1);
             assert_eq!(
-                sample.sync_sample_index(),
+                sample.sync_sample().map(|s| s.index()),
                 Some(NonZeroU32::MIN.saturating_add(i as u32 / 2 * 2))
             );
             assert_eq!(sample.chunk().index().get(), sample_chunks[i]);
