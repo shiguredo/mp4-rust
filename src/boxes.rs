@@ -2022,6 +2022,12 @@ impl BaseBox for StblBox {
     }
 }
 
+impl AsRef<StblBox> for StblBox {
+    fn as_ref(&self) -> &StblBox {
+        self
+    }
+}
+
 /// [ISO/IEC 14496-12] SampleDescriptionBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
