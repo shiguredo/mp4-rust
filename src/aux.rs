@@ -154,6 +154,36 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
         })
     }
 
+    /// 指定されたタイムスタンプ（トラック先頭からの累計尺）を含むサンプルの情報を返す
+    ///
+    /// 該当のサンプルが存在しない場合には [`None`] が返される
+    pub fn get_sample_by_timestamp(&self, timestamp: u64) -> Option<SampleAccessor<T>> {
+        let mut low = 0;
+        let mut high = self.sample_count;
+        while high > low {
+            let i = (high - low) / 2 + low;
+            let sample = SampleAccessor {
+                sample_table: self,
+                index: NonZeroU32::MIN.saturating_add(i),
+            };
+            let sample_timestamp = sample.timestamp();
+
+            match timestamp.cmp(&sample_timestamp) {
+                std::cmp::Ordering::Less => {
+                    high = i;
+                }
+                std::cmp::Ordering::Equal => return Some(sample),
+                std::cmp::Ordering::Greater => {
+                    if timestamp < sample_timestamp + sample.duration() as u64 {
+                        return Some(sample);
+                    }
+                    low = i + 1;
+                }
+            }
+        }
+        None
+    }
+
     /// 指定されたチャンクの情報を返す
     ///
     /// 存在しないチャンクが指定された場合には [`None`] が返される
@@ -487,6 +517,18 @@ mod tests {
             assert_eq!(chunk.samples().count(), sample_counts[i] as usize);
         }
         assert!(sample_table.get_chunk(index(5)).is_none());
+
+        let file_duraiton = sample_durations.iter().copied().sum::<u32>() as u64;
+        for t in 0..file_duraiton {
+            let index = sample_table.get_sample_by_timestamp(t).expect("bug").index;
+            let start_time = sample_table.get_sample(index).expect("bug").timestamp();
+            let end_time =
+                start_time + sample_table.get_sample(index).expect("bug").duration() as u64;
+            assert!((start_time..end_time).contains(&t));
+        }
+        assert!(sample_table
+            .get_sample_by_timestamp(file_duraiton + 1)
+            .is_none());
     }
 
     fn index(i: u32) -> NonZeroU32 {
