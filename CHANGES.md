@@ -11,6 +11,8 @@
 
 ## develop
 
+- [ADD] `SampleAccessor::sync_sample_index()` を追加する
+  - @sile
 - [CHANGE] `SampleTableAccessor::new()` で stco ボックスと stsc ボックスの不整合をチェックするようにする
   - @sile
 - [UPDATE] `SampleTableAccessor` が borrowed / owned の両方に対応できるようにする
