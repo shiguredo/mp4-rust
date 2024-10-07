@@ -12,8 +12,8 @@ pub struct SampleTableAccessor<T> {
     stbl_box: T,
     chunk_count: u32,
     sample_count: u32,
-    sample_durations: Vec<(u32, u32)>,     // (累計サンプル数、尺）
-    sample_index_offsets: Vec<NonZeroU32>, // チャンク先頭のサンプルインデックス
+    sample_durations: Vec<(u32, u32, u64)>, // (累計サンプル数、尺、累計尺）
+    sample_index_offsets: Vec<NonZeroU32>,  // チャンク先頭のサンプルインデックス
     sample_data_offsets: Vec<u64>,
 }
 
@@ -23,9 +23,11 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
         let stbl_box_ref = stbl_box.as_ref();
         let mut sample_count = 0;
         let mut sample_durations = Vec::new();
+        let mut acc_duration = 0;
         for entry in &stbl_box_ref.stts_box.entries {
-            sample_durations.push((sample_count, entry.sample_delta));
+            sample_durations.push((sample_count, entry.sample_delta, acc_duration));
             sample_count += entry.sample_count;
+            acc_duration += entry.sample_delta as u64 * entry.sample_count as u64;
         }
 
         if let StszBox::Variable { entry_sizes } = &stbl_box_ref.stsz_box {
@@ -283,6 +285,17 @@ impl<T: AsRef<StblBox>> SampleAccessor<'_, T> {
         self.sample_table.sample_durations[i].1
     }
 
+    /// サンプルのタイムスタンプ（累計尺）を取得する
+    pub fn timestamp(&self) -> u64 {
+        let i = self
+            .sample_table
+            .sample_durations
+            .binary_search_by_key(&(self.index.get() - 1), |x| x.0)
+            .unwrap_or_else(|i| i.checked_sub(1).expect("unreachable"));
+        let (base_index_minus_1, duration, base_timestamp) = self.sample_table.sample_durations[i];
+        base_timestamp + duration as u64 * (self.index.get() - 1 - base_index_minus_1) as u64
+    }
+
     /// サンプルのデータサイズ（バイト数）を取得する
     pub fn data_size(&self) -> u32 {
         let i = self.index.get() as usize - 1;
@@ -450,6 +463,10 @@ mod tests {
         for i in 0..10 {
             let sample = sample_table.get_sample(index(i as u32 + 1)).expect("bug");
             assert_eq!(sample.duration(), sample_durations[i]);
+            assert_eq!(
+                sample.timestamp(),
+                sample_durations.iter().copied().take(i).sum::<u32>() as u64
+            );
             assert_eq!(sample.data_size(), i as u32 + 1);
             assert_eq!(sample.data_offset(), sample_offsets[i] as u64);
             assert_eq!(sample.is_sync_sample(), (i + 1) % 2 == 1);
