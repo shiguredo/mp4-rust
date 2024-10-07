@@ -72,6 +72,20 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             // stsc 内のチャンクインデックスが短調増加していない
             return Err(SampleTableAccessorError::ChunkIndicesNotMonotonicallyIncreasing);
         }
+        if let Some(max_chunk_index) = NonZeroU32::new(chunk_count) {
+            if let Some(last) = stbl_box_ref
+                .stsc_box
+                .entries
+                .last()
+                .filter(|x| max_chunk_index < x.first_chunk)
+            {
+                // stco / co64 のチャンク数と stsc のチャンク数が一致していない
+                return Err(SampleTableAccessorError::LastChunkIndexIsTooLarge {
+                    max_chunk_index,
+                    last_chunk_index: last.first_chunk,
+                });
+            }
+        }
 
         let mut sample_index_offsets = Vec::new();
         let mut first_sample_index = NonZeroU32::MIN;
@@ -191,6 +205,15 @@ pub enum SampleTableAccessorError {
         actual_chunk_index: NonZeroU32,
     },
 
+    /// [`StscBox`] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
+    LastChunkIndexIsTooLarge {
+        /// [`StcoBox`] ないし [`Co64Box`] が表すチャンクインデックスの最大値
+        max_chunk_index: NonZeroU32,
+
+        /// [`StscBox`] の最後のエントリのチャンクインデックス
+        last_chunk_index: NonZeroU32,
+    },
+
     /// [`StscBox`] が存在しない [`SampleEntry`] を参照している
     MissingSampleEntry {
         /// [`StscEntry`] のインデックス
@@ -217,6 +240,9 @@ impl std::fmt::Display for SampleTableAccessorError {
             } => write!(f, "Sample count in `stts` box is {stts_sample_count}, but `{other_box_type}` has sample count {other_sample_count}"),
             SampleTableAccessorError::FirstChunkIndexIsNotOne { actual_chunk_index } => {
                 write!(f,"First chunk index in `stsc` box is expected to 1, but got {actual_chunk_index}")
+            }
+            SampleTableAccessorError::LastChunkIndexIsTooLarge { max_chunk_index, last_chunk_index } => {
+                write!(f,"Last chunk index in `stsc` box is expected to `<= {max_chunk_index}`, but got {last_chunk_index}")
             }
             SampleTableAccessorError::MissingSampleEntry {
                 stsc_entry_index,

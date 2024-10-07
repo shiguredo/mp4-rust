@@ -11,6 +11,8 @@
 
 ## develop
 
+- [CHANGE] `SampleTableAccessor::new()` で stco ボックスと stsc ボックスの不整合をチェックするようにする
+  - @sile
 - [UPDATE] `SampleTableAccessor` が borrowed / owned の両方に対応できるようにする
   - @sile
 - [UPDATE] 共通関数でエラーが発生した場合のファイル名・行番号表示を改善する
