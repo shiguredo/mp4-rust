@@ -74,8 +74,8 @@ impl<B: BaseBox> Mp4File<B> {
 }
 
 impl<B: BaseBox + Decode> Decode for Mp4File<B> {
-    fn decode<R: Read>(mut reader: &mut R) -> Result<Self> {
-        let ftyp_box = FtypBox::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let ftyp_box = FtypBox::decode(&mut reader)?;
 
         let mut boxes = Vec::new();
         let mut buf = [0];
@@ -200,8 +200,8 @@ impl Encode for BoxHeader {
 }
 
 impl Decode for BoxHeader {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let box_size = u32::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let box_size = u32::decode(&mut reader)?;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -263,9 +263,9 @@ impl Encode for FullBoxHeader {
 }
 
 impl Decode for FullBoxHeader {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         Ok(Self {
-            version: Decode::decode(reader)?,
+            version: Decode::decode(&mut reader)?,
             flags: Decode::decode(reader)?,
         })
     }
@@ -314,7 +314,7 @@ impl Encode for FullBoxFlags {
 }
 
 impl Decode for FullBoxFlags {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf[1..])?;
         Ok(Self(u32::from_be_bytes(buf)))
@@ -480,9 +480,9 @@ impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
 }
 
 impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         Ok(Self {
-            integer: I::decode(reader)?,
+            integer: I::decode(&mut reader)?,
             fraction: F::decode(reader)?,
         })
     }
@@ -528,10 +528,10 @@ impl Encode for Utf8String {
 }
 
 impl Decode for Utf8String {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut bytes = Vec::new();
         loop {
-            let b = u8::decode(reader)?;
+            let b = u8::decode(&mut reader)?;
             if b == 0 {
                 break;
             }

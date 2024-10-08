@@ -34,8 +34,8 @@ impl Encode for UnknownBox {
 }
 
 impl Decode for UnknownBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         let mut payload = Vec::new();
         header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
         Ok(Self {
@@ -83,7 +83,7 @@ pub struct IgnoredBox {
 
 impl IgnoredBox {
     /// 次のボックスがデコード対象ならデコードし、そうではない場合には無視する
-    pub fn decode_or_ignore<B, R, F>(reader: &mut R, is_decode_target: F) -> Result<Either<B, Self>>
+    pub fn decode_or_ignore<B, R, F>(reader: R, is_decode_target: F) -> Result<Either<B, Self>>
     where
         B: BaseBox + Decode,
         R: Read,
@@ -99,8 +99,8 @@ impl IgnoredBox {
 }
 
 impl Decode for IgnoredBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         let box_payload_size = header.with_box_payload_reader(reader, |reader| {
             let mut buf = [0; 1024];
             let mut box_payload_size = 0;
@@ -227,7 +227,7 @@ impl Encode for Brand {
 }
 
 impl Decode for Brand {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf)?;
         Ok(Self(buf))
@@ -266,16 +266,16 @@ impl Encode for FtypBox {
 }
 
 impl Decode for FtypBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
 
-        header.with_box_payload_reader(reader, |reader| {
-            let major_brand = Brand::decode(reader)?;
-            let minor_version = u32::decode(reader)?;
+        header.with_box_payload_reader(reader, |mut reader| {
+            let major_brand = Brand::decode(&mut reader)?;
+            let minor_version = u32::decode(&mut reader)?;
             let mut compatible_brands = Vec::new();
             while reader.limit() > 0 {
-                compatible_brands.push(Brand::decode(reader)?);
+                compatible_brands.push(Brand::decode(&mut reader)?);
             }
             Ok(Self {
                 major_brand,
@@ -333,7 +333,7 @@ impl Encode for RootBox {
 }
 
 impl Decode for RootBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(reader: R) -> Result<Self> {
         let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
             FreeBox::TYPE => Decode::decode(&mut reader).map(Self::Free),
@@ -387,8 +387,8 @@ impl Encode for FreeBox {
 }
 
 impl Decode for FreeBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
 
         let mut payload = Vec::new();
@@ -435,8 +435,8 @@ impl Encode for MdatBox {
 }
 
 impl Decode for MdatBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
 
         let mut payload = Vec::new();
@@ -531,8 +531,8 @@ impl Encode for MoovBox {
 }
 
 impl Decode for MoovBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -606,8 +606,8 @@ impl MvhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             creation_time: Mp4FileTime::default(),
             modification_time: Mp4FileTime::default(),
@@ -620,23 +620,24 @@ impl MvhdBox {
         };
 
         if full_header.version == 1 {
-            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = NonZeroU32::decode(reader)?;
-            this.duration = u64::decode(reader)?;
+            this.creation_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.timescale = NonZeroU32::decode(&mut reader)?;
+            this.duration = u64::decode(&mut reader)?;
         } else {
-            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.creation_time =
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
-                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = NonZeroU32::decode(reader)?;
-            this.duration = u32::decode(reader)? as u64;
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.timescale = NonZeroU32::decode(&mut reader)?;
+            this.duration = u32::decode(&mut reader)? as u64;
         }
 
-        this.rate = FixedPointNumber::decode(reader)?;
-        this.volume = FixedPointNumber::decode(reader)?;
-        let _ = <[u8; 2 + 4 * 2]>::decode(reader)?;
-        this.matrix = <[i32; 9]>::decode(reader)?;
-        let _ = <[u8; 4 * 6]>::decode(reader)?;
+        this.rate = FixedPointNumber::decode(&mut reader)?;
+        this.volume = FixedPointNumber::decode(&mut reader)?;
+        let _ = <[u8; 2 + 4 * 2]>::decode(&mut reader)?;
+        this.matrix = <[i32; 9]>::decode(&mut reader)?;
+        let _ = <[u8; 4 * 6]>::decode(&mut reader)?;
         this.next_track_id = u32::decode(reader)?;
 
         Ok(this)
@@ -652,8 +653,8 @@ impl Encode for MvhdBox {
 }
 
 impl Decode for MvhdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -759,8 +760,8 @@ impl Encode for TrakBox {
 }
 
 impl Decode for TrakBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -852,8 +853,8 @@ impl TkhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             flag_track_enabled: false,
             flag_track_in_movie: false,
@@ -878,27 +879,28 @@ impl TkhdBox {
         this.flag_track_size_is_aspect_ratio = full_header.flags.is_set(3);
 
         if full_header.version == 1 {
-            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.track_id = u32::decode(reader)?;
-            let _ = <[u8; 4]>::decode(reader)?;
-            this.duration = u64::decode(reader)?;
+            this.creation_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.track_id = u32::decode(&mut reader)?;
+            let _ = <[u8; 4]>::decode(&mut reader)?;
+            this.duration = u64::decode(&mut reader)?;
         } else {
-            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.creation_time =
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
-                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.track_id = u32::decode(reader)?;
-            let _ = <[u8; 4]>::decode(reader)?;
-            this.duration = u32::decode(reader)? as u64;
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.track_id = u32::decode(&mut reader)?;
+            let _ = <[u8; 4]>::decode(&mut reader)?;
+            this.duration = u32::decode(&mut reader)? as u64;
         }
 
-        let _ = <[u8; 4 * 2]>::decode(reader)?;
-        this.layer = i16::decode(reader)?;
-        this.alternate_group = i16::decode(reader)?;
-        this.volume = FixedPointNumber::decode(reader)?;
-        let _ = <[u8; 2]>::decode(reader)?;
-        this.matrix = <[i32; 9]>::decode(reader)?;
-        this.width = FixedPointNumber::decode(reader)?;
+        let _ = <[u8; 4 * 2]>::decode(&mut reader)?;
+        this.layer = i16::decode(&mut reader)?;
+        this.alternate_group = i16::decode(&mut reader)?;
+        this.volume = FixedPointNumber::decode(&mut reader)?;
+        let _ = <[u8; 2]>::decode(&mut reader)?;
+        this.matrix = <[i32; 9]>::decode(&mut reader)?;
+        this.width = FixedPointNumber::decode(&mut reader)?;
         this.height = FixedPointNumber::decode(reader)?;
 
         Ok(this)
@@ -914,8 +916,8 @@ impl Encode for TkhdBox {
 }
 
 impl Decode for TkhdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1009,8 +1011,8 @@ impl Encode for EdtsBox {
 }
 
 impl Decode for EdtsBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1072,22 +1074,22 @@ impl ElstBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
 
         let mut entries = Vec::new();
-        let count = u32::decode(reader)? as usize;
+        let count = u32::decode(&mut reader)? as usize;
         for _ in 0..count {
             let edit_duration;
             let media_time;
             if full_header.version == 1 {
-                edit_duration = u64::decode(reader)?;
-                media_time = i64::decode(reader)?;
+                edit_duration = u64::decode(&mut reader)?;
+                media_time = i64::decode(&mut reader)?;
             } else {
-                edit_duration = u32::decode(reader)? as u64;
-                media_time = i32::decode(reader)? as i64;
+                edit_duration = u32::decode(&mut reader)? as u64;
+                media_time = i32::decode(&mut reader)? as i64;
             }
-            let media_rate = FixedPointNumber::decode(reader)?;
+            let media_rate = FixedPointNumber::decode(&mut reader)?;
             entries.push(ElstEntry {
                 edit_duration,
                 media_time,
@@ -1108,8 +1110,8 @@ impl Encode for ElstBox {
 }
 
 impl Decode for ElstBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1213,8 +1215,8 @@ impl Encode for MdiaBox {
 }
 
 impl Decode for MdiaBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1287,8 +1289,8 @@ impl MdhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             creation_time: Default::default(),
             modification_time: Default::default(),
@@ -1298,19 +1300,20 @@ impl MdhdBox {
         };
 
         if full_header.version == 1 {
-            this.creation_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.modification_time = u64::decode(reader).map(Mp4FileTime::from_secs)?;
-            this.timescale = NonZeroU32::decode(reader)?;
-            this.duration = u64::decode(reader)?;
+            this.creation_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.modification_time = u64::decode(&mut reader).map(Mp4FileTime::from_secs)?;
+            this.timescale = NonZeroU32::decode(&mut reader)?;
+            this.duration = u64::decode(&mut reader)?;
         } else {
-            this.creation_time = u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.creation_time =
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
             this.modification_time =
-                u32::decode(reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = NonZeroU32::decode(reader)?;
-            this.duration = u32::decode(reader)? as u64;
+                u32::decode(&mut reader).map(|v| Mp4FileTime::from_secs(v as u64))?;
+            this.timescale = NonZeroU32::decode(&mut reader)?;
+            this.duration = u32::decode(&mut reader)? as u64;
         }
 
-        let language = u16::decode(reader)?;
+        let language = u16::decode(&mut reader)?;
         this.language = [
             ((language >> 10) & 0b11111) as u8 + 0x60,
             ((language >> 5) & 0b11111) as u8 + 0x60,
@@ -1332,8 +1335,8 @@ impl Encode for MdhdBox {
 }
 
 impl Decode for MdhdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1405,11 +1408,11 @@ impl HdlrBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _full_header = FullBoxHeader::decode(reader)?;
-        let _ = <[u8; 4]>::decode(reader)?;
-        let handler_type = <[u8; 4]>::decode(reader)?;
-        let _ = <[u8; 4 * 3]>::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _full_header = FullBoxHeader::decode(&mut reader)?;
+        let _ = <[u8; 4]>::decode(&mut reader)?;
+        let handler_type = <[u8; 4]>::decode(&mut reader)?;
+        let _ = <[u8; 4 * 3]>::decode(&mut reader)?;
         let mut name = Vec::new();
         reader.read_to_end(&mut name)?;
         Ok(Self { handler_type, name })
@@ -1425,8 +1428,8 @@ impl Encode for HdlrBox {
 }
 
 impl Decode for HdlrBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1533,8 +1536,8 @@ impl Encode for MinfBox {
 }
 
 impl Decode for MinfBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1581,9 +1584,9 @@ impl SmhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _full_header = FullBoxHeader::decode(reader)?;
-        let balance = FixedPointNumber::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _full_header = FullBoxHeader::decode(&mut reader)?;
+        let balance = FixedPointNumber::decode(&mut reader)?;
         let _ = <[u8; 2]>::decode(reader)?;
         Ok(Self { balance })
     }
@@ -1598,8 +1601,8 @@ impl Encode for SmhdBox {
 }
 
 impl Decode for SmhdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1654,8 +1657,8 @@ impl VmhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
         if full_header.flags.get() != 1 {
             return Err(Error::invalid_data(&format!(
                 "Unexpected FullBox header flags of 'vmhd' box: {}",
@@ -1663,7 +1666,7 @@ impl VmhdBox {
             )));
         }
 
-        let graphicsmode = u16::decode(reader)?;
+        let graphicsmode = u16::decode(&mut reader)?;
         let opcolor = <[u16; 3]>::decode(reader)?;
         Ok(Self {
             graphicsmode,
@@ -1681,8 +1684,8 @@ impl Encode for VmhdBox {
 }
 
 impl Decode for VmhdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1769,8 +1772,8 @@ impl Encode for DinfBox {
 }
 
 impl Decode for DinfBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1826,8 +1829,8 @@ impl DrefBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let entry_count = u32::decode(reader)?;
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let entry_count = u32::decode(&mut reader)?;
         let mut url_box = None;
         let mut unknown_boxes = Vec::new();
         for _ in 0..entry_count {
@@ -1857,8 +1860,8 @@ impl Encode for DrefBox {
 }
 
 impl Decode for DrefBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -1914,8 +1917,8 @@ impl UrlBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let full_header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let full_header = FullBoxHeader::decode(&mut reader)?;
         let location = if full_header.flags.is_set(0) {
             None
         } else {
@@ -1934,8 +1937,8 @@ impl Encode for UrlBox {
 }
 
 impl Decode for UrlBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2067,8 +2070,8 @@ impl Encode for StblBox {
 }
 
 impl Decode for StblBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2124,12 +2127,12 @@ impl StsdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let entry_count = u32::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let entry_count = u32::decode(&mut reader)?;
         let mut entries = Vec::new();
         for _ in 0..entry_count {
-            entries.push(SampleEntry::decode(reader)?);
+            entries.push(SampleEntry::decode(&mut reader)?);
         }
         Ok(Self { entries })
     }
@@ -2144,8 +2147,8 @@ impl Encode for StsdBox {
 }
 
 impl Decode for StsdBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2217,7 +2220,7 @@ impl Encode for SampleEntry {
 }
 
 impl Decode for SampleEntry {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(reader: R) -> Result<Self> {
         let (header, mut reader) = BoxHeader::peek(reader)?;
         match header.box_type {
             Avc1Box::TYPE => Decode::decode(&mut reader).map(Self::Avc1),
@@ -2306,18 +2309,18 @@ impl Encode for VisualSampleEntryFields {
 }
 
 impl Decode for VisualSampleEntryFields {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let _ = <[u8; 6]>::decode(reader)?;
-        let data_reference_index = NonZeroU16::decode(reader)?;
-        let _ = <[u8; 2 + 2 + 4 * 3]>::decode(reader)?;
-        let width = u16::decode(reader)?;
-        let height = u16::decode(reader)?;
-        let horizresolution = FixedPointNumber::decode(reader)?;
-        let vertresolution = FixedPointNumber::decode(reader)?;
-        let _ = <[u8; 4]>::decode(reader)?;
-        let frame_count = u16::decode(reader)?;
-        let compressorname = <[u8; 32]>::decode(reader)?;
-        let depth = u16::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let _ = <[u8; 6]>::decode(&mut reader)?;
+        let data_reference_index = NonZeroU16::decode(&mut reader)?;
+        let _ = <[u8; 2 + 2 + 4 * 3]>::decode(&mut reader)?;
+        let width = u16::decode(&mut reader)?;
+        let height = u16::decode(&mut reader)?;
+        let horizresolution = FixedPointNumber::decode(&mut reader)?;
+        let vertresolution = FixedPointNumber::decode(&mut reader)?;
+        let _ = <[u8; 4]>::decode(&mut reader)?;
+        let frame_count = u16::decode(&mut reader)?;
+        let compressorname = <[u8; 32]>::decode(&mut reader)?;
+        let depth = u16::decode(&mut reader)?;
         let _ = <[u8; 2]>::decode(reader)?;
         Ok(Self {
             data_reference_index,
@@ -2355,7 +2358,7 @@ impl Avc1Box {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let visual = VisualSampleEntryFields::decode(reader)?;
+        let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut avcc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -2387,8 +2390,8 @@ impl Encode for Avc1Box {
 }
 
 impl Decode for Avc1Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2489,32 +2492,32 @@ impl AvccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let configuration_version = u8::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let configuration_version = u8::decode(&mut reader)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
             return Err(Error::invalid_data(&format!(
                 "Unsupported avcC configuration version: {configuration_version}"
             )));
         }
 
-        let avc_profile_indication = u8::decode(reader)?;
-        let profile_compatibility = u8::decode(reader)?;
-        let avc_level_indication = u8::decode(reader)?;
-        let length_size_minus_one = Uint::from_bits(u8::decode(reader)?);
+        let avc_profile_indication = u8::decode(&mut reader)?;
+        let profile_compatibility = u8::decode(&mut reader)?;
+        let avc_level_indication = u8::decode(&mut reader)?;
+        let length_size_minus_one = Uint::from_bits(u8::decode(&mut reader)?);
 
-        let sps_count = Uint::<u8, 5>::from_bits(u8::decode(reader)?).get() as usize;
+        let sps_count = Uint::<u8, 5>::from_bits(u8::decode(&mut reader)?).get() as usize;
         let mut sps_list = Vec::with_capacity(sps_count);
         for _ in 0..sps_count {
-            let size = u16::decode(reader)? as usize;
+            let size = u16::decode(&mut reader)? as usize;
             let mut sps = vec![0; size];
             reader.read_exact(&mut sps)?;
             sps_list.push(sps);
         }
 
-        let pps_count = u8::decode(reader)? as usize;
+        let pps_count = u8::decode(&mut reader)? as usize;
         let mut pps_list = Vec::with_capacity(pps_count);
         for _ in 0..pps_count {
-            let size = u16::decode(reader)? as usize;
+            let size = u16::decode(&mut reader)? as usize;
             let mut pps = vec![0; size];
             reader.read_exact(&mut pps)?;
             pps_list.push(pps);
@@ -2525,13 +2528,13 @@ impl AvccBox {
         let mut bit_depth_chroma_minus8 = None;
         let mut sps_ext_list = Vec::new();
         if !matches!(avc_profile_indication, 66 | 77 | 88) {
-            chroma_format = Some(Uint::from_bits(u8::decode(reader)?));
-            bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode(reader)?));
-            bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode(reader)?));
+            chroma_format = Some(Uint::from_bits(u8::decode(&mut reader)?));
+            bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode(&mut reader)?));
+            bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode(&mut reader)?));
 
-            let sps_ext_count = u8::decode(reader)? as usize;
+            let sps_ext_count = u8::decode(&mut reader)? as usize;
             for _ in 0..sps_ext_count {
-                let size = u16::decode(reader)? as usize;
+                let size = u16::decode(&mut reader)? as usize;
                 let mut pps = vec![0; size];
                 reader.read_exact(&mut pps)?;
                 sps_ext_list.push(pps);
@@ -2562,8 +2565,8 @@ impl Encode for AvccBox {
 }
 
 impl Decode for AvccBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2606,7 +2609,7 @@ impl Hev1Box {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let visual = VisualSampleEntryFields::decode(reader)?;
+        let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut hvcc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -2638,8 +2641,8 @@ impl Encode for Hev1Box {
 }
 
 impl Decode for Hev1Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2746,50 +2749,50 @@ impl HvccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let configuration_version = u8::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let configuration_version = u8::decode(&mut reader)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
             return Err(Error::invalid_data(&format!(
                 "Unsupported avcC version: {configuration_version}"
             )));
         }
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let general_profile_space = Uint::from_bits(b);
         let general_tier_flag = Uint::from_bits(b);
         let general_profile_idc = Uint::from_bits(b);
 
-        let general_profile_compatibility_flags = u32::decode(reader)?;
+        let general_profile_compatibility_flags = u32::decode(&mut reader)?;
 
         let mut buf = [0; 8];
         reader.read_exact(&mut buf[2..])?;
         let general_constraint_indicator_flags = Uint::from_bits(u64::from_be_bytes(buf));
 
-        let general_level_idc = u8::decode(reader)?;
-        let min_spatial_segmentation_idc = Uint::from_bits(u16::decode(reader)?);
-        let parallelism_type = Uint::from_bits(u8::decode(reader)?);
-        let chroma_format_idc = Uint::from_bits(u8::decode(reader)?);
-        let bit_depth_luma_minus8 = Uint::from_bits(u8::decode(reader)?);
-        let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode(reader)?);
-        let avg_frame_rate = u16::decode(reader)?;
+        let general_level_idc = u8::decode(&mut reader)?;
+        let min_spatial_segmentation_idc = Uint::from_bits(u16::decode(&mut reader)?);
+        let parallelism_type = Uint::from_bits(u8::decode(&mut reader)?);
+        let chroma_format_idc = Uint::from_bits(u8::decode(&mut reader)?);
+        let bit_depth_luma_minus8 = Uint::from_bits(u8::decode(&mut reader)?);
+        let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode(&mut reader)?);
+        let avg_frame_rate = u16::decode(&mut reader)?;
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let constant_frame_rate = Uint::from_bits(b);
         let num_temporal_layers = Uint::from_bits(b);
         let temporal_id_nested = Uint::from_bits(b);
         let length_size_minus_one = Uint::from_bits(b);
 
-        let num_of_arrays = u8::decode(reader)?;
+        let num_of_arrays = u8::decode(&mut reader)?;
         let mut nalu_arrays = Vec::new();
         for _ in 0..num_of_arrays {
-            let b = u8::decode(reader)?;
+            let b = u8::decode(&mut reader)?;
             let array_completeness = Uint::from_bits(b);
             let nal_unit_type = Uint::from_bits(b);
 
-            let num_nalus = u16::decode(reader)?;
+            let num_nalus = u16::decode(&mut reader)?;
             let mut nalus = Vec::new();
             for _ in 0..num_nalus {
-                let nal_unit_length = u16::decode(reader)? as usize;
+                let nal_unit_length = u16::decode(&mut reader)? as usize;
                 let mut nal_unit = vec![0; nal_unit_length];
                 reader.read_exact(&mut nal_unit)?;
                 nalus.push(nal_unit);
@@ -2832,8 +2835,8 @@ impl Encode for HvccBox {
 }
 
 impl Decode for HvccBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2876,7 +2879,7 @@ impl Vp08Box {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let visual = VisualSampleEntryFields::decode(reader)?;
+        let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut vpcc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -2908,8 +2911,8 @@ impl Encode for Vp08Box {
 }
 
 impl Decode for Vp08Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -2956,7 +2959,7 @@ impl Vp09Box {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let visual = VisualSampleEntryFields::decode(reader)?;
+        let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut vpcc_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -2988,8 +2991,8 @@ impl Encode for Vp09Box {
 }
 
 impl Decode for Vp09Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3048,8 +3051,8 @@ impl VpccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let header = FullBoxHeader::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let header = FullBoxHeader::decode(&mut reader)?;
         if header.version != 1 {
             return Err(Error::invalid_data(&format!(
                 "Unexpected full box header version: box=vpcC, version={}",
@@ -3057,17 +3060,17 @@ impl VpccBox {
             )));
         }
 
-        let profile = u8::decode(reader)?;
-        let level = u8::decode(reader)?;
+        let profile = u8::decode(&mut reader)?;
+        let level = u8::decode(&mut reader)?;
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let bit_depth = Uint::from_bits(b);
         let chroma_subsampling = Uint::from_bits(b);
         let video_full_range_flag = Uint::from_bits(b);
-        let colour_primaries = u8::decode(reader)?;
-        let transfer_characteristics = u8::decode(reader)?;
-        let matrix_coefficients = u8::decode(reader)?;
-        let mut codec_initialization_data = vec![0; u16::decode(reader)? as usize];
+        let colour_primaries = u8::decode(&mut reader)?;
+        let transfer_characteristics = u8::decode(&mut reader)?;
+        let matrix_coefficients = u8::decode(&mut reader)?;
+        let mut codec_initialization_data = vec![0; u16::decode(&mut reader)? as usize];
         reader.read_exact(&mut codec_initialization_data)?;
 
         Ok(Self {
@@ -3093,8 +3096,8 @@ impl Encode for VpccBox {
 }
 
 impl Decode for VpccBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3147,7 +3150,7 @@ impl Av01Box {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let visual = VisualSampleEntryFields::decode(reader)?;
+        let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut av1c_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -3179,8 +3182,8 @@ impl Encode for Av01Box {
 }
 
 impl Decode for Av01Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3248,8 +3251,8 @@ impl Av1cBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let b = u8::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let b = u8::decode(&mut reader)?;
         let marker = Uint::from_bits(b);
         let version = Uint::from_bits(b);
         if marker != Self::MARKER {
@@ -3262,11 +3265,11 @@ impl Av1cBox {
             )));
         }
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let seq_profile = Uint::from_bits(b);
         let seq_level_idx_0 = Uint::from_bits(b);
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let seq_tier_0 = Uint::from_bits(b);
         let high_bitdepth = Uint::from_bits(b);
         let twelve_bit = Uint::from_bits(b);
@@ -3275,7 +3278,7 @@ impl Av1cBox {
         let chroma_subsampling_y = Uint::from_bits(b);
         let chroma_sample_position = Uint::from_bits(b);
 
-        let b = u8::decode(reader)?;
+        let b = u8::decode(&mut reader)?;
         let initial_presentation_delay_minus_one = if Uint::<u8, 1, 4>::from_bits(b).get() == 1 {
             Some(Uint::from_bits(b))
         } else {
@@ -3310,8 +3313,8 @@ impl Encode for Av1cBox {
 }
 
 impl Decode for Av1cBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3381,14 +3384,14 @@ impl SttsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let count = u32::decode(reader)? as usize;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let count = u32::decode(&mut reader)? as usize;
         let mut entries = Vec::with_capacity(count);
         for _ in 0..count {
             entries.push(SttsEntry {
-                sample_count: u32::decode(reader)?,
-                sample_delta: u32::decode(reader)?,
+                sample_count: u32::decode(&mut reader)?,
+                sample_delta: u32::decode(&mut reader)?,
             });
         }
         Ok(Self { entries })
@@ -3404,8 +3407,8 @@ impl Encode for SttsBox {
 }
 
 impl Decode for SttsBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3466,15 +3469,15 @@ impl StscBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let count = u32::decode(reader)? as usize;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let count = u32::decode(&mut reader)? as usize;
         let mut entries = Vec::with_capacity(count);
         for _ in 0..count {
             entries.push(StscEntry {
-                first_chunk: NonZeroU32::decode(reader)?,
-                sample_per_chunk: u32::decode(reader)?,
-                sample_description_index: NonZeroU32::decode(reader)?,
+                first_chunk: NonZeroU32::decode(&mut reader)?,
+                sample_per_chunk: u32::decode(&mut reader)?,
+                sample_description_index: NonZeroU32::decode(&mut reader)?,
             });
         }
         Ok(Self { entries })
@@ -3490,8 +3493,8 @@ impl Encode for StscBox {
 }
 
 impl Decode for StscBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3559,10 +3562,10 @@ impl StszBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let sample_size = u32::decode(reader)?;
-        let sample_count = u32::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let sample_size = u32::decode(&mut reader)?;
+        let sample_count = u32::decode(&mut reader)?;
         if let Some(sample_size) = NonZeroU32::new(sample_size) {
             Ok(Self::Fixed {
                 sample_size,
@@ -3571,7 +3574,7 @@ impl StszBox {
         } else {
             let mut entry_sizes = Vec::with_capacity(sample_count as usize);
             for _ in 0..sample_count {
-                entry_sizes.push(u32::decode(reader)?);
+                entry_sizes.push(u32::decode(&mut reader)?);
             }
             Ok(Self::Variable { entry_sizes })
         }
@@ -3587,8 +3590,8 @@ impl Encode for StszBox {
 }
 
 impl Decode for StszBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3638,12 +3641,12 @@ impl StcoBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let count = u32::decode(reader)? as usize;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let count = u32::decode(&mut reader)? as usize;
         let mut chunk_offsets = Vec::with_capacity(count);
         for _ in 0..count {
-            chunk_offsets.push(u32::decode(reader)?);
+            chunk_offsets.push(u32::decode(&mut reader)?);
         }
         Ok(Self { chunk_offsets })
     }
@@ -3658,8 +3661,8 @@ impl Encode for StcoBox {
 }
 
 impl Decode for StcoBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3709,12 +3712,12 @@ impl Co64Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let count = u32::decode(reader)? as usize;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let count = u32::decode(&mut reader)? as usize;
         let mut chunk_offsets = Vec::with_capacity(count);
         for _ in 0..count {
-            chunk_offsets.push(u64::decode(reader)?);
+            chunk_offsets.push(u64::decode(&mut reader)?);
         }
         Ok(Self { chunk_offsets })
     }
@@ -3729,8 +3732,8 @@ impl Encode for Co64Box {
 }
 
 impl Decode for Co64Box {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3780,12 +3783,12 @@ impl StssBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let _ = FullBoxHeader::decode(reader)?;
-        let count = u32::decode(reader)? as usize;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let count = u32::decode(&mut reader)? as usize;
         let mut sample_numbers = Vec::with_capacity(count);
         for _ in 0..count {
-            sample_numbers.push(NonZeroU32::decode(reader)?);
+            sample_numbers.push(NonZeroU32::decode(&mut reader)?);
         }
         Ok(Self { sample_numbers })
     }
@@ -3800,8 +3803,8 @@ impl Encode for StssBox {
 }
 
 impl Decode for StssBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3854,7 +3857,7 @@ impl OpusBox {
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
-        let audio = AudioSampleEntryFields::decode(reader)?;
+        let audio = AudioSampleEntryFields::decode(&mut reader)?;
         let mut dops_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -3886,8 +3889,8 @@ impl Encode for OpusBox {
 }
 
 impl Decode for OpusBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
@@ -3941,14 +3944,14 @@ impl Encode for AudioSampleEntryFields {
 }
 
 impl Decode for AudioSampleEntryFields {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let _ = <[u8; 6]>::decode(reader)?;
-        let data_reference_index = u16::decode(reader)?;
-        let _ = <[u8; 4 * 2]>::decode(reader)?;
-        let channelcount = u16::decode(reader)?;
-        let samplesize = u16::decode(reader)?;
-        let _ = <[u8; 2]>::decode(reader)?;
-        let _ = <[u8; 2]>::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let _ = <[u8; 6]>::decode(&mut reader)?;
+        let data_reference_index = u16::decode(&mut reader)?;
+        let _ = <[u8; 4 * 2]>::decode(&mut reader)?;
+        let channelcount = u16::decode(&mut reader)?;
+        let samplesize = u16::decode(&mut reader)?;
+        let _ = <[u8; 2]>::decode(&mut reader)?;
+        let _ = <[u8; 2]>::decode(&mut reader)?;
         let samplerate = FixedPointNumber::decode(reader)?;
         Ok(Self {
             data_reference_index,
@@ -3985,18 +3988,18 @@ impl DopsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(reader: &mut std::io::Take<R>) -> Result<Self> {
-        let version = u8::decode(reader)?;
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let version = u8::decode(&mut reader)?;
         if version != Self::VERSION {
             return Err(Error::invalid_data(&format!(
                 "Unsupported dOps version: {version}"
             )));
         }
 
-        let output_channel_count = u8::decode(reader)?;
-        let pre_skip = u16::decode(reader)?;
-        let input_sample_rate = u32::decode(reader)?;
-        let output_gain = i16::decode(reader)?;
+        let output_channel_count = u8::decode(&mut reader)?;
+        let pre_skip = u16::decode(&mut reader)?;
+        let input_sample_rate = u32::decode(&mut reader)?;
+        let output_gain = i16::decode(&mut reader)?;
         let channel_mapping_family = u8::decode(reader)?;
         if channel_mapping_family != 0 {
             return Err(Error::unsupported(
@@ -4021,8 +4024,8 @@ impl Encode for DopsBox {
 }
 
 impl Decode for DopsBox {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let header = BoxHeader::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
     }

@@ -198,12 +198,12 @@ impl<T: Encode, const N: usize> Encode for [T; N] {
 /// バイト列を `Self` に変換するためのトレイト
 pub trait Decode: Sized {
     /// `reader` から読み込んだバイト列から `Self` を構築する
-    fn decode<R: Read>(reader: &mut R) -> Result<Self>;
+    fn decode<R: Read>(reader: R) -> Result<Self>;
 }
 
 impl Decode for u8 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -212,7 +212,7 @@ impl Decode for u8 {
 
 impl Decode for u16 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -221,7 +221,7 @@ impl Decode for u16 {
 
 impl Decode for u32 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -230,7 +230,7 @@ impl Decode for u32 {
 
 impl Decode for u64 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -239,7 +239,7 @@ impl Decode for u64 {
 
 impl Decode for i8 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -248,7 +248,7 @@ impl Decode for i8 {
 
 impl Decode for i16 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -257,7 +257,7 @@ impl Decode for i16 {
 
 impl Decode for i32 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -266,7 +266,7 @@ impl Decode for i32 {
 
 impl Decode for i64 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; Self::BITS as usize / 8];
         reader.read_exact(&mut buf)?;
         Ok(Self::from_be_bytes(buf))
@@ -275,7 +275,7 @@ impl Decode for i64 {
 
 impl Decode for NonZeroU16 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(reader: R) -> Result<Self> {
         let v = u16::decode(reader)?;
         NonZeroU16::new(v)
             .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
@@ -284,7 +284,7 @@ impl Decode for NonZeroU16 {
 
 impl Decode for NonZeroU32 {
     #[track_caller]
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(reader: R) -> Result<Self> {
         let v = u32::decode(reader)?;
         NonZeroU32::new(v)
             .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
@@ -292,10 +292,10 @@ impl Decode for NonZeroU32 {
 }
 
 impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut items = [T::default(); N];
         for item in &mut items {
-            *item = T::decode(reader)?;
+            *item = T::decode(&mut reader)?;
         }
         Ok(items)
     }
