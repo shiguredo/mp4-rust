@@ -68,6 +68,81 @@ impl BaseBox for UnknownBox {
     }
 }
 
+/// [`UnknownBox`] と似ているが、ボックスのペイロードデータを保持しない点が異なる構造体
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IgnoredBox {
+    /// ボックス種別
+    pub box_type: BoxType,
+
+    /// ボックスサイズ
+    pub box_size: BoxSize,
+
+    /// ペイロードサイズ
+    pub box_payload_size: u64,
+}
+
+impl IgnoredBox {
+    /// 次のボックスがデコード対象ならデコードし、そうではない場合には無視する
+    pub fn decode_or_ignore<B, R, F>(reader: &mut R, is_decode_target: F) -> Result<Either<B, Self>>
+    where
+        B: BaseBox + Decode,
+        R: Read,
+        F: FnOnce(BoxType) -> bool,
+    {
+        let (header, mut reader) = BoxHeader::peek(reader)?;
+        if is_decode_target(header.box_type) {
+            B::decode(&mut reader).map(Either::A)
+        } else {
+            Self::decode(&mut reader).map(Either::B)
+        }
+    }
+}
+
+impl Decode for IgnoredBox {
+    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+        let header = BoxHeader::decode(reader)?;
+        let box_payload_size = header.with_box_payload_reader(reader, |reader| {
+            let mut buf = [0; 1024];
+            let mut box_payload_size = 0;
+            loop {
+                let size = reader.read(&mut buf)?;
+                if size == 0 {
+                    break;
+                }
+                box_payload_size += size as u64;
+            }
+            Ok(box_payload_size)
+        })?;
+        Ok(Self {
+            box_type: header.box_type,
+            box_size: header.box_size,
+            box_payload_size,
+        })
+    }
+}
+
+impl BaseBox for IgnoredBox {
+    fn box_type(&self) -> BoxType {
+        self.box_type
+    }
+
+    fn box_size(&self) -> BoxSize {
+        self.box_size
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        self.box_payload_size
+    }
+
+    fn is_unknown_box(&self) -> bool {
+        true
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
 /// [`FtypBox`] で使われるブランド定義
 ///
 /// ブランドは、対象の MP4 ファイルを読み込んで処理する際に必要となる要件（登場する可能性があるボックス群やハンドリングすべきフラグなど）を指定する

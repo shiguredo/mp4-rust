@@ -31,8 +31,8 @@ pub trait BaseBox {
     /// 未知のボックスかどうか
     ///
     /// 基本的には `false` を返すデフォルト実装のままで問題ないが、
-    /// [`UnknownBox`](crate::boxes::UnknownBox) を含む `enum` を定義する場合には、
-    /// 独自の実装が必要となる
+    /// [`UnknownBox`](crate::boxes::UnknownBox) や [`IgnoredBox`](crate::boxes::IgnoredBox) を
+    /// 含む `enum` を定義する場合には、独自の実装が必要となる
     fn is_unknown_box(&self) -> bool {
         false
     }

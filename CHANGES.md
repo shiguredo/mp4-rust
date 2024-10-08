@@ -11,6 +11,8 @@
 
 ## develop
 
+- [ADD] デコード時にペイロードデータを保持しない `IgnoredBox` を追加する
+   - @sile
 - [ADD] `SampleTableAccessor::get_sample_by_timestamp()` を追加する
    - @sile
 - [ADD] `SampleAccessor::timestamp()` を追加する
