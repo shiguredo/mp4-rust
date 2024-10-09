@@ -31,8 +31,8 @@ pub trait BaseBox {
     /// 未知のボックスかどうか
     ///
     /// 基本的には `false` を返すデフォルト実装のままで問題ないが、
-    /// [`UnknownBox`](crate::boxes::UnknownBox) を含む `enum` を定義する場合には、
-    /// 独自の実装が必要となる
+    /// [`UnknownBox`](crate::boxes::UnknownBox) や [`IgnoredBox`](crate::boxes::IgnoredBox) を
+    /// 含む `enum` を定義する場合には、独自の実装が必要となる
     fn is_unknown_box(&self) -> bool {
         false
     }
@@ -74,8 +74,8 @@ impl<B: BaseBox> Mp4File<B> {
 }
 
 impl<B: BaseBox + Decode> Decode for Mp4File<B> {
-    fn decode<R: Read>(mut reader: &mut R) -> Result<Self> {
-        let ftyp_box = FtypBox::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let ftyp_box = FtypBox::decode(&mut reader)?;
 
         let mut boxes = Vec::new();
         let mut buf = [0];
@@ -88,11 +88,11 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox + Encode> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.ftyp_box.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.ftyp_box.encode(&mut writer)?;
 
         for b in &self.boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -169,14 +169,14 @@ impl BoxHeader {
 }
 
 impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         let large_size = match self.box_size {
             BoxSize::U32(size) => {
-                size.encode(writer)?;
+                size.encode(&mut writer)?;
                 None
             }
             BoxSize::U64(size) => {
-                1u32.encode(writer)?;
+                1u32.encode(&mut writer)?;
                 Some(size)
             }
         };
@@ -200,8 +200,8 @@ impl Encode for BoxHeader {
 }
 
 impl Decode for BoxHeader {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
-        let box_size = u32::decode(reader)?;
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let box_size = u32::decode(&mut reader)?;
 
         let mut box_type = [0; 4];
         reader.read_exact(&mut box_type)?;
@@ -255,17 +255,17 @@ impl FullBoxHeader {
 }
 
 impl Encode for FullBoxHeader {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.version.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.version.encode(&mut writer)?;
         self.flags.encode(writer)?;
         Ok(())
     }
 }
 
 impl Decode for FullBoxHeader {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         Ok(Self {
-            version: Decode::decode(reader)?,
+            version: Decode::decode(&mut reader)?,
             flags: Decode::decode(reader)?,
         })
     }
@@ -307,14 +307,14 @@ impl FullBoxFlags {
 }
 
 impl Encode for FullBoxFlags {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.0.to_be_bytes()[1..])?;
         Ok(())
     }
 }
 
 impl Decode for FullBoxFlags {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf[1..])?;
         Ok(Self(u32::from_be_bytes(buf)))
@@ -472,17 +472,17 @@ impl<I, F> FixedPointNumber<I, F> {
 }
 
 impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.integer.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.integer.encode(&mut writer)?;
         self.fraction.encode(writer)?;
         Ok(())
     }
 }
 
 impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         Ok(Self {
-            integer: I::decode(reader)?,
+            integer: I::decode(&mut reader)?,
             fraction: F::decode(reader)?,
         })
     }
@@ -520,7 +520,7 @@ impl Utf8String {
 }
 
 impl Encode for Utf8String {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(self.0.as_bytes())?;
         writer.write_all(&[0])?;
         Ok(())
@@ -528,10 +528,10 @@ impl Encode for Utf8String {
 }
 
 impl Decode for Utf8String {
-    fn decode<R: Read>(reader: &mut R) -> Result<Self> {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut bytes = Vec::new();
         loop {
-            let b = u8::decode(reader)?;
+            let b = u8::decode(&mut reader)?;
             if b == 0 {
                 break;
             }

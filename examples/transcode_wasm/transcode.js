@@ -27,6 +27,7 @@ let frameFormat = "RGBA";
             },
             async createVideoDecoder(resultFuture, configWasmJson) {
                 const config = wasmJsonToValue(configWasmJson);
+                const originalDescription = config.description;
                 config.description = new Uint8Array(config.description);
 
                 const coderId = nextCoderId;
@@ -68,6 +69,7 @@ let frameFormat = "RGBA";
                 };
 
                 if (!(await VideoDecoder.isConfigSupported(config)).supported) {
+                    config.description = originalDescription;
                     let result = {"Err": {"message": "unsupported decoder config: " + JSON.stringify(config)}};
                     wasmFunctions.notifyCreateVideoDecoderResult(
                         transcoder, resultFuture, valueToWasmJson(result));

@@ -11,6 +11,28 @@
 
 ## develop
 
+## 2024.3.0
+
+- [CHANGE] `Encode::encode()` が `writer: &mut W` ではなく `writer: W` を引数に取るように変更する
+   - @sile
+- [CHANGE] `Decode::decode()` が `reader: &mut R` ではなく `reader: R` を引数に取るように変更する
+   - @sile
+- [ADD] デコード時にペイロードデータを保持しない `IgnoredBox` を追加する
+   - @sile
+- [ADD] `SampleTableAccessor::get_sample_by_timestamp()` を追加する
+   - @sile
+- [ADD] `SampleAccessor::timestamp()` を追加する
+   - @sile
+- [ADD] `SampleAccessor::sync_sample()` を追加する
+  - @sile
+- [CHANGE] `SampleTableAccessor::new()` で stco ボックスと stsc ボックスの不整合をチェックするようにする
+  - @sile
+- [UPDATE] `SampleTableAccessor` が borrowed / owned の両方に対応できるようにする
+  - @sile
+- [UPDATE] 共通関数でエラーが発生した場合のファイル名・行番号表示を改善する
+  - 今までは共通関数のエラー位置が `Error` に含まれていたが、それでは情報量が少ないので、その一つ上の呼び出し元の位置を使うように変更した
+  - @sile
+
 ## 2024.2.0
 
 - [ADD] WebCodecs を使ってローカルで MP4 ファイルを変換するサンプルを追加する

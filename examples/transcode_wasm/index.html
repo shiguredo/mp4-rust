@@ -27,22 +27,10 @@
           <li>H.265 で変換する場合には Safari TP か H.265 機能を有効にした Chrome Canary を使う必要があります</li>
         </ul>
         <li>`edts` などのトラックの再生位置調整用のボックスは考慮していないため、変換後にリップシンクがズレる可能性があります</li>
-        <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、GB 単位のファイルではメモリが足りなくなる可能性があります</li>
+        <li>入力および出力 MP4 は全てメモリ上で保持して処理されるため、数百 MB 単位のファイルでは WebAssembly 内のメモリ（最大 4 GB）が足りなくなる可能性があります</li>
         <li>出力 MP4 では、再生に必須ではないメタデータ（作成日時など）には固定値が使用されます</li>
       </ul>
     </small>
-
-    <h3>入力 MP4 ファイル</h3>
-    <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
-    <br />
-    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
-    <br /><br />
-    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
-    <br />
-
-    <h3>出力 MP4 ファイル</h3>
-    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
-    <br />
 
     <h3>変換設定</h3>
     コーデック:
@@ -69,6 +57,18 @@
       <option value="1048576">1 Mbps</option>
       <option value="5242880">5 Mbps</option>
     </select>
+    <br />
+
+    <h3>入力 MP4 ファイル</h3>
+    <b><font color="red">ファイルを選択すると変換が開始されます。</font></b>
+    <br />
+    変換が完了したら<b>出力 MP4 ファイル</b>のリンクが有効になります。
+    <br /><br />
+    <input id="input" type="file" accept="video/mp4" onclick="event.target.value = ''" onchange="startTranscode()" />
+    <br />
+
+    <h3>出力 MP4 ファイル</h3>
+    <a id="output" href="" download="output.mp4" class="disabled-link">ダウンロードリンク</a>
     <br />
 
     <h3>変換ログ</h3>
