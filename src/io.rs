@@ -105,12 +105,12 @@ impl std::fmt::Display for Error {
 /// `self` のバイト列への変換を行うためのトレイト
 pub trait Encode {
     /// `self` をバイト列に変換して `writer` に書き込む
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()>;
+    fn encode<W: Write>(&self, writer: W) -> Result<()>;
 }
 
 impl Encode for u8 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -118,7 +118,7 @@ impl Encode for u8 {
 
 impl Encode for u16 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -126,7 +126,7 @@ impl Encode for u16 {
 
 impl Encode for u32 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -134,7 +134,7 @@ impl Encode for u32 {
 
 impl Encode for u64 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -142,7 +142,7 @@ impl Encode for u64 {
 
 impl Encode for i8 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -150,7 +150,7 @@ impl Encode for i8 {
 
 impl Encode for i16 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -158,7 +158,7 @@ impl Encode for i16 {
 
 impl Encode for i32 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -166,7 +166,7 @@ impl Encode for i32 {
 
 impl Encode for i64 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.to_be_bytes())?;
         Ok(())
     }
@@ -174,22 +174,22 @@ impl Encode for i64 {
 
 impl Encode for NonZeroU16 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: W) -> Result<()> {
         self.get().encode(writer)
     }
 }
 
 impl Encode for NonZeroU32 {
     #[track_caller]
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: W) -> Result<()> {
         self.get().encode(writer)
     }
 }
 
 impl<T: Encode, const N: usize> Encode for [T; N] {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         for item in self {
-            item.encode(writer)?;
+            item.encode(&mut writer)?;
         }
         Ok(())
     }

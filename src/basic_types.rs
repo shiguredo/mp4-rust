@@ -88,11 +88,11 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox + Encode> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.ftyp_box.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.ftyp_box.encode(&mut writer)?;
 
         for b in &self.boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -169,14 +169,14 @@ impl BoxHeader {
 }
 
 impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         let large_size = match self.box_size {
             BoxSize::U32(size) => {
-                size.encode(writer)?;
+                size.encode(&mut writer)?;
                 None
             }
             BoxSize::U64(size) => {
-                1u32.encode(writer)?;
+                1u32.encode(&mut writer)?;
                 Some(size)
             }
         };
@@ -255,8 +255,8 @@ impl FullBoxHeader {
 }
 
 impl Encode for FullBoxHeader {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.version.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.version.encode(&mut writer)?;
         self.flags.encode(writer)?;
         Ok(())
     }
@@ -307,7 +307,7 @@ impl FullBoxFlags {
 }
 
 impl Encode for FullBoxFlags {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.0.to_be_bytes()[1..])?;
         Ok(())
     }
@@ -472,8 +472,8 @@ impl<I, F> FixedPointNumber<I, F> {
 }
 
 impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.integer.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.integer.encode(&mut writer)?;
         self.fraction.encode(writer)?;
         Ok(())
     }
@@ -520,7 +520,7 @@ impl Utf8String {
 }
 
 impl Encode for Utf8String {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(self.0.as_bytes())?;
         writer.write_all(&[0])?;
         Ok(())

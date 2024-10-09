@@ -26,8 +26,8 @@ pub struct UnknownBox {
 }
 
 impl Encode for UnknownBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
     }
@@ -220,7 +220,7 @@ impl std::fmt::Debug for Brand {
 }
 
 impl Encode for Brand {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.0)?;
         Ok(())
     }
@@ -247,19 +247,19 @@ impl FtypBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"ftyp");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.major_brand.encode(writer)?;
-        self.minor_version.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.major_brand.encode(&mut writer)?;
+        self.minor_version.encode(&mut writer)?;
         for brand in &self.compatible_brands {
-            brand.encode(writer)?;
+            brand.encode(&mut writer)?;
         }
         Ok(())
     }
 }
 
 impl Encode for FtypBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -322,7 +322,7 @@ impl RootBox {
 }
 
 impl Encode for RootBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: W) -> Result<()> {
         match self {
             RootBox::Free(b) => b.encode(writer),
             RootBox::Mdat(b) => b.encode(writer),
@@ -379,8 +379,8 @@ impl FreeBox {
 }
 
 impl Encode for FreeBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
     }
@@ -427,8 +427,8 @@ impl MdatBox {
 }
 
 impl Encode for MdatBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
     }
@@ -483,13 +483,13 @@ impl MoovBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"moov");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.mvhd_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.mvhd_box.encode(&mut writer)?;
         for b in &self.trak_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -523,8 +523,8 @@ impl MoovBox {
 }
 
 impl Encode for MoovBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -584,24 +584,24 @@ impl MvhdBox {
     /// [`MvhdBox::matrix`] のデフォルト値
     pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(writer)?;
-            self.modification_time.as_secs().encode(writer)?;
-            self.timescale.encode(writer)?;
-            self.duration.encode(writer)?;
+            self.creation_time.as_secs().encode(&mut writer)?;
+            self.modification_time.as_secs().encode(&mut writer)?;
+            self.timescale.encode(&mut writer)?;
+            self.duration.encode(&mut writer)?;
         } else {
-            (self.creation_time.as_secs() as u32).encode(writer)?;
-            (self.modification_time.as_secs() as u32).encode(writer)?;
-            self.timescale.encode(writer)?;
-            (self.duration as u32).encode(writer)?;
+            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
+            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
+            self.timescale.encode(&mut writer)?;
+            (self.duration as u32).encode(&mut writer)?;
         }
-        self.rate.encode(writer)?;
-        self.volume.encode(writer)?;
-        [0u8; 2 + 4 * 2].encode(writer)?;
-        self.matrix.encode(writer)?;
-        [0u8; 4 * 6].encode(writer)?;
+        self.rate.encode(&mut writer)?;
+        self.volume.encode(&mut writer)?;
+        [0u8; 2 + 4 * 2].encode(&mut writer)?;
+        self.matrix.encode(&mut writer)?;
+        [0u8; 4 * 6].encode(&mut writer)?;
         self.next_track_id.encode(writer)?;
         Ok(())
     }
@@ -645,8 +645,8 @@ impl MvhdBox {
 }
 
 impl Encode for MvhdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -705,14 +705,14 @@ impl TrakBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"trak");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.tkhd_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.tkhd_box.encode(&mut writer)?;
         if let Some(b) = &self.edts_box {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
-        self.mdia_box.encode(writer)?;
+        self.mdia_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -752,8 +752,8 @@ impl TrakBox {
 }
 
 impl Encode for TrakBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -827,28 +827,28 @@ impl TkhdBox {
     /// [`TkhdBox::matrix`] のデフォルト値
     pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(writer)?;
-            self.modification_time.as_secs().encode(writer)?;
-            self.track_id.encode(writer)?;
-            [0u8; 4].encode(writer)?;
-            self.duration.encode(writer)?;
+            self.creation_time.as_secs().encode(&mut writer)?;
+            self.modification_time.as_secs().encode(&mut writer)?;
+            self.track_id.encode(&mut writer)?;
+            [0u8; 4].encode(&mut writer)?;
+            self.duration.encode(&mut writer)?;
         } else {
-            (self.creation_time.as_secs() as u32).encode(writer)?;
-            (self.modification_time.as_secs() as u32).encode(writer)?;
-            self.track_id.encode(writer)?;
-            [0u8; 4].encode(writer)?;
-            (self.duration as u32).encode(writer)?;
+            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
+            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
+            self.track_id.encode(&mut writer)?;
+            [0u8; 4].encode(&mut writer)?;
+            (self.duration as u32).encode(&mut writer)?;
         }
-        [0u8; 4 * 2].encode(writer)?;
-        self.layer.encode(writer)?;
-        self.alternate_group.encode(writer)?;
-        self.volume.encode(writer)?;
-        [0u8; 2].encode(writer)?;
-        self.matrix.encode(writer)?;
-        self.width.encode(writer)?;
+        [0u8; 4 * 2].encode(&mut writer)?;
+        self.layer.encode(&mut writer)?;
+        self.alternate_group.encode(&mut writer)?;
+        self.volume.encode(&mut writer)?;
+        [0u8; 2].encode(&mut writer)?;
+        self.matrix.encode(&mut writer)?;
+        self.width.encode(&mut writer)?;
         self.height.encode(writer)?;
         Ok(())
     }
@@ -908,8 +908,8 @@ impl TkhdBox {
 }
 
 impl Encode for TkhdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -971,12 +971,12 @@ impl EdtsBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"edts");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         if let Some(b) = &self.elst_box {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1003,8 +1003,8 @@ impl EdtsBox {
 }
 
 impl Encode for EdtsBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1056,20 +1056,20 @@ impl ElstBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"elst");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
 
         let version = self.full_box_version();
-        (self.entries.len() as u32).encode(writer)?;
+        (self.entries.len() as u32).encode(&mut writer)?;
         for entry in &self.entries {
             if version == 1 {
-                entry.edit_duration.encode(writer)?;
-                entry.media_time.encode(writer)?;
+                entry.edit_duration.encode(&mut writer)?;
+                entry.media_time.encode(&mut writer)?;
             } else {
-                (entry.edit_duration as u32).encode(writer)?;
-                (entry.media_time as i32).encode(writer)?;
+                (entry.edit_duration as u32).encode(&mut writer)?;
+                (entry.media_time as i32).encode(&mut writer)?;
             }
-            entry.media_rate.encode(writer)?;
+            entry.media_rate.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1102,8 +1102,8 @@ impl ElstBox {
 }
 
 impl Encode for ElstBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1162,12 +1162,12 @@ impl MdiaBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdia");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.mdhd_box.encode(writer)?;
-        self.hdlr_box.encode(writer)?;
-        self.minf_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.mdhd_box.encode(&mut writer)?;
+        self.hdlr_box.encode(&mut writer)?;
+        self.minf_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1207,8 +1207,8 @@ impl MdiaBox {
 }
 
 impl Encode for MdiaBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1262,18 +1262,18 @@ impl MdhdBox {
     /// 未定義を表す言語コード
     pub const LANGUAGE_UNDEFINED: [u8; 3] = *b"und";
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(writer)?;
-            self.modification_time.as_secs().encode(writer)?;
-            self.timescale.encode(writer)?;
-            self.duration.encode(writer)?;
+            self.creation_time.as_secs().encode(&mut writer)?;
+            self.modification_time.as_secs().encode(&mut writer)?;
+            self.timescale.encode(&mut writer)?;
+            self.duration.encode(&mut writer)?;
         } else {
-            (self.creation_time.as_secs() as u32).encode(writer)?;
-            (self.modification_time.as_secs() as u32).encode(writer)?;
-            self.timescale.encode(writer)?;
-            (self.duration as u32).encode(writer)?;
+            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
+            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
+            self.timescale.encode(&mut writer)?;
+            (self.duration as u32).encode(&mut writer)?;
         }
 
         let mut language: u16 = 0;
@@ -1283,7 +1283,7 @@ impl MdhdBox {
                     Error::invalid_input(&format!("Invalid language code: {:?}", self.language))
                 })? as u16;
         }
-        language.encode(writer)?;
+        language.encode(&mut writer)?;
         [0u8; 2].encode(writer)?;
 
         Ok(())
@@ -1327,8 +1327,8 @@ impl MdhdBox {
 }
 
 impl Encode for MdhdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1399,11 +1399,11 @@ impl HdlrBox {
     /// 映像用のハンドラー種別
     pub const HANDLER_TYPE_VIDE: [u8; 4] = *b"vide";
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        [0u8; 4].encode(writer)?;
-        self.handler_type.encode(writer)?;
-        [0u8; 4 * 3].encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        [0u8; 4].encode(&mut writer)?;
+        self.handler_type.encode(&mut writer)?;
+        [0u8; 4 * 3].encode(&mut writer)?;
         writer.write_all(&self.name)?;
         Ok(())
     }
@@ -1420,8 +1420,8 @@ impl HdlrBox {
 }
 
 impl Encode for HdlrBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1473,15 +1473,15 @@ impl MinfBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"minf");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         match &self.smhd_or_vmhd_box {
-            Either::A(b) => b.encode(writer)?,
-            Either::B(b) => b.encode(writer)?,
+            Either::A(b) => b.encode(&mut writer)?,
+            Either::B(b) => b.encode(&mut writer)?,
         }
-        self.dinf_box.encode(writer)?;
-        self.stbl_box.encode(writer)?;
+        self.dinf_box.encode(&mut writer)?;
+        self.stbl_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1528,8 +1528,8 @@ impl MinfBox {
 }
 
 impl Encode for MinfBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1577,9 +1577,9 @@ impl SmhdBox {
     /// [`SmhdBox::balance`] のデフォルト値（中央）
     pub const DEFAULT_BALANCE: FixedPointNumber<u8, u8> = FixedPointNumber::new(0, 0);
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        self.balance.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        self.balance.encode(&mut writer)?;
         [0u8; 2].encode(writer)?;
         Ok(())
     }
@@ -1593,8 +1593,8 @@ impl SmhdBox {
 }
 
 impl Encode for SmhdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1650,9 +1650,9 @@ impl VmhdBox {
     /// [`Vmhd::graphicsmode`] のデフォルト値
     pub const DEFAULT_OPCOLOR: [u16; 3] = [0, 0, 0];
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        self.graphicsmode.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        self.graphicsmode.encode(&mut writer)?;
         self.opcolor.encode(writer)?;
         Ok(())
     }
@@ -1676,8 +1676,8 @@ impl VmhdBox {
 }
 
 impl Encode for VmhdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1733,10 +1733,10 @@ impl DinfBox {
         unknown_boxes: Vec::new(),
     };
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.dref_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.dref_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1764,8 +1764,8 @@ impl DinfBox {
 }
 
 impl Encode for DinfBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1815,15 +1815,15 @@ impl DrefBox {
         unknown_boxes: Vec::new(),
     };
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         let entry_count = (self.url_box.is_some() as usize + self.unknown_boxes.len()) as u32;
-        entry_count.encode(writer)?;
+        entry_count.encode(&mut writer)?;
         if let Some(b) = &self.url_box {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -1852,8 +1852,8 @@ impl DrefBox {
 }
 
 impl Encode for DrefBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1909,8 +1909,8 @@ impl UrlBox {
     /// メディアデータが同じファイル内に格納されていることを示す [`UrlBox`] の値
     pub const LOCAL_FILE: Self = Self { location: None };
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         if let Some(l) = &self.location {
             l.encode(writer)?;
         }
@@ -1929,8 +1929,8 @@ impl UrlBox {
 }
 
 impl Encode for UrlBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -1985,20 +1985,20 @@ impl StblBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stbl");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.stsd_box.encode(writer)?;
-        self.stts_box.encode(writer)?;
-        self.stsc_box.encode(writer)?;
-        self.stsz_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.stsd_box.encode(&mut writer)?;
+        self.stts_box.encode(&mut writer)?;
+        self.stsc_box.encode(&mut writer)?;
+        self.stsz_box.encode(&mut writer)?;
         match &self.stco_or_co64_box {
-            Either::A(b) => b.encode(writer)?,
-            Either::B(b) => b.encode(writer)?,
+            Either::A(b) => b.encode(&mut writer)?,
+            Either::B(b) => b.encode(&mut writer)?,
         }
         if let Some(b) = &self.stss_box {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2062,8 +2062,8 @@ impl StblBox {
 }
 
 impl Encode for StblBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2117,12 +2117,12 @@ impl StsdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsd");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         let entry_count = (self.entries.len()) as u32;
-        entry_count.encode(writer)?;
+        entry_count.encode(&mut writer)?;
         for b in &self.entries {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2139,8 +2139,8 @@ impl StsdBox {
 }
 
 impl Encode for StsdBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2206,7 +2206,7 @@ impl SampleEntry {
 }
 
 impl Encode for SampleEntry {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn encode<W: Write>(&self, writer: W) -> Result<()> {
         match self {
             Self::Avc1(b) => b.encode(writer),
             Self::Hev1(b) => b.encode(writer),
@@ -2291,18 +2291,18 @@ impl VisualSampleEntryFields {
 }
 
 impl Encode for VisualSampleEntryFields {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        [0u8; 6].encode(writer)?;
-        self.data_reference_index.encode(writer)?;
-        [0u8; 2 + 2 + 4 * 3].encode(writer)?;
-        self.width.encode(writer)?;
-        self.height.encode(writer)?;
-        self.horizresolution.encode(writer)?;
-        self.vertresolution.encode(writer)?;
-        [0u8; 4].encode(writer)?;
-        self.frame_count.encode(writer)?;
-        self.compressorname.encode(writer)?;
-        self.depth.encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        [0u8; 6].encode(&mut writer)?;
+        self.data_reference_index.encode(&mut writer)?;
+        [0u8; 2 + 2 + 4 * 3].encode(&mut writer)?;
+        self.width.encode(&mut writer)?;
+        self.height.encode(&mut writer)?;
+        self.horizresolution.encode(&mut writer)?;
+        self.vertresolution.encode(&mut writer)?;
+        [0u8; 4].encode(&mut writer)?;
+        self.frame_count.encode(&mut writer)?;
+        self.compressorname.encode(&mut writer)?;
+        self.depth.encode(&mut writer)?;
         (-1i16).encode(writer)?;
         Ok(())
     }
@@ -2348,11 +2348,11 @@ impl Avc1Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"avc1");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.visual.encode(writer)?;
-        self.avcc_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.visual.encode(&mut writer)?;
+        self.avcc_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2382,8 +2382,8 @@ impl Avc1Box {
 }
 
 impl Encode for Avc1Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2437,30 +2437,30 @@ impl AvccBox {
 
     const CONFIGURATION_VERSION: u8 = 1;
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        Self::CONFIGURATION_VERSION.encode(writer)?;
-        self.avc_profile_indication.encode(writer)?;
-        self.profile_compatibility.encode(writer)?;
-        self.avc_level_indication.encode(writer)?;
-        (0b1111_1100 | self.length_size_minus_one.get()).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        Self::CONFIGURATION_VERSION.encode(&mut writer)?;
+        self.avc_profile_indication.encode(&mut writer)?;
+        self.profile_compatibility.encode(&mut writer)?;
+        self.avc_level_indication.encode(&mut writer)?;
+        (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut writer)?;
 
         let sps_count =
             u8::try_from(self.sps_list.len()).map_err(|_| Error::invalid_input("Too many SPSs"))?;
-        (0b1110_0000 | sps_count).encode(writer)?;
+        (0b1110_0000 | sps_count).encode(&mut writer)?;
         for sps in &self.sps_list {
             let size = u16::try_from(sps.len())
                 .map_err(|e| Error::invalid_input(&format!("Too long SPS: {e}")))?;
-            size.encode(writer)?;
+            size.encode(&mut writer)?;
             writer.write_all(sps)?;
         }
 
         let pps_count =
             u8::try_from(self.pps_list.len()).map_err(|_| Error::invalid_input("Too many PPSs"))?;
-        pps_count.encode(writer)?;
+        pps_count.encode(&mut writer)?;
         for pps in &self.pps_list {
             let size = u16::try_from(pps.len())
                 .map_err(|e| Error::invalid_input(&format!("Too long PPS: {e}")))?;
-            size.encode(writer)?;
+            size.encode(&mut writer)?;
             writer.write_all(pps)?;
         }
 
@@ -2474,17 +2474,17 @@ impl AvccBox {
             let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
                 Error::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' boc")
             })?;
-            (0b1111_1100 | chroma_format.get()).encode(writer)?;
-            (0b1111_1000 | bit_depth_luma_minus8.get()).encode(writer)?;
-            (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(writer)?;
+            (0b1111_1100 | chroma_format.get()).encode(&mut writer)?;
+            (0b1111_1000 | bit_depth_luma_minus8.get()).encode(&mut writer)?;
+            (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(&mut writer)?;
 
             let sps_ext_count = u8::try_from(self.sps_ext_list.len())
                 .map_err(|_| Error::invalid_input("Too many SPS EXTs"))?;
-            sps_ext_count.encode(writer)?;
+            sps_ext_count.encode(&mut writer)?;
             for sps_ext in &self.sps_ext_list {
                 let size = u16::try_from(sps_ext.len())
                     .map_err(|e| Error::invalid_input(&format!("Too long SPS EXT: {e}")))?;
-                size.encode(writer)?;
+                size.encode(&mut writer)?;
                 writer.write_all(sps_ext)?;
             }
         }
@@ -2557,8 +2557,8 @@ impl AvccBox {
 }
 
 impl Encode for AvccBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2599,11 +2599,11 @@ impl Hev1Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"hev1");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.visual.encode(writer)?;
-        self.hvcc_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.visual.encode(&mut writer)?;
+        self.hvcc_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2633,8 +2633,8 @@ impl Hev1Box {
 }
 
 impl Encode for Hev1Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2704,45 +2704,47 @@ impl HvccBox {
 
     const CONFIGURATION_VERSION: u8 = 1;
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        Self::CONFIGURATION_VERSION.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        Self::CONFIGURATION_VERSION.encode(&mut writer)?;
         (self.general_profile_space.to_bits()
             | self.general_tier_flag.to_bits()
             | self.general_profile_idc.to_bits())
-        .encode(writer)?;
-        self.general_profile_compatibility_flags.encode(writer)?;
+        .encode(&mut writer)?;
+        self.general_profile_compatibility_flags
+            .encode(&mut writer)?;
         writer.write_all(&self.general_constraint_indicator_flags.get().to_be_bytes()[2..])?;
-        self.general_level_idc.encode(writer)?;
-        (0b1111_0000_0000_0000 | self.min_spatial_segmentation_idc.to_bits()).encode(writer)?;
-        (0b1111_1100 | self.parallelism_type.to_bits()).encode(writer)?;
-        (0b1111_1100 | self.chroma_format_idc.to_bits()).encode(writer)?;
-        (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(writer)?;
-        (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(writer)?;
-        self.avg_frame_rate.encode(writer)?;
+        self.general_level_idc.encode(&mut writer)?;
+        (0b1111_0000_0000_0000 | self.min_spatial_segmentation_idc.to_bits())
+            .encode(&mut writer)?;
+        (0b1111_1100 | self.parallelism_type.to_bits()).encode(&mut writer)?;
+        (0b1111_1100 | self.chroma_format_idc.to_bits()).encode(&mut writer)?;
+        (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(&mut writer)?;
+        (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(&mut writer)?;
+        self.avg_frame_rate.encode(&mut writer)?;
         (self.constant_frame_rate.to_bits()
             | self.num_temporal_layers.to_bits()
             | self.temporal_id_nested.to_bits()
             | self.length_size_minus_one.to_bits())
-        .encode(writer)?;
+        .encode(&mut writer)?;
         u8::try_from(self.nalu_arrays.len())
             .map_err(|_| {
                 Error::invalid_input(&format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
             })?
-            .encode(writer)?;
+            .encode(&mut writer)?;
         for nalu_array in &self.nalu_arrays {
             (nalu_array.array_completeness.to_bits() | nalu_array.nal_unit_type.to_bits())
-                .encode(writer)?;
+                .encode(&mut writer)?;
             u16::try_from(nalu_array.nalus.len())
                 .map_err(|_| {
                     Error::invalid_input(&format!("Too many NALUs: {}", self.nalu_arrays.len()))
                 })?
-                .encode(writer)?;
+                .encode(&mut writer)?;
             for nalu in &nalu_array.nalus {
                 u16::try_from(nalu.len())
                     .map_err(|_| {
                         Error::invalid_input(&format!("Too large NALU: {}", self.nalu_arrays.len()))
                     })?
-                    .encode(writer)?;
+                    .encode(&mut writer)?;
                 writer.write_all(nalu)?;
             }
         }
@@ -2827,8 +2829,8 @@ impl HvccBox {
 }
 
 impl Encode for HvccBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2869,11 +2871,11 @@ impl Vp08Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp08");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.visual.encode(writer)?;
-        self.vpcc_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.visual.encode(&mut writer)?;
+        self.vpcc_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2903,8 +2905,8 @@ impl Vp08Box {
 }
 
 impl Encode for Vp08Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -2949,11 +2951,11 @@ impl Vp09Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp09");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.visual.encode(writer)?;
-        self.vpcc_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.visual.encode(&mut writer)?;
+        self.vpcc_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -2983,8 +2985,8 @@ impl Vp09Box {
 }
 
 impl Encode for Vp09Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3035,18 +3037,18 @@ impl VpccBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vpcC");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        self.profile.encode(writer)?;
-        self.level.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        self.profile.encode(&mut writer)?;
+        self.level.encode(&mut writer)?;
         (self.bit_depth.to_bits()
             | self.chroma_subsampling.to_bits()
             | self.video_full_range_flag.to_bits())
-        .encode(writer)?;
-        self.colour_primaries.encode(writer)?;
-        self.transfer_characteristics.encode(writer)?;
-        self.matrix_coefficients.encode(writer)?;
-        (self.codec_initialization_data.len() as u16).encode(writer)?;
+        .encode(&mut writer)?;
+        self.colour_primaries.encode(&mut writer)?;
+        self.transfer_characteristics.encode(&mut writer)?;
+        self.matrix_coefficients.encode(&mut writer)?;
+        (self.codec_initialization_data.len() as u16).encode(&mut writer)?;
         writer.write_all(&self.codec_initialization_data)?;
         Ok(())
     }
@@ -3088,8 +3090,8 @@ impl VpccBox {
 }
 
 impl Encode for VpccBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3140,11 +3142,11 @@ impl Av01Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"av01");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.visual.encode(writer)?;
-        self.av1c_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.visual.encode(&mut writer)?;
+        self.av1c_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3174,8 +3176,8 @@ impl Av01Box {
 }
 
 impl Encode for Av01Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3231,9 +3233,9 @@ impl Av1cBox {
     const MARKER: Uint<u8, 1, 7> = Uint::new(1);
     const VERSION: Uint<u8, 7, 0> = Uint::new(1);
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(writer)?;
-        (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits()).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(&mut writer)?;
+        (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits()).encode(&mut writer)?;
         (self.seq_tier_0.to_bits()
             | self.high_bitdepth.to_bits()
             | self.twelve_bit.to_bits()
@@ -3241,11 +3243,11 @@ impl Av1cBox {
             | self.chroma_subsampling_x.to_bits()
             | self.chroma_subsampling_y.to_bits()
             | self.chroma_sample_position.to_bits())
-        .encode(writer)?;
+        .encode(&mut writer)?;
         if let Some(v) = self.initial_presentation_delay_minus_one {
-            (0b1_0000 | v.to_bits()).encode(writer)?;
+            (0b1_0000 | v.to_bits()).encode(&mut writer)?;
         } else {
-            0u8.encode(writer)?;
+            0u8.encode(&mut writer)?;
         }
         writer.write_all(&self.config_obus)?;
         Ok(())
@@ -3305,8 +3307,8 @@ impl Av1cBox {
 }
 
 impl Encode for Av1cBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3374,12 +3376,12 @@ impl SttsBox {
         Self { entries }
     }
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        (self.entries.len() as u32).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        (self.entries.len() as u32).encode(&mut writer)?;
         for entry in &self.entries {
-            entry.sample_count.encode(writer)?;
-            entry.sample_delta.encode(writer)?;
+            entry.sample_count.encode(&mut writer)?;
+            entry.sample_delta.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3399,8 +3401,8 @@ impl SttsBox {
 }
 
 impl Encode for SttsBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3458,13 +3460,13 @@ impl StscBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsc");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        (self.entries.len() as u32).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        (self.entries.len() as u32).encode(&mut writer)?;
         for entry in &self.entries {
-            entry.first_chunk.encode(writer)?;
-            entry.sample_per_chunk.encode(writer)?;
-            entry.sample_description_index.encode(writer)?;
+            entry.first_chunk.encode(&mut writer)?;
+            entry.sample_per_chunk.encode(&mut writer)?;
+            entry.sample_description_index.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3485,8 +3487,8 @@ impl StscBox {
 }
 
 impl Encode for StscBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3541,21 +3543,21 @@ impl StszBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsz");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
         match self {
             StszBox::Fixed {
                 sample_size,
                 sample_count,
             } => {
-                sample_size.get().encode(writer)?;
+                sample_size.get().encode(&mut writer)?;
                 sample_count.encode(writer)?;
             }
             StszBox::Variable { entry_sizes } => {
-                0u32.encode(writer)?;
-                (entry_sizes.len() as u32).encode(writer)?;
+                0u32.encode(&mut writer)?;
+                (entry_sizes.len() as u32).encode(&mut writer)?;
                 for size in entry_sizes {
-                    size.encode(writer)?;
+                    size.encode(&mut writer)?;
                 }
             }
         }
@@ -3582,8 +3584,8 @@ impl StszBox {
 }
 
 impl Encode for StszBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3632,11 +3634,11 @@ impl StcoBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stco");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        (self.chunk_offsets.len() as u32).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        (self.chunk_offsets.len() as u32).encode(&mut writer)?;
         for offset in &self.chunk_offsets {
-            offset.encode(writer)?;
+            offset.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3653,8 +3655,8 @@ impl StcoBox {
 }
 
 impl Encode for StcoBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3703,11 +3705,11 @@ impl Co64Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"co64");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        (self.chunk_offsets.len() as u32).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        (self.chunk_offsets.len() as u32).encode(&mut writer)?;
         for offset in &self.chunk_offsets {
-            offset.encode(writer)?;
+            offset.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3724,8 +3726,8 @@ impl Co64Box {
 }
 
 impl Encode for Co64Box {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3774,11 +3776,11 @@ impl StssBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stss");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(writer)?;
-        (self.sample_numbers.len() as u32).encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        (self.sample_numbers.len() as u32).encode(&mut writer)?;
         for offset in &self.sample_numbers {
-            offset.encode(writer)?;
+            offset.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3795,8 +3797,8 @@ impl StssBox {
 }
 
 impl Encode for StssBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3847,11 +3849,11 @@ impl OpusBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"Opus");
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        self.audio.encode(writer)?;
-        self.dops_box.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.audio.encode(&mut writer)?;
+        self.dops_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
-            b.encode(writer)?;
+            b.encode(&mut writer)?;
         }
         Ok(())
     }
@@ -3881,8 +3883,8 @@ impl OpusBox {
 }
 
 impl Encode for OpusBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }
@@ -3930,14 +3932,14 @@ impl AudioSampleEntryFields {
 }
 
 impl Encode for AudioSampleEntryFields {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        [0u8; 6].encode(writer)?;
-        self.data_reference_index.encode(writer)?;
-        [0u8; 4 * 2].encode(writer)?;
-        self.channelcount.encode(writer)?;
-        self.samplesize.encode(writer)?;
-        [0u8; 2].encode(writer)?;
-        [0u8; 2].encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        [0u8; 6].encode(&mut writer)?;
+        self.data_reference_index.encode(&mut writer)?;
+        [0u8; 4 * 2].encode(&mut writer)?;
+        self.channelcount.encode(&mut writer)?;
+        self.samplesize.encode(&mut writer)?;
+        [0u8; 2].encode(&mut writer)?;
+        [0u8; 2].encode(&mut writer)?;
         self.samplerate.encode(writer)?;
         Ok(())
     }
@@ -3978,12 +3980,12 @@ impl DopsBox {
 
     const VERSION: u8 = 0;
 
-    fn encode_payload<W: Write>(&self, writer: &mut W) -> Result<()> {
-        Self::VERSION.encode(writer)?;
-        self.output_channel_count.encode(writer)?;
-        self.pre_skip.encode(writer)?;
-        self.input_sample_rate.encode(writer)?;
-        self.output_gain.encode(writer)?;
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        Self::VERSION.encode(&mut writer)?;
+        self.output_channel_count.encode(&mut writer)?;
+        self.pre_skip.encode(&mut writer)?;
+        self.input_sample_rate.encode(&mut writer)?;
+        self.output_gain.encode(&mut writer)?;
         0u8.encode(writer)?; // ChannelMappingFamily
         Ok(())
     }
@@ -4016,8 +4018,8 @@ impl DopsBox {
 }
 
 impl Encode for DopsBox {
-    fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        BoxHeader::from_box(self).encode(writer)?;
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
     }

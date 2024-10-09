@@ -11,6 +11,8 @@
 
 ## develop
 
+- [CHANGE] `Encode::encode()` が `writer: &mut W` ではなく `writer: W` を引数に取るように変更する
+   - @sile
 - [CHANGE] `Decode::decode()` が `reader: &mut R` ではなく `reader: R` を引数に取るように変更する
    - @sile
 - [ADD] デコード時にペイロードデータを保持しない `IgnoredBox` を追加する
