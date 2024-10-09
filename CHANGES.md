@@ -11,6 +11,8 @@
 
 ## develop
 
+## 2024.3.0
+
 - [CHANGE] `Encode::encode()` が `writer: &mut W` ではなく `writer: W` を引数に取るように変更する
    - @sile
 - [CHANGE] `Decode::decode()` が `reader: &mut R` ではなく `reader: R` を引数に取るように変更する
