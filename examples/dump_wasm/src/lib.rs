@@ -28,7 +28,7 @@ impl BoxInfo {
 pub fn dump(bytes: *const u8, bytes_len: i32) -> *mut Vec<u8> {
     let bytes = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
 
-    let json = Mp4File::<RootBox>::decode(&bytes[..])
+    let json = Mp4File::<RootBox>::decode(bytes)
         .map_err(|e| e.to_string())
         .and_then(|mp4| {
             let infos = mp4.iter().map(BoxInfo::new).collect::<Vec<_>>();

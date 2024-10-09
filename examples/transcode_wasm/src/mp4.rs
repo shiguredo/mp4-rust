@@ -227,7 +227,7 @@ pub struct InputMp4 {
 
 impl InputMp4 {
     pub fn parse(mp4_file_bytes: &[u8]) -> orfail::Result<Self> {
-        let mp4_file = Mp4File::decode(&mp4_file_bytes[..]).or_fail()?;
+        let mp4_file = Mp4File::decode(mp4_file_bytes).or_fail()?;
         let moov_box = mp4_file
             .boxes
             .iter()
