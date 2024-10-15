@@ -299,7 +299,7 @@ pub struct SampleAccessor<'a, T> {
     index: NonZeroU32,
 }
 
-impl<T: AsRef<StblBox>> SampleAccessor<'_, T> {
+impl<'a, T: AsRef<StblBox>> SampleAccessor<'a, T> {
     /// このサンプルのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
@@ -371,7 +371,7 @@ impl<T: AsRef<StblBox>> SampleAccessor<'_, T> {
     }
 
     /// サンプルが属するチャンクの情報を返す
-    pub fn chunk(&self) -> ChunkAccessor<T> {
+    pub fn chunk(&self) -> ChunkAccessor<'a, T> {
         let i = self
             .sample_table
             .sample_index_offsets
@@ -391,7 +391,7 @@ pub struct ChunkAccessor<'a, T> {
     index: NonZeroU32,
 }
 
-impl<T: AsRef<StblBox>> ChunkAccessor<'_, T> {
+impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
     /// このチャンクのインデックスを取得する
     pub fn index(&self) -> NonZeroU32 {
         self.index
@@ -407,7 +407,7 @@ impl<T: AsRef<StblBox>> ChunkAccessor<'_, T> {
     }
 
     /// チャンクが参照するサンプルエントリー返す
-    pub fn sample_entry(&self) -> &SampleEntry {
+    pub fn sample_entry(&self) -> &'a SampleEntry {
         &self.sample_table.stbl_box().stsd_box.entries
             [self.stsc_entry().sample_description_index.get() as usize - 1]
     }
