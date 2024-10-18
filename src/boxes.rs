@@ -3623,7 +3623,7 @@ impl FullBox for StszBox {
     }
 }
 
-/// [ISO/IEC 14496-12] ChunkOffsetBox class (親: [`StcoBox`])
+/// [ISO/IEC 14496-12] ChunkOffsetBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct StcoBox {
@@ -3694,7 +3694,7 @@ impl FullBox for StcoBox {
     }
 }
 
-/// [ISO/IEC 14496-12] ChunkLargeOffsetBox class (親: [`Co64Box`])
+/// [ISO/IEC 14496-12] ChunkLargeOffsetBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Co64Box {
