@@ -27,6 +27,16 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 - [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
 - [MP4 Transcode](https://shiguredo.github.io/mp4-rust/examples/transcode/)
 
+## 規格書
+
+- ISO/IEC 14496-1
+- ISO/IEC 14496-12
+- ISO/IEC 14496-14
+- ISO/IEC 14496-15
+- https://www.webmproject.org/vp9/mp4/
+- https://aomediacodec.github.io/av1-isobmff/
+- https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html
+
 ## ライセンス
 
 Apache License 2.0
