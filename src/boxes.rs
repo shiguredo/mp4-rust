@@ -2188,6 +2188,7 @@ pub enum SampleEntry {
     Vp09(Vp09Box),
     Av01(Av01Box),
     Opus(OpusBox),
+    Mp4a(Mp4aBox),
     Unknown(UnknownBox),
 }
 
@@ -2200,6 +2201,7 @@ impl SampleEntry {
             Self::Vp09(b) => b,
             Self::Av01(b) => b,
             Self::Opus(b) => b,
+            Self::Mp4a(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -2214,6 +2216,7 @@ impl Encode for SampleEntry {
             Self::Vp09(b) => b.encode(writer),
             Self::Av01(b) => b.encode(writer),
             Self::Opus(b) => b.encode(writer),
+            Self::Mp4a(b) => b.encode(writer),
             Self::Unknown(b) => b.encode(writer),
         }
     }
@@ -2229,6 +2232,7 @@ impl Decode for SampleEntry {
             Vp09Box::TYPE => Decode::decode(&mut reader).map(Self::Vp09),
             Av01Box::TYPE => Decode::decode(&mut reader).map(Self::Av01),
             OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
+            Mp4aBox::TYPE => Decode::decode(&mut reader).map(Self::Mp4a),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
@@ -3911,6 +3915,86 @@ impl BaseBox for OpusBox {
         Box::new(
             std::iter::empty()
                 .chain(std::iter::once(&self.dops_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+/// [ISO/IEC 14496-14] MP4AudioSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct Mp4aBox {
+    pub audio: AudioSampleEntryFields,
+    // TODO: esds: pub dops_box: DopsBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Mp4aBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"mp4a");
+
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.audio.encode(&mut writer)?;
+        // self.dops_box.encode(&mut writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(&mut writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let audio = AudioSampleEntryFields::decode(&mut reader)?;
+        //let mut dops_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                // DopsBox::TYPE if dops_box.is_none() => {
+                //     dops_box = Some(DopsBox::decode(&mut reader)?);
+                // }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        //let dops_box = dops_box.ok_or_else(|| Error::missing_box("dops", Self::TYPE))?;
+        Ok(Self {
+            audio,
+            //dops_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Mp4aBox {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Mp4aBox {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Mp4aBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                // TODO: .chain(std::iter::once(&self.dops_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
