@@ -3925,7 +3925,7 @@ impl BaseBox for OpusBox {
 #[allow(missing_docs)]
 pub struct Mp4aBox {
     pub audio: AudioSampleEntryFields,
-    // TODO: esds: pub dops_box: DopsBox,
+    pub esds_box: EsdsBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -3935,7 +3935,7 @@ impl Mp4aBox {
 
     fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         self.audio.encode(&mut writer)?;
-        // self.dops_box.encode(&mut writer)?;
+        self.esds_box.encode(&mut writer)?;
         for b in &self.unknown_boxes {
             b.encode(&mut writer)?;
         }
@@ -3944,23 +3944,23 @@ impl Mp4aBox {
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(&mut reader)?;
-        //let mut dops_box = None;
+        let mut esds_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
             let (header, mut reader) = BoxHeader::peek(&mut reader)?;
             match header.box_type {
-                // DopsBox::TYPE if dops_box.is_none() => {
-                //     dops_box = Some(DopsBox::decode(&mut reader)?);
-                // }
+                EsdsBox::TYPE if esds_box.is_none() => {
+                    esds_box = Some(EsdsBox::decode(&mut reader)?);
+                }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode(&mut reader)?);
                 }
             }
         }
-        //let dops_box = dops_box.ok_or_else(|| Error::missing_box("dops", Self::TYPE))?;
+        let esds_box = esds_box.ok_or_else(|| Error::missing_box("esds", Self::TYPE))?;
         Ok(Self {
             audio,
-            //dops_box,
+            esds_box,
             unknown_boxes,
         })
     }
@@ -3994,7 +3994,7 @@ impl BaseBox for Mp4aBox {
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             std::iter::empty()
-                // TODO: .chain(std::iter::once(&self.dops_box).map(as_box_object))
+                .chain(std::iter::once(&self.esds_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -4128,5 +4128,70 @@ impl BaseBox for DopsBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
+    }
+}
+
+/// [ISO/IEC 14496-14] ESDBox class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct EsdsBox {
+    pub payload: Vec<u8>, // TODO
+}
+
+impl EsdsBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"esds");
+
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let mut payload = Vec::new();
+        reader.read_to_end(&mut payload)?;
+        Ok(Self { payload })
+    }
+}
+
+impl Encode for EsdsBox {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for EsdsBox {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for EsdsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
+impl FullBox for EsdsBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
