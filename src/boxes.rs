@@ -4131,11 +4131,73 @@ impl BaseBox for DopsBox {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct DecoderConfigDescriptor {
+    object_type_indication: u8,
+    stream_type: Uint<u8, 6, 2>,
+    up_stream: Uint<u8, 1, 1>,
+    buffer_size_db: Uint<u32, 24>,
+    max_bitrate: u32,
+    avg_bitrate: u32,
+    // dec_specific_info: (), // tag=DecSpecificInfoTag
+    // profile_level_indication_index_descr: (),
+}
+
+impl Decode for DecoderConfigDescriptor {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let tag = u8::decode(&mut reader)?;
+        if tag != 4 {
+            // 4 = DecoderConfigDescrTag
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected=4, actual={tag}"
+            )));
+        }
+
+        // TODO:
+        let mut size = 0;
+        let mut has_next_byte = true;
+        while has_next_byte {
+            let b = u8::decode(&mut reader)?;
+            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+        }
+        dbg!(size);
+
+        let object_type_indication = u8::decode(&mut reader)?;
+
+        let b = u8::decode(&mut reader)?;
+        let stream_type = Uint::from_bits(b);
+        let up_stream = Uint::from_bits(b);
+
+        let mut buf = [0; 4];
+        reader.read_exact(&mut buf[1..])?;
+        let buffer_size_db = Uint::from_bits(u32::from_be_bytes(buf));
+
+        let max_bitrate = u32::decode(&mut reader)?;
+        let avg_bitrate = u32::decode(&mut reader)?;
+
+        Ok(Self {
+            object_type_indication,
+            stream_type,
+            up_stream,
+            buffer_size_db,
+            max_bitrate,
+            avg_bitrate,
+        })
+    }
+}
+
 /// [ISO/IEC 14496-14] ESDBox class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct EsdsBox {
-    pub payload: Vec<u8>, // TODO
+    pub es_id: u16,
+    pub stream_priority: Uint<u8, 5>,
+    pub depends_on_es_id: Option<u16>,
+    pub url_string: Option<String>,
+    pub ocr_es_id: Option<u16>,
+    pub dec_config_descr: DecoderConfigDescriptor,
 }
 
 impl EsdsBox {
@@ -4144,15 +4206,78 @@ impl EsdsBox {
 
     fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(&mut writer)?;
-        writer.write_all(&self.payload)?;
-        Ok(())
+
+        // Ok(())
+        todo!()
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
-        let mut payload = Vec::new();
-        reader.read_to_end(&mut payload)?;
-        Ok(Self { payload })
+        let tag = u8::decode(&mut reader)?;
+        if tag != 3 {
+            // 3 = ES_DescrTag
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected=3, actual={tag}"
+            )));
+        }
+
+        // TODO:
+        let mut size = 0;
+        let mut has_next_byte = true;
+        while has_next_byte {
+            let b = u8::decode(&mut reader)?;
+            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+        }
+        if size != reader.limit() as usize {
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor size: expected={}, actual={size}",
+                reader.limit()
+            )));
+        }
+
+        let es_id = u16::decode(&mut reader)?;
+
+        let b = u8::decode(&mut reader)?;
+        let stream_dependence_flag: Uint<u8, 1, 7> = Uint::from_bits(b);
+        let url_flag: Uint<u8, 1, 6> = Uint::from_bits(b);
+        let ocr_stream_flag: Uint<u8, 1, 5> = Uint::from_bits(b);
+        let stream_priority = Uint::from_bits(b);
+
+        let depends_on_es_id = (stream_dependence_flag.get() == 1)
+            .then(|| u16::decode(&mut reader))
+            .transpose()?;
+
+        let url_string = if url_flag.get() == 1 {
+            let len = u8::decode(&mut reader)? as u64;
+            let mut s = String::new();
+            reader.take(len).read_to_string(&mut s)?;
+            Some(s)
+        } else {
+            None
+        };
+
+        let ocr_es_id = (ocr_stream_flag.get() == 1)
+            .then(|| u16::decode(&mut reader))
+            .transpose()?;
+
+        let dec_config_descr = DecoderConfigDescriptor::decode(&mut reader)?;
+
+        dbg!(es_id);
+        dbg!(stream_priority);
+        dbg!(&url_string);
+        dbg!(ocr_es_id);
+        dbg!(&dec_config_descr);
+        // 残りのフィールドは必要になるまでは未対応
+
+        Ok(Self {
+            es_id,
+            stream_priority,
+            depends_on_es_id,
+            url_string,
+            ocr_es_id,
+            dec_config_descr,
+        })
     }
 }
 
