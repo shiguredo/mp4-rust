@@ -11,6 +11,13 @@
 
 ## develop
 
+## 2024.4.0
+
+- [ADD] AAC 用のボックスを追加する
+  - @sile
+- [UPDATE] `ChunkAccessor` と `SampleAccessor` の一部のメソッドのライフタイム制約が必要以上に厳しかったのを緩くする
+  - @sile
+
 ## 2024.3.0
 
 - [CHANGE] `Encode::encode()` が `writer: &mut W` ではなく `writer: W` を引数に取るように変更する
