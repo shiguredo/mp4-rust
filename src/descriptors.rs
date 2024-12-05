@@ -3,6 +3,77 @@ use std::io::{Read, Write};
 
 use crate::{Decode, Encode, Error, Result, Uint};
 
+/// [ISO_IEC_14496-1] DecoderConfigDescriptor class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct DecoderConfigDescriptor {
+    pub object_type_indication: u8,
+    pub stream_type: Uint<u8, 6, 2>,
+    pub up_stream: Uint<u8, 1, 1>,
+    pub buffer_size_db: Uint<u32, 24>,
+    pub max_bitrate: u32,
+    pub avg_bitrate: u32,
+    pub dec_specific_info: DecoderSpecificInfo,
+}
+
+impl DecoderConfigDescriptor {
+    const TAG: u8 = 4; // DecoderConfigDescrTag
+}
+
+impl Decode for DecoderConfigDescriptor {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let (tag, _size) = decode_tag_and_size(&mut reader)?;
+        if tag != Self::TAG {
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
+
+        let object_type_indication = u8::decode(&mut reader)?;
+
+        let b = u8::decode(&mut reader)?;
+        let stream_type = Uint::from_bits(b);
+        let up_stream = Uint::from_bits(b);
+
+        let mut buf = [0; 4];
+        reader.read_exact(&mut buf[1..])?;
+        let buffer_size_db = Uint::from_bits(u32::from_be_bytes(buf));
+
+        let max_bitrate = u32::decode(&mut reader)?;
+        let avg_bitrate = u32::decode(&mut reader)?;
+
+        let dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
+        Ok(Self {
+            object_type_indication,
+            stream_type,
+            up_stream,
+            buffer_size_db,
+            max_bitrate,
+            avg_bitrate,
+            dec_specific_info,
+        })
+    }
+}
+
+impl Encode for DecoderConfigDescriptor {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        let mut payload = Vec::new();
+
+        self.object_type_indication.encode(&mut payload)?;
+        (self.stream_type.to_bits() | self.up_stream.to_bits()).encode(&mut payload)?;
+        writer.write_all(&self.buffer_size_db.to_bits().to_be_bytes()[1..])?;
+        self.max_bitrate.encode(&mut writer)?;
+        self.avg_bitrate.encode(&mut writer)?;
+        self.dec_specific_info.encode(&mut writer)?;
+
+        encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
+        writer.write_all(&payload)?;
+
+        Ok(())
+    }
+}
+
 /// [ISO_IEC_14496-1] DecoderSpecificInfo class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]

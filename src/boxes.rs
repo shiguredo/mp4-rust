@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     basic_types::as_box_object,
-    descriptors::{DecoderSpecificInfo, SlConfigDescriptor},
+    descriptors::{DecoderConfigDescriptor, SlConfigDescriptor},
     io::ExternalBytes,
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
     FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
@@ -4130,64 +4130,6 @@ impl BaseBox for DopsBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
-pub struct DecoderConfigDescriptor {
-    object_type_indication: u8,
-    stream_type: Uint<u8, 6, 2>,
-    up_stream: Uint<u8, 1, 1>,
-    buffer_size_db: Uint<u32, 24>,
-    max_bitrate: u32,
-    avg_bitrate: u32,
-    dec_specific_info: DecoderSpecificInfo,
-}
-
-impl Decode for DecoderConfigDescriptor {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let tag = u8::decode(&mut reader)?;
-        if tag != 4 {
-            // 4 = DecoderConfigDescrTag
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected=4, actual={tag}"
-            )));
-        }
-
-        // TODO:
-        let mut size = 0;
-        let mut has_next_byte = true;
-        while has_next_byte {
-            let b = u8::decode(&mut reader)?;
-            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-        }
-        dbg!(size);
-
-        let object_type_indication = u8::decode(&mut reader)?;
-
-        let b = u8::decode(&mut reader)?;
-        let stream_type = Uint::from_bits(b);
-        let up_stream = Uint::from_bits(b);
-
-        let mut buf = [0; 4];
-        reader.read_exact(&mut buf[1..])?;
-        let buffer_size_db = Uint::from_bits(u32::from_be_bytes(buf));
-
-        let max_bitrate = u32::decode(&mut reader)?;
-        let avg_bitrate = u32::decode(&mut reader)?;
-
-        let dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
-        Ok(Self {
-            object_type_indication,
-            stream_type,
-            up_stream,
-            buffer_size_db,
-            max_bitrate,
-            avg_bitrate,
-            dec_specific_info,
-        })
     }
 }
 
