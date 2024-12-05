@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    basic_types::as_box_object, io::ExternalBytes, BaseBox, BoxHeader, BoxSize, BoxType, Decode,
-    Either, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime,
-    Result, Uint, Utf8String,
+    basic_types::as_box_object, descriptors::EsDescriptor, io::ExternalBytes, BaseBox, BoxHeader,
+    BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
+    FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -2188,6 +2188,7 @@ pub enum SampleEntry {
     Vp09(Vp09Box),
     Av01(Av01Box),
     Opus(OpusBox),
+    Mp4a(Mp4aBox),
     Unknown(UnknownBox),
 }
 
@@ -2200,6 +2201,7 @@ impl SampleEntry {
             Self::Vp09(b) => b,
             Self::Av01(b) => b,
             Self::Opus(b) => b,
+            Self::Mp4a(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -2214,6 +2216,7 @@ impl Encode for SampleEntry {
             Self::Vp09(b) => b.encode(writer),
             Self::Av01(b) => b.encode(writer),
             Self::Opus(b) => b.encode(writer),
+            Self::Mp4a(b) => b.encode(writer),
             Self::Unknown(b) => b.encode(writer),
         }
     }
@@ -2229,6 +2232,7 @@ impl Decode for SampleEntry {
             Vp09Box::TYPE => Decode::decode(&mut reader).map(Self::Vp09),
             Av01Box::TYPE => Decode::decode(&mut reader).map(Self::Av01),
             OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
+            Mp4aBox::TYPE => Decode::decode(&mut reader).map(Self::Mp4a),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
         }
     }
@@ -3916,6 +3920,86 @@ impl BaseBox for OpusBox {
     }
 }
 
+/// [ISO/IEC 14496-14] MP4AudioSampleEntry class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct Mp4aBox {
+    pub audio: AudioSampleEntryFields,
+    pub esds_box: EsdsBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Mp4aBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"mp4a");
+
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        self.audio.encode(&mut writer)?;
+        self.esds_box.encode(&mut writer)?;
+        for b in &self.unknown_boxes {
+            b.encode(&mut writer)?;
+        }
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let audio = AudioSampleEntryFields::decode(&mut reader)?;
+        let mut esds_box = None;
+        let mut unknown_boxes = Vec::new();
+        while reader.limit() > 0 {
+            let (header, mut reader) = BoxHeader::peek(&mut reader)?;
+            match header.box_type {
+                EsdsBox::TYPE if esds_box.is_none() => {
+                    esds_box = Some(EsdsBox::decode(&mut reader)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode(&mut reader)?);
+                }
+            }
+        }
+        let esds_box = esds_box.ok_or_else(|| Error::missing_box("esds", Self::TYPE))?;
+        Ok(Self {
+            audio,
+            esds_box,
+            unknown_boxes,
+        })
+    }
+}
+
+impl Encode for Mp4aBox {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for Mp4aBox {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for Mp4aBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            std::iter::empty()
+                .chain(std::iter::once(&self.esds_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
 /// 音声系の [`SampleEntry`] に共通のフィールドをまとめた構造体
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -4044,5 +4128,69 @@ impl BaseBox for DopsBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(std::iter::empty())
+    }
+}
+
+/// [ISO/IEC 14496-14] ESDBox class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct EsdsBox {
+    pub es: EsDescriptor,
+}
+
+impl EsdsBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"esds");
+
+    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        FullBoxHeader::from_box(self).encode(&mut writer)?;
+        self.es.encode(&mut writer)?;
+        Ok(())
+    }
+
+    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+        let _ = FullBoxHeader::decode(&mut reader)?;
+        let es = EsDescriptor::decode(&mut reader)?;
+        Ok(Self { es })
+    }
+}
+
+impl Encode for EsdsBox {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        BoxHeader::from_box(self).encode(&mut writer)?;
+        self.encode_payload(writer)?;
+        Ok(())
+    }
+}
+
+impl Decode for EsdsBox {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let header = BoxHeader::decode(&mut reader)?;
+        header.box_type.expect(Self::TYPE)?;
+        header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl BaseBox for EsdsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn box_payload_size(&self) -> u64 {
+        ExternalBytes::calc(|writer| self.encode_payload(writer))
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(std::iter::empty())
+    }
+}
+
+impl FullBox for EsdsBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }

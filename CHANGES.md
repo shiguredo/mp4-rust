@@ -11,6 +11,8 @@
 
 ## develop
 
+- [ADD] AAC 用のボックスを追加する
+  - @sile
 - [UPDATE] `ChunkAccessor` と `SampleAccessor` の一部のメソッドのライフタイム制約が必要以上に厳しかったのを緩くする
   - @sile
 
