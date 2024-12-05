@@ -1,7 +1,7 @@
 //! ISO_IEC_14496-1 で定義されているディスクリプター群
-use std::io::Read;
+use std::io::{Read, Write};
 
-use crate::{Decode, Error, Result, Uint};
+use crate::{Decode, Encode, Error, Result, Uint};
 
 /// [ISO_IEC_14496-1] SLConfigDescriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -37,6 +37,18 @@ impl Decode for SlConfigDescriptor {
     }
 }
 
+impl Encode for SlConfigDescriptor {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        let predefined = 2;
+        let payload = [predefined];
+
+        encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
+        writer.write_all(&payload)?;
+
+        Ok(())
+    }
+}
+
 fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
     let tag = u8::decode(&mut reader)?;
 
@@ -49,4 +61,24 @@ fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
     }
 
     Ok((tag, size))
+}
+
+fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Result<()> {
+    writer.write_all(&[tag])?;
+
+    loop {
+        let mut b = (size & 0b0111_1111) as u8;
+        size >>= 7;
+
+        if size != 0 {
+            b |= 0b1000_0000;
+        }
+        writer.write_all(&[b])?;
+
+        if size == 0 {
+            break;
+        }
+    }
+
+    Ok(())
 }
