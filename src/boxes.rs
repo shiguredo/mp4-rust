@@ -5,11 +5,9 @@ use std::{
 };
 
 use crate::{
-    basic_types::as_box_object,
-    descriptors::{DecoderConfigDescriptor, SlConfigDescriptor},
-    io::ExternalBytes,
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
+    basic_types::as_box_object, descriptors::EsDescriptor, io::ExternalBytes, BaseBox, BoxHeader,
+    BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
+    FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -4137,13 +4135,7 @@ impl BaseBox for DopsBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct EsdsBox {
-    pub es_id: u16,
-    pub stream_priority: Uint<u8, 5>,
-    pub depends_on_es_id: Option<u16>,
-    pub url_string: Option<String>,
-    pub ocr_es_id: Option<u16>,
-    pub dec_config_descr: DecoderConfigDescriptor,
-    pub sl_config_descr: SlConfigDescriptor,
+    pub es: EsDescriptor,
 }
 
 impl EsdsBox {
@@ -4152,78 +4144,14 @@ impl EsdsBox {
 
     fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         FullBoxHeader::from_box(self).encode(&mut writer)?;
-
-        // Ok(())
-        todo!()
+        self.es.encode(&mut writer)?;
+        Ok(())
     }
 
     fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
-        let tag = u8::decode(&mut reader)?;
-        if tag != 3 {
-            // 3 = ES_DescrTag
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected=3, actual={tag}"
-            )));
-        }
-
-        // TODO:
-        let mut size = 0;
-        let mut has_next_byte = true;
-        while has_next_byte {
-            let b = u8::decode(&mut reader)?;
-            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-        }
-        if size != reader.limit() as usize {
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor size: expected={}, actual={size}",
-                reader.limit()
-            )));
-        }
-
-        let es_id = u16::decode(&mut reader)?;
-
-        let b = u8::decode(&mut reader)?;
-        let stream_dependence_flag: Uint<u8, 1, 7> = Uint::from_bits(b);
-        let url_flag: Uint<u8, 1, 6> = Uint::from_bits(b);
-        let ocr_stream_flag: Uint<u8, 1, 5> = Uint::from_bits(b);
-        let stream_priority = Uint::from_bits(b);
-
-        let depends_on_es_id = (stream_dependence_flag.get() == 1)
-            .then(|| u16::decode(&mut reader))
-            .transpose()?;
-
-        let url_string = if url_flag.get() == 1 {
-            let len = u8::decode(&mut reader)? as u64;
-            let mut s = String::new();
-            reader.take(len).read_to_string(&mut s)?;
-            Some(s)
-        } else {
-            None
-        };
-
-        let ocr_es_id = (ocr_stream_flag.get() == 1)
-            .then(|| u16::decode(&mut reader))
-            .transpose()?;
-
-        let dec_config_descr = DecoderConfigDescriptor::decode(&mut reader)?;
-        let sl_config_descr = SlConfigDescriptor::decode(&mut reader)?;
-        dbg!(es_id);
-        dbg!(stream_priority);
-        dbg!(&url_string);
-        dbg!(ocr_es_id);
-        dbg!(&dec_config_descr);
-
-        Ok(Self {
-            es_id,
-            stream_priority,
-            depends_on_es_id,
-            url_string,
-            ocr_es_id,
-            dec_config_descr,
-            sl_config_descr,
-        })
+        let es = EsDescriptor::decode(&mut reader)?;
+        Ok(Self { es })
     }
 }
 
