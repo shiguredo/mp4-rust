@@ -141,8 +141,14 @@ fn decode_encode_beep_opus_audio_aac() -> Result<()> {
     assert_eq!(file, encoded_file);
 
     // エンコード結果のバイト列が正しいことを確認する。
-    assert_eq!(input_bytes.len(), output_bytes.len());
-    assert_eq!(&input_bytes[..], output_bytes);
+    //
+    // [NOTE]
+    // descriptor のサイズのエンコード形式は可変長だが、
+    // ffmpeg で生成したテストファイルでは常に 4 バイト使われていた。
+    // そのため、decode / encode を通すとバイト列の中身が変わってしまうので、
+    // ここでは調整したサイズ (+ 12 部分）で比較している。
+    // またバイト列の厳密な一致チェックはこのテストケースでは行わないようにした。
+    assert_eq!(input_bytes.len(), output_bytes.len() + 12);
 
     Ok(())
 }
