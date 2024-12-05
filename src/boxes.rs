@@ -5,8 +5,10 @@ use std::{
 };
 
 use crate::{
-    basic_types::as_box_object, descriptors::SlConfigDescriptor, io::ExternalBytes, BaseBox,
-    BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
+    basic_types::as_box_object,
+    descriptors::{DecoderSpecificInfo, SlConfigDescriptor},
+    io::ExternalBytes,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
     FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
 };
 
@@ -4186,38 +4188,6 @@ impl Decode for DecoderConfigDescriptor {
             avg_bitrate,
             dec_specific_info,
         })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
-pub struct DecoderSpecificInfo {
-    pub payload: Vec<u8>,
-}
-
-impl Decode for DecoderSpecificInfo {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let tag = u8::decode(&mut reader)?;
-        if tag != 5 {
-            // 5 = DecSpecificInfoTag
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected=5, actual={tag}"
-            )));
-        }
-
-        // TODO:
-        let mut size = 0;
-        let mut has_next_byte = true;
-        while has_next_byte {
-            let b = u8::decode(&mut reader)?;
-            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-        }
-
-        let mut payload = vec![0; size];
-        reader.read_exact(&mut payload)?;
-
-        Ok(Self { payload })
     }
 }
 

@@ -3,9 +3,44 @@ use std::io::{Read, Write};
 
 use crate::{Decode, Encode, Error, Result, Uint};
 
-/// [ISO_IEC_14496-1] SLConfigDescriptor class
+/// [ISO_IEC_14496-1] DecoderSpecificInfo class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
+pub struct DecoderSpecificInfo {
+    pub payload: Vec<u8>,
+}
+
+impl DecoderSpecificInfo {
+    const TAG: u8 = 5; // DecSpecificInfoTag
+}
+
+impl Decode for DecoderSpecificInfo {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let (tag, size) = decode_tag_and_size(&mut reader)?;
+        if tag != Self::TAG {
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
+
+        let mut payload = vec![0; size];
+        reader.read_exact(&mut payload)?;
+
+        Ok(Self { payload })
+    }
+}
+
+impl Encode for DecoderSpecificInfo {
+    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+        encode_tag_and_size(&mut writer, Self::TAG, self.payload.len())?;
+        writer.write_all(&self.payload)?;
+        Ok(())
+    }
+}
+
+/// [ISO_IEC_14496-1] SLConfigDescriptor class
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlConfigDescriptor;
 
 impl SlConfigDescriptor {
