@@ -4140,8 +4140,7 @@ pub struct DecoderConfigDescriptor {
     buffer_size_db: Uint<u32, 24>,
     max_bitrate: u32,
     avg_bitrate: u32,
-    // dec_specific_info: (), // tag=DecSpecificInfoTag
-    // profile_level_indication_index_descr: (),
+    dec_specific_info: DecoderSpecificInfo,
 }
 
 impl Decode for DecoderConfigDescriptor {
@@ -4177,6 +4176,7 @@ impl Decode for DecoderConfigDescriptor {
         let max_bitrate = u32::decode(&mut reader)?;
         let avg_bitrate = u32::decode(&mut reader)?;
 
+        let dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
         Ok(Self {
             object_type_indication,
             stream_type,
@@ -4184,7 +4184,75 @@ impl Decode for DecoderConfigDescriptor {
             buffer_size_db,
             max_bitrate,
             avg_bitrate,
+            dec_specific_info,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct DecoderSpecificInfo {
+    pub payload: Vec<u8>,
+}
+
+impl Decode for DecoderSpecificInfo {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let tag = u8::decode(&mut reader)?;
+        if tag != 5 {
+            // 5 = DecSpecificInfoTag
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected=5, actual={tag}"
+            )));
+        }
+
+        // TODO:
+        let mut size = 0;
+        let mut has_next_byte = true;
+        while has_next_byte {
+            let b = u8::decode(&mut reader)?;
+            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+        }
+
+        let mut payload = vec![0; size];
+        reader.read_exact(&mut payload)?;
+
+        Ok(Self { payload })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct SlConfigDescriptor {
+    pub payload: Vec<u8>,
+}
+
+impl Decode for SlConfigDescriptor {
+    fn decode<R: Read>(mut reader: R) -> Result<Self> {
+        let tag = u8::decode(&mut reader)?;
+        if tag != 6 {
+            // 6 = SLConfigDescrTag
+            return Err(Error::invalid_data(&format!(
+                "Unexpected descriptor tag: expected=6, actual={tag}"
+            )));
+        }
+
+        // TODO:
+        let mut size = 0;
+        let mut has_next_byte = true;
+        while has_next_byte {
+            let b = u8::decode(&mut reader)?;
+            has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+            size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+        }
+        dbg!(size);
+
+        // TODO:
+        let mut payload = vec![0; size];
+        reader.read_exact(&mut payload)?;
+        dbg!(&payload);
+
+        Ok(Self { payload })
     }
 }
 
@@ -4198,6 +4266,7 @@ pub struct EsdsBox {
     pub url_string: Option<String>,
     pub ocr_es_id: Option<u16>,
     pub dec_config_descr: DecoderConfigDescriptor,
+    pub sl_config_descr: SlConfigDescriptor,
 }
 
 impl EsdsBox {
@@ -4262,13 +4331,12 @@ impl EsdsBox {
             .transpose()?;
 
         let dec_config_descr = DecoderConfigDescriptor::decode(&mut reader)?;
-
+        let sl_config_descr = SlConfigDescriptor::decode(&mut reader)?;
         dbg!(es_id);
         dbg!(stream_priority);
         dbg!(&url_string);
         dbg!(ocr_es_id);
         dbg!(&dec_config_descr);
-        // 残りのフィールドは必要になるまでは未対応
 
         Ok(Self {
             es_id,
@@ -4277,6 +4345,7 @@ impl EsdsBox {
             url_string,
             ocr_es_id,
             dec_config_descr,
+            sl_config_descr,
         })
     }
 }
