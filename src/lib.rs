@@ -3,6 +3,7 @@
 pub mod aux;
 mod basic_types;
 pub mod boxes;
+pub mod descriptors;
 mod io;
 
 pub use basic_types::{
