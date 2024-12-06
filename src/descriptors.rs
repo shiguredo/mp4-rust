@@ -158,7 +158,8 @@ impl Encode for DecoderConfigDescriptor {
         let mut payload = Vec::new();
 
         self.object_type_indication.encode(&mut payload)?;
-        (self.stream_type.to_bits() | self.up_stream.to_bits()).encode(&mut payload)?;
+        (self.stream_type.to_bits() | self.up_stream.to_bits() | Uint::<u8, 1>::new(1).to_bits())
+            .encode(&mut payload)?;
         payload.write_all(&self.buffer_size_db.to_bits().to_be_bytes()[1..])?;
         self.max_bitrate.encode(&mut payload)?;
         self.avg_bitrate.encode(&mut payload)?;
