@@ -140,7 +140,11 @@ impl Decode for DecoderConfigDescriptor {
         let max_bitrate = u32::decode(&mut reader)?;
         let avg_bitrate = u32::decode(&mut reader)?;
 
-        let dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
+        let mut dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
+        if object_type_indication == 0x40 {
+            dec_specific_info.parse_mpeg4_aac_payload()?;
+        }
+
         Ok(Self {
             object_type_indication,
             stream_type,
@@ -175,12 +179,54 @@ impl Encode for DecoderConfigDescriptor {
 /// [ISO_IEC_14496-1] DecoderSpecificInfo class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
-pub struct DecoderSpecificInfo {
-    pub payload: Vec<u8>,
+pub enum DecoderSpecificInfo {
+    Mpeg4Aac {
+        audio_object_type: u16,
+        sampling_frequency: u32,   // u24
+        channel_configuration: u8, // u4
+    },
+    Unknown {
+        payload: Vec<u8>,
+    },
 }
 
 impl DecoderSpecificInfo {
     const TAG: u8 = 5; // DecSpecificInfoTag
+
+    fn parse_mpeg4_aac_payload(&mut self) -> Result<()> {
+        let Self::Unknown { payload } = &self else {
+            return Ok(());
+        };
+
+        let mut reader = &payload[..];
+        let b0 = u8::decode(&mut reader)?;
+        let audio_object_type = Uint::<u8, 5, 3>::from_bits(b0).get();
+        if audio_object_type != 2 {
+            return Err(Error::unsupported(&format!(
+                "Unsupported AAC audio object type: {audio_object_type}"
+            )));
+        }
+
+        let b1 = u8::decode(&mut reader)?;
+        let sample_frequency_index =
+            (Uint::<u8, 3>::from_bits(b0).get() << 1) | Uint::<u8, 1, 7>::from_bits(b1).get();
+        let sample_frequency = if sample_frequency_index == 0xf {
+            todo!()
+        } else if sample_frequency_index == 0xd || sample_frequency_index == 0xe {
+            // Reserved values.
+            return Err(Error::unsupported(&format!(
+                "Unsupported AAC sample frequency index: {sample_frequency_index}"
+            )));
+        } else {
+            let table = [
+                96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000,
+                7350,
+            ];
+            table[sample_frequency_index as usize]
+        };
+
+        todo!()
+    }
 }
 
 impl Decode for DecoderSpecificInfo {
@@ -196,14 +242,21 @@ impl Decode for DecoderSpecificInfo {
         let mut payload = vec![0; size];
         reader.read_exact(&mut payload)?;
 
-        Ok(Self { payload })
+        Ok(Self::Unknown { payload })
     }
 }
 
 impl Encode for DecoderSpecificInfo {
     fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        encode_tag_and_size(&mut writer, Self::TAG, self.payload.len())?;
-        writer.write_all(&self.payload)?;
+        match self {
+            Self::Mpeg4Aac { .. } => {
+                todo!()
+            }
+            Self::Unknown { payload } => {
+                encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
+                writer.write_all(&payload)?;
+            }
+        }
         Ok(())
     }
 }
