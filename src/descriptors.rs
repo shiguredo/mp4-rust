@@ -269,19 +269,37 @@ fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
 fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Result<()> {
     writer.write_all(&[tag])?;
 
-    loop {
+    let mut buf = Vec::new();
+    for i in 0.. {
         let mut b = (size & 0b0111_1111) as u8;
         size >>= 7;
 
-        if size != 0 {
+        if i > 0 {
             b |= 0b1000_0000;
         }
-        writer.write_all(&[b])?;
+        buf.push(b);
 
         if size == 0 {
             break;
         }
     }
+    buf.reverse(); // リトルエンディアンからビッグエンディアンにする
+    writer.write_all(&buf)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tag_and_size() {
+        let mut buf = Vec::new();
+        encode_tag_and_size(&mut buf, 12, 123456).unwrap();
+
+        let (tag, size) = decode_tag_and_size(&buf[..]).unwrap();
+        assert_eq!(tag, 12);
+        assert_eq!(size, 123456);
+    }
 }
