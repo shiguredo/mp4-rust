@@ -4004,7 +4004,7 @@ impl BaseBox for Mp4aBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct AudioSampleEntryFields {
-    pub data_reference_index: u16,
+    pub data_reference_index: u16, // TODO: VisualSampleEntryFields に合わせて NonZeroU16 にする
     pub channelcount: u16,
     pub samplesize: u16,
     pub samplerate: FixedPointNumber<u16, u16>,
