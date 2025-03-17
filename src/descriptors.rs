@@ -18,6 +18,12 @@ pub struct EsDescriptor {
 
 impl EsDescriptor {
     const TAG: u8 = 3; // ES_DescrTag
+
+    /// [`EsDescriptor::es_id`] の実質的な最小値 (0 は予約されている）
+    pub const MIN_ES_ID: u16 = 1;
+
+    /// [`EsDescriptor::stream_priority`] で一番優先度が低くなる値
+    pub const LOWEST_STREAM_PRIORITY: Uint<u8, 5> = Uint::new(0);
 }
 
 impl Decode for EsDescriptor {
@@ -115,6 +121,15 @@ pub struct DecoderConfigDescriptor {
 
 impl DecoderConfigDescriptor {
     const TAG: u8 = 4; // DecoderConfigDescrTag
+
+    /// AAC 用の [`DecoderConfigDescriptor::object_type_indication`] の値
+    pub const OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3: u8 = 0x40;
+
+    /// 音声用の [`DecoderConfigDescriptor::stream_type`] の値
+    pub const STREAM_TYPE_AUDIO: Uint<u8, 6, 2> = Uint::new(0x05);
+
+    /// 通常の再生用メディアファイル向けの [`DecoderConfigDescriptor::up_stream`] の値
+    pub const DOWN_STREAM: Uint<u8, 1, 1> = Uint::new(0);
 }
 
 impl Decode for DecoderConfigDescriptor {
