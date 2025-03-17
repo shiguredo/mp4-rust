@@ -2,8 +2,8 @@
 use std::num::NonZeroU32;
 
 use crate::{
-    boxes::{SampleEntry, StblBox, StscBox, StscEntry, StszBox},
     BoxType, Either,
+    boxes::{SampleEntry, StblBox, StscBox, StscEntry, StszBox},
 };
 
 /// [`StblBox`] をラップして、その中の情報を簡単かつ効率的に取り出せるようにするための構造体
@@ -269,22 +269,40 @@ impl std::fmt::Display for SampleTableAccessorError {
                 stts_sample_count,
                 other_box_type,
                 other_sample_count,
-            } => write!(f, "Sample count in `stts` box is {stts_sample_count}, but `{other_box_type}` has sample count {other_sample_count}"),
+            } => write!(
+                f,
+                "Sample count in `stts` box is {stts_sample_count}, but `{other_box_type}` has sample count {other_sample_count}"
+            ),
             SampleTableAccessorError::FirstChunkIndexIsNotOne { actual_chunk_index } => {
-                write!(f,"First chunk index in `stsc` box is expected to 1, but got {actual_chunk_index}")
+                write!(
+                    f,
+                    "First chunk index in `stsc` box is expected to 1, but got {actual_chunk_index}"
+                )
             }
-            SampleTableAccessorError::LastChunkIndexIsTooLarge { max_chunk_index, last_chunk_index } => {
-                write!(f,"Last chunk index in `stsc` box is expected to `<= {max_chunk_index}`, but got {last_chunk_index}")
+            SampleTableAccessorError::LastChunkIndexIsTooLarge {
+                max_chunk_index,
+                last_chunk_index,
+            } => {
+                write!(
+                    f,
+                    "Last chunk index in `stsc` box is expected to `<= {max_chunk_index}`, but got {last_chunk_index}"
+                )
             }
             SampleTableAccessorError::MissingSampleEntry {
                 stsc_entry_index,
                 sample_description_index,
                 sample_entry_count,
             } => {
-                write!(f, "{stsc_entry_index}-th entry in `stsc` box refers to a missing sample entry {sample_description_index} (sample entry count is {sample_entry_count})")
+                write!(
+                    f,
+                    "{stsc_entry_index}-th entry in `stsc` box refers to a missing sample entry {sample_description_index} (sample entry count is {sample_entry_count})"
+                )
             }
             SampleTableAccessorError::ChunkIndicesNotMonotonicallyIncreasing => {
-                write!(f,"Chunk indices in `stsc` box is not monotonically increasing")
+                write!(
+                    f,
+                    "Chunk indices in `stsc` box is not monotonically increasing"
+                )
             }
         }
     }
@@ -445,8 +463,8 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},
         BaseBox, BoxSize, BoxType,
+        boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},
     };
 
     use super::*;
@@ -530,9 +548,11 @@ mod tests {
                 start_time + sample_table.get_sample(index).expect("bug").duration() as u64;
             assert!((start_time..end_time).contains(&t));
         }
-        assert!(sample_table
-            .get_sample_by_timestamp(file_duraiton + 1)
-            .is_none());
+        assert!(
+            sample_table
+                .get_sample_by_timestamp(file_duraiton + 1)
+                .is_none()
+        );
     }
 
     fn index(i: u32) -> NonZeroU32 {

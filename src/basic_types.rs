@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
+    Decode, Encode, Error, Result,
     boxes::{FtypBox, RootBox},
     io::PeekReader,
-    Decode, Encode, Error, Result,
 };
 
 /// 全てのボックスが実装するトレイト

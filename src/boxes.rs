@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    basic_types::as_box_object, descriptors::EsDescriptor, io::ExternalBytes, BaseBox, BoxHeader,
-    BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
-    FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::as_box_object,
+    descriptors::EsDescriptor, io::ExternalBytes,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -1136,11 +1136,7 @@ impl FullBox for ElstBox {
         let large = self.entries.iter().any(|x| {
             u32::try_from(x.edit_duration).is_err() || i32::try_from(x.media_time).is_err()
         });
-        if large {
-            1
-        } else {
-            0
-        }
+        if large { 1 } else { 0 }
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {
