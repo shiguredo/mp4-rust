@@ -4000,13 +4000,16 @@ impl BaseBox for Mp4aBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct AudioSampleEntryFields {
-    pub data_reference_index: u16, // TODO: VisualSampleEntryFields に合わせて NonZeroU16 にする
+    pub data_reference_index: NonZeroU16,
     pub channelcount: u16,
     pub samplesize: u16,
     pub samplerate: FixedPointNumber<u16, u16>,
 }
 
 impl AudioSampleEntryFields {
+    /// [`AudioSampleEntryFields::data_reference_index`] のデフォルト値
+    pub const DEFAULT_DATA_REFERENCE_INDEX: NonZeroU16 = NonZeroU16::MIN;
+
     /// [`AudioSampleEntryFields::sample_size`] のデフォルト値 (16)
     pub const DEFAULT_SAMPLESIZE: u16 = 16;
 }
@@ -4028,7 +4031,7 @@ impl Encode for AudioSampleEntryFields {
 impl Decode for AudioSampleEntryFields {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let _ = <[u8; 6]>::decode(&mut reader)?;
-        let data_reference_index = u16::decode(&mut reader)?;
+        let data_reference_index = NonZeroU16::decode(&mut reader)?;
         let _ = <[u8; 4 * 2]>::decode(&mut reader)?;
         let channelcount = u16::decode(&mut reader)?;
         let samplesize = u16::decode(&mut reader)?;
