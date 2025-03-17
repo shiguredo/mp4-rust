@@ -11,6 +11,13 @@
 
 ## develop
 
+- [ADD] `AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX` 定数を追加する
+  - 通常の用途では `data_reference_index` には常にこの定数値が設定されることになる
+  - @sile
+- [CHANGE] `AudioSampleEntryFields.data_reference_index` の型を `u16` から `NonZeroU16` に変更する
+  - 値が 0 になることはないため non zero 版に変更した
+    - `VisualSampleEntryFields.data_reference_index` は元々 `NonZeroU16` だったので、両者の齟齬の解消も兼ねている
+  - @sile
 - [CHANGE] Rust のエディションを 2021 から 2024 に上げる
   - @sile
 - [FIX] ディスクリプターのサイズがリトルエンディアンでエンコードされていたのを修正する
