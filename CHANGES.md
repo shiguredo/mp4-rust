@@ -11,6 +11,14 @@
 
 ## develop
 
+- [ADD] AAC 関連の定数を追加する
+  - MP4 に AAC ストリームを格納する際に、典型的に使用される値を以下の定数として定義した:
+    - `EsDescriptor::MIN_ES_ID`
+    - `EsDescriptor::LOWEST_STREAM_PRIORITY`
+    - `DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3`
+    - `DecoderConfigDescriptor::STREAM_TYPE_AUDIO`
+    - `DecoderConfigDescriptor::DOWN_STREAM`
+  - @sile
 - [ADD] `AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX` 定数を追加する
   - 通常の用途では `data_reference_index` には常にこの定数値が設定されることになる
   - @sile
