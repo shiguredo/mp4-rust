@@ -129,7 +129,7 @@ impl DecoderConfigDescriptor {
     pub const STREAM_TYPE_AUDIO: Uint<u8, 6, 2> = Uint::new(0x05);
 
     /// 通常の再生用メディアファイル向けの [`DecoderConfigDescriptor::up_stream`] の値
-    pub const DOWN_STREAM: Uint<u8, 1, 1> = Uint::new(0);
+    pub const UP_STREAM_FALSE: Uint<u8, 1, 1> = Uint::new(0);
 }
 
 impl Decode for DecoderConfigDescriptor {

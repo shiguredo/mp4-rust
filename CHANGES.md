@@ -17,7 +17,7 @@
     - `EsDescriptor::LOWEST_STREAM_PRIORITY`
     - `DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3`
     - `DecoderConfigDescriptor::STREAM_TYPE_AUDIO`
-    - `DecoderConfigDescriptor::DOWN_STREAM`
+    - `DecoderConfigDescriptor::UP_STREAM_FALSE`
   - @sile
 - [ADD] `AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX` 定数を追加する
   - 通常の用途では `data_reference_index` には常にこの定数値が設定されることになる
