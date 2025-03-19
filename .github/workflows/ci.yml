@@ -14,25 +14,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-
-      - name: Install ${{ matrix.toolchain }} toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-
-      - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all
-
-      - name: Run cargo check (no default features)
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all --no-default-features
+      - run: rustup update ${{ matrix.toolchain }}
+      - run: cargo check
 
   test:
     name: Test Suite
@@ -43,19 +26,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-
-      - name: Install ${{ matrix.toolchain }} toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all
+      - run: rustup update ${{ matrix.toolchain }}
+      - run: cargo test
 
   lints:
     name: Lints
@@ -66,32 +38,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+      - run: rustup update ${{ matrix.toolchain }}
+      - run: cargo fmt -- --check
+      - run: cargo clippy -- -D warnings
 
-      - name: Install ${{ matrix.toolchain }} toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.toolchain }}
-          override: true
-          components: rustfmt, clippy
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all -- -D warnings
-
-      - name: Run cargo clippy (no default features)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all --no-default-features -- -D warnings
   slack_notify_failed:
     needs: [check, test, lints]
     runs-on: ubuntu-latest

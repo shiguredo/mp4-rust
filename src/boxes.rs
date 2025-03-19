@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    basic_types::as_box_object, descriptors::EsDescriptor, io::ExternalBytes, BaseBox, BoxHeader,
-    BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
-    FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::as_box_object,
+    descriptors::EsDescriptor, io::ExternalBytes,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -1136,11 +1136,7 @@ impl FullBox for ElstBox {
         let large = self.entries.iter().any(|x| {
             u32::try_from(x.edit_duration).is_err() || i32::try_from(x.media_time).is_err()
         });
-        if large {
-            1
-        } else {
-            0
-        }
+        if large { 1 } else { 0 }
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {
@@ -4004,13 +4000,16 @@ impl BaseBox for Mp4aBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct AudioSampleEntryFields {
-    pub data_reference_index: u16,
+    pub data_reference_index: NonZeroU16,
     pub channelcount: u16,
     pub samplesize: u16,
     pub samplerate: FixedPointNumber<u16, u16>,
 }
 
 impl AudioSampleEntryFields {
+    /// [`AudioSampleEntryFields::data_reference_index`] のデフォルト値
+    pub const DEFAULT_DATA_REFERENCE_INDEX: NonZeroU16 = NonZeroU16::MIN;
+
     /// [`AudioSampleEntryFields::sample_size`] のデフォルト値 (16)
     pub const DEFAULT_SAMPLESIZE: u16 = 16;
 }
@@ -4032,7 +4031,7 @@ impl Encode for AudioSampleEntryFields {
 impl Decode for AudioSampleEntryFields {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let _ = <[u8; 6]>::decode(&mut reader)?;
-        let data_reference_index = u16::decode(&mut reader)?;
+        let data_reference_index = NonZeroU16::decode(&mut reader)?;
         let _ = <[u8; 4 * 2]>::decode(&mut reader)?;
         let channelcount = u16::decode(&mut reader)?;
         let samplesize = u16::decode(&mut reader)?;

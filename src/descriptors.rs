@@ -18,6 +18,12 @@ pub struct EsDescriptor {
 
 impl EsDescriptor {
     const TAG: u8 = 3; // ES_DescrTag
+
+    /// [`EsDescriptor::es_id`] の実質的な最小値 (0 は予約されている）
+    pub const MIN_ES_ID: u16 = 1;
+
+    /// [`EsDescriptor::stream_priority`] で一番優先度が低くなる値
+    pub const LOWEST_STREAM_PRIORITY: Uint<u8, 5> = Uint::new(0);
 }
 
 impl Decode for EsDescriptor {
@@ -115,6 +121,15 @@ pub struct DecoderConfigDescriptor {
 
 impl DecoderConfigDescriptor {
     const TAG: u8 = 4; // DecoderConfigDescrTag
+
+    /// AAC 用の [`DecoderConfigDescriptor::object_type_indication`] の値
+    pub const OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3: u8 = 0x40;
+
+    /// 音声用の [`DecoderConfigDescriptor::stream_type`] の値
+    pub const STREAM_TYPE_AUDIO: Uint<u8, 6, 2> = Uint::new(0x05);
+
+    /// 通常の再生用メディアファイル向けの [`DecoderConfigDescriptor::up_stream`] の値
+    pub const UP_STREAM_FALSE: Uint<u8, 1, 1> = Uint::new(0);
 }
 
 impl Decode for DecoderConfigDescriptor {
@@ -158,7 +173,8 @@ impl Encode for DecoderConfigDescriptor {
         let mut payload = Vec::new();
 
         self.object_type_indication.encode(&mut payload)?;
-        (self.stream_type.to_bits() | self.up_stream.to_bits()).encode(&mut payload)?;
+        (self.stream_type.to_bits() | self.up_stream.to_bits() | Uint::<u8, 1>::new(1).to_bits())
+            .encode(&mut payload)?;
         payload.write_all(&self.buffer_size_db.to_bits().to_be_bytes()[1..])?;
         self.max_bitrate.encode(&mut payload)?;
         self.avg_bitrate.encode(&mut payload)?;
@@ -269,19 +285,37 @@ fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
 fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Result<()> {
     writer.write_all(&[tag])?;
 
-    loop {
+    let mut buf = Vec::new();
+    for i in 0.. {
         let mut b = (size & 0b0111_1111) as u8;
         size >>= 7;
 
-        if size != 0 {
+        if i > 0 {
             b |= 0b1000_0000;
         }
-        writer.write_all(&[b])?;
+        buf.push(b);
 
         if size == 0 {
             break;
         }
     }
+    buf.reverse(); // リトルエンディアンからビッグエンディアンにする
+    writer.write_all(&buf)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tag_and_size() {
+        let mut buf = Vec::new();
+        encode_tag_and_size(&mut buf, 12, 123456).unwrap();
+
+        let (tag, size) = decode_tag_and_size(&buf[..]).unwrap();
+        assert_eq!(tag, 12);
+        assert_eq!(size, 123456);
+    }
 }
