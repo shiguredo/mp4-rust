@@ -1,6 +1,6 @@
 [package]
 name = "shiguredo_mp4"
-version = "2024.4.0"
+version = "2025.1.0"
 edition = "2024"
 authors = ["Shiguredo Inc."]
 license = "Apache-2.0"
