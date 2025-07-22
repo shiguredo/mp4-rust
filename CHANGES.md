@@ -11,6 +11,11 @@
 
 ## develop
 
+### misc
+
+- [ADD] GitHub Actions の ci.yml を平日 10:00 (JST) に実行するようにする
+  - @voluntas
+
 ## 2025.1.0
 
 - [ADD] AAC 関連の定数を追加する
@@ -43,15 +48,15 @@
 ## 2024.3.0
 
 - [CHANGE] `Encode::encode()` が `writer: &mut W` ではなく `writer: W` を引数に取るように変更する
-   - @sile
+  - @sile
 - [CHANGE] `Decode::decode()` が `reader: &mut R` ではなく `reader: R` を引数に取るように変更する
-   - @sile
+  - @sile
 - [ADD] デコード時にペイロードデータを保持しない `IgnoredBox` を追加する
-   - @sile
+  - @sile
 - [ADD] `SampleTableAccessor::get_sample_by_timestamp()` を追加する
-   - @sile
+  - @sile
 - [ADD] `SampleAccessor::timestamp()` を追加する
-   - @sile
+  - @sile
 - [ADD] `SampleAccessor::sync_sample()` を追加する
   - @sile
 - [CHANGE] `SampleTableAccessor::new()` で stco ボックスと stsc ボックスの不整合をチェックするようにする
@@ -73,7 +78,7 @@
 - [ADD] `Utf8String::into_null_terminated_bytes()` メソッドを追加する
   - @sile
 - [CHANGE] 仕様上 0 を取らないフィールドの型は `NonZeroXXX` にする
-  -  @sile
+  - @sile
 - [UPDATE] ボックスに `Hash` を実装する
   - @sile
 - [CHANGE] `BoxHeader` 書き込み時に large size にするかどうかの自動判定は行わないようにする
