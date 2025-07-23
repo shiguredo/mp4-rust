@@ -398,8 +398,7 @@ impl BoxType {
             Ok(())
         } else {
             Err(Error::invalid_data(&format!(
-                "Expected box type `{}`, but got `{}`",
-                expected, self
+                "Expected box type `{expected}`, but got `{self}`"
             )))
         }
     }
