@@ -13,6 +13,8 @@
 
 ### misc
 
+- [UPDATE] clippy 0.1.88 に対応する
+  - @sile
 - [ADD] GitHub Actions の ci.yml を平日 10:00 (JST) に実行するようにする
   - @voluntas
 
