@@ -357,9 +357,9 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
 impl<R: Read, const N: usize> Read for PeekReader<R, N> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         if N < self.buf_start + buf.len() {
-            return Err(std::io::Error::other(
-                format!("[BUG] Peek buffer exhausted: buffer_size={N}"),
-            ));
+            return Err(std::io::Error::other(format!(
+                "[BUG] Peek buffer exhausted: buffer_size={N}"
+            )));
         }
 
         let read_size = self
