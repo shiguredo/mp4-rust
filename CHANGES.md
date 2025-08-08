@@ -11,6 +11,10 @@
 
 ## develop
 
+- [CHANGE] 最小サポート Rust バージョンを 1.88 に設定する
+  - `let-else` 構文を使い始めたため
+  - @sile
+
 ### misc
 
 - [UPDATE] clippy 0.1.89 に対応する
