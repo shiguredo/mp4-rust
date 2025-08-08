@@ -3362,11 +3362,11 @@ impl SttsBox {
     {
         let mut entries = Vec::<SttsEntry>::new();
         for sample_delta in sample_deltas {
-            if let Some(last) = entries.last_mut() {
-                if last.sample_delta == sample_delta {
-                    last.sample_count += 1;
-                    continue;
-                }
+            if let Some(last) = entries.last_mut()
+                && last.sample_delta == sample_delta
+            {
+                last.sample_count += 1;
+                continue;
             }
             entries.push(SttsEntry {
                 sample_count: 1,

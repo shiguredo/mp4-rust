@@ -30,15 +30,15 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             acc_duration += entry.sample_delta as u64 * entry.sample_count as u64;
         }
 
-        if let StszBox::Variable { entry_sizes } = &stbl_box_ref.stsz_box {
-            if entry_sizes.len() != sample_count as usize {
-                // stts と stsz でサンプル数が異なる
-                return Err(SampleTableAccessorError::InconsistentSampleCount {
-                    stts_sample_count: sample_count,
-                    other_box_type: StszBox::TYPE,
-                    other_sample_count: entry_sizes.len() as u32,
-                });
-            }
+        if let StszBox::Variable { entry_sizes } = &stbl_box_ref.stsz_box
+            && entry_sizes.len() != sample_count as usize
+        {
+            // stts と stsz でサンプル数が異なる
+            return Err(SampleTableAccessorError::InconsistentSampleCount {
+                stts_sample_count: sample_count,
+                other_box_type: StszBox::TYPE,
+                other_sample_count: entry_sizes.len() as u32,
+            });
         }
 
         let chunk_count = match &stbl_box_ref.stco_or_co64_box {
@@ -46,13 +46,13 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             Either::B(b) => b.chunk_offsets.len() as u32,
         };
 
-        if let Some(x) = stbl_box_ref.stsc_box.entries.first() {
-            if x.first_chunk.get() != 1 {
-                // チャンクインデックスが 1 以外から始まっている
-                return Err(SampleTableAccessorError::FirstChunkIndexIsNotOne {
-                    actual_chunk_index: x.first_chunk,
-                });
-            }
+        if let Some(x) = stbl_box_ref.stsc_box.entries.first()
+            && x.first_chunk.get() != 1
+        {
+            // チャンクインデックスが 1 以外から始まっている
+            return Err(SampleTableAccessorError::FirstChunkIndexIsNotOne {
+                actual_chunk_index: x.first_chunk,
+            });
         }
         if let Some(i) = stbl_box_ref.stsc_box.entries.iter().position(|x| {
             stbl_box_ref.stsd_box.entries.len() < x.sample_description_index.get() as usize
@@ -74,19 +74,18 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             // stsc 内のチャンクインデックスが短調増加していない
             return Err(SampleTableAccessorError::ChunkIndicesNotMonotonicallyIncreasing);
         }
-        if let Some(max_chunk_index) = NonZeroU32::new(chunk_count) {
-            if let Some(last) = stbl_box_ref
+        if let Some(max_chunk_index) = NonZeroU32::new(chunk_count)
+            && let Some(last) = stbl_box_ref
                 .stsc_box
                 .entries
                 .last()
                 .filter(|x| max_chunk_index < x.first_chunk)
-            {
-                // stco / co64 のチャンク数と stsc のチャンク数が一致していない
-                return Err(SampleTableAccessorError::LastChunkIndexIsTooLarge {
-                    max_chunk_index,
-                    last_chunk_index: last.first_chunk,
-                });
-            }
+        {
+            // stco / co64 のチャンク数と stsc のチャンク数が一致していない
+            return Err(SampleTableAccessorError::LastChunkIndexIsTooLarge {
+                max_chunk_index,
+                last_chunk_index: last.first_chunk,
+            });
         }
 
         let mut sample_index_offsets = Vec::new();
@@ -147,7 +146,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     /// 指定されたサンプルの情報を返す
     ///
     /// 存在しないサンプルが指定された場合には [`None`] が返される
-    pub fn get_sample(&self, sample_index: NonZeroU32) -> Option<SampleAccessor<T>> {
+    pub fn get_sample(&self, sample_index: NonZeroU32) -> Option<SampleAccessor<'_, T>> {
         (sample_index.get() <= self.sample_count).then_some(SampleAccessor {
             sample_table: self,
             index: sample_index,
@@ -157,7 +156,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     /// 指定されたタイムスタンプ（トラック先頭からの累計尺）を含むサンプルの情報を返す
     ///
     /// 該当のサンプルが存在しない場合には [`None`] が返される
-    pub fn get_sample_by_timestamp(&self, timestamp: u64) -> Option<SampleAccessor<T>> {
+    pub fn get_sample_by_timestamp(&self, timestamp: u64) -> Option<SampleAccessor<'_, T>> {
         let mut low = 0;
         let mut high = self.sample_count;
         while high > low {
@@ -187,7 +186,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     /// 指定されたチャンクの情報を返す
     ///
     /// 存在しないチャンクが指定された場合には [`None`] が返される
-    pub fn get_chunk(&self, chunk_index: NonZeroU32) -> Option<ChunkAccessor<T>> {
+    pub fn get_chunk(&self, chunk_index: NonZeroU32) -> Option<ChunkAccessor<'_, T>> {
         (chunk_index.get() <= self.chunk_count()).then_some(ChunkAccessor {
             sample_table: self,
             index: chunk_index,
@@ -195,7 +194,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     }
 
     /// トラック内のサンプル群の情報を走査するイテレーターを返す
-    pub fn samples(&self) -> impl '_ + Iterator<Item = SampleAccessor<T>> {
+    pub fn samples(&self) -> impl '_ + Iterator<Item = SampleAccessor<'_, T>> {
         (0..self.sample_count()).map(|i| SampleAccessor {
             sample_table: self,
             index: NonZeroU32::MIN.saturating_add(i),
@@ -203,7 +202,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     }
 
     /// トラック内のチャンク群の情報を走査するイテレーターを返す
-    pub fn chunks(&self) -> impl '_ + Iterator<Item = ChunkAccessor<T>> {
+    pub fn chunks(&self) -> impl '_ + Iterator<Item = ChunkAccessor<'_, T>> {
         (0..self.chunk_count()).map(|i| ChunkAccessor {
             sample_table: self,
             index: NonZeroU32::MIN.saturating_add(i),
@@ -436,7 +435,7 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
     }
 
     /// チャンクに属するサンプル群を走査するイテレーターを返す
-    pub fn samples(&self) -> impl '_ + Iterator<Item = SampleAccessor<T>> {
+    pub fn samples(&self) -> impl '_ + Iterator<Item = SampleAccessor<'_, T>> {
         let count = self.sample_count();
         let sample_index_offset =
             self.sample_table.sample_index_offsets[self.index.get() as usize - 1];
