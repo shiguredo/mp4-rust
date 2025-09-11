@@ -17,6 +17,8 @@
 
 ### misc
 
+- [UPDATE] GitHub Actions の ci.yml で使用する Ubuntu のバージョンを 24.04 に固定する
+  - @voluntas
 - [UPDATE] clippy 0.1.89 に対応する
   - @sile
 - [UPDATE] clippy 0.1.88 に対応する
