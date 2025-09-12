@@ -13,8 +13,8 @@ pub use basic_types::{
 pub use io::{Decode, Encode, Error, Result};
 
 // [NOTE]
-// Windows 環境では aux.rs というファイル名が予約語で使用するとエラーになるため、
-// ファイル名自体は auxiliary.rs にして lib.rs の中で aux モジュール以下に再配置している。
+// Windows 環境では aux.rs というファイル名が予約語で、リポジトリに含まれていると git clone に失敗するため、
+// ファイル名自体は auxiliary.rs にして lib.rs の中で aux モジュール以下に再エクスポートしている。
 pub mod aux {
     //! MP4 の仕様とは直接は関係がない、実装上便利な補助的なコンポーネントを集めたモジュール
 
