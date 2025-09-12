@@ -42,8 +42,8 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 Apache License 2.0
 
 ```text
-Copyright 2024-2024, Takeru Ohta (Original Author)
-Copyright 2024-2024, Shiguredo Inc.
+Copyright 2024-2025, Takeru Ohta (Original Author)
+Copyright 2024-2025, Shiguredo Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

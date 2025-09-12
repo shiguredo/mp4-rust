@@ -1,7 +1,8 @@
 [package]
 name = "shiguredo_mp4"
-version = "2025.1.0"
+version = "2025.2.0"
 edition = "2024"
+rust-version = "1.88"
 authors = ["Shiguredo Inc."]
 license = "Apache-2.0"
 description = "MP4 library"
