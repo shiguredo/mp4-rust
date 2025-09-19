@@ -1,12 +1,24 @@
 //! ボックス群
-use std::{
-    io::{Read, Write},
-    num::{NonZeroU16, NonZeroU32},
+#[cfg(feature = "std")]
+use std::io::{Read, Write};
+
+#[cfg(not(feature = "std"))]
+use crate::io::{Read, Write};
+
+use core::num::{NonZeroU16, NonZeroU32};
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    vec,
+    vec::Vec,
+    format,
+    string::String,
 };
 
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::as_box_object,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::{as_box_object, Take},
     descriptors::EsDescriptor, io::ExternalBytes,
 };
 
@@ -64,7 +76,7 @@ impl BaseBox for UnknownBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -139,7 +151,7 @@ impl BaseBox for IgnoredBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -209,9 +221,9 @@ impl Brand {
     }
 }
 
-impl std::fmt::Debug for Brand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Ok(s) = std::str::from_utf8(&self.0) {
+impl core::fmt::Debug for Brand {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Ok(s) = core::str::from_utf8(&self.0) {
             f.debug_tuple("Brand").field(&s).finish()
         } else {
             f.debug_tuple("Brand").field(&self.0).finish()
@@ -296,7 +308,7 @@ impl BaseBox for FtypBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -407,7 +419,7 @@ impl BaseBox for FreeBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -466,7 +478,7 @@ impl BaseBox for MdatBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -494,7 +506,7 @@ impl MoovBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut mvhd_box = None;
         let mut trak_boxes = Vec::new();
         let mut unknown_boxes = Vec::new();
@@ -549,8 +561,8 @@ impl BaseBox for MoovBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.mvhd_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.mvhd_box).map(as_box_object))
                 .chain(self.trak_boxes.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
@@ -606,7 +618,7 @@ impl MvhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             creation_time: Mp4FileTime::default(),
@@ -670,7 +682,7 @@ impl BaseBox for MvhdBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -717,7 +729,7 @@ impl TrakBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut tkhd_box = None;
         let mut edts_box = None;
         let mut mdia_box = None;
@@ -778,10 +790,10 @@ impl BaseBox for TrakBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.tkhd_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.tkhd_box).map(as_box_object))
                 .chain(self.edts_box.iter().map(as_box_object))
-                .chain(std::iter::once(&self.mdia_box).map(as_box_object))
+                .chain(core::iter::once(&self.mdia_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -853,7 +865,7 @@ impl TkhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             flag_track_enabled: false,
@@ -933,7 +945,7 @@ impl BaseBox for TkhdBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -981,7 +993,7 @@ impl EdtsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut elst_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -1029,7 +1041,7 @@ impl BaseBox for EdtsBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
+            core::iter::empty()
                 .chain(self.elst_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
@@ -1074,7 +1086,7 @@ impl ElstBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
 
         let mut entries = Vec::new();
@@ -1127,7 +1139,7 @@ impl BaseBox for ElstBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1168,7 +1180,7 @@ impl MdiaBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut mdhd_box = None;
         let mut hdlr_box = None;
         let mut minf_box = None;
@@ -1229,10 +1241,10 @@ impl BaseBox for MdiaBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.mdhd_box).map(as_box_object))
-                .chain(std::iter::once(&self.hdlr_box).map(as_box_object))
-                .chain(std::iter::once(&self.minf_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.mdhd_box).map(as_box_object))
+                .chain(core::iter::once(&self.hdlr_box).map(as_box_object))
+                .chain(core::iter::once(&self.minf_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -1285,7 +1297,7 @@ impl MdhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
             creation_time: Default::default(),
@@ -1348,7 +1360,7 @@ impl BaseBox for MdhdBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1404,7 +1416,7 @@ impl HdlrBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _full_header = FullBoxHeader::decode(&mut reader)?;
         let _ = <[u8; 4]>::decode(&mut reader)?;
         let handler_type = <[u8; 4]>::decode(&mut reader)?;
@@ -1441,7 +1453,7 @@ impl BaseBox for HdlrBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1482,7 +1494,7 @@ impl MinfBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut smhd_box = None;
         let mut vmhd_box = None;
         let mut dinf_box = None;
@@ -1550,10 +1562,10 @@ impl BaseBox for MinfBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.smhd_or_vmhd_box).map(as_box_object))
-                .chain(std::iter::once(&self.dinf_box).map(as_box_object))
-                .chain(std::iter::once(&self.stbl_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.smhd_or_vmhd_box).map(as_box_object))
+                .chain(core::iter::once(&self.dinf_box).map(as_box_object))
+                .chain(core::iter::once(&self.stbl_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -1580,7 +1592,7 @@ impl SmhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _full_header = FullBoxHeader::decode(&mut reader)?;
         let balance = FixedPointNumber::decode(&mut reader)?;
         let _ = <[u8; 2]>::decode(reader)?;
@@ -1614,7 +1626,7 @@ impl BaseBox for SmhdBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1653,7 +1665,7 @@ impl VmhdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         if full_header.flags.get() != 1 {
             return Err(Error::invalid_data(&format!(
@@ -1697,7 +1709,7 @@ impl BaseBox for VmhdBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1737,7 +1749,7 @@ impl DinfBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut dref_box = None;
         let mut unknown_boxes = Vec::new();
         while reader.limit() > 0 {
@@ -1786,8 +1798,8 @@ impl BaseBox for DinfBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.dref_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.dref_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -1824,7 +1836,7 @@ impl DrefBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let entry_count = u32::decode(&mut reader)?;
         let mut url_box = None;
@@ -1874,7 +1886,7 @@ impl BaseBox for DrefBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
+            core::iter::empty()
                 .chain(self.url_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
@@ -1913,7 +1925,7 @@ impl UrlBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let location = if full_header.flags.is_set(0) {
             None
@@ -1950,7 +1962,7 @@ impl BaseBox for UrlBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -1999,7 +2011,7 @@ impl StblBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut stsd_box = None;
         let mut stts_box = None;
         let mut stsc_box = None;
@@ -2084,12 +2096,12 @@ impl BaseBox for StblBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.stsd_box).map(as_box_object))
-                .chain(std::iter::once(&self.stts_box).map(as_box_object))
-                .chain(std::iter::once(&self.stsc_box).map(as_box_object))
-                .chain(std::iter::once(&self.stsz_box).map(as_box_object))
-                .chain(std::iter::once(&self.stco_or_co64_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.stsd_box).map(as_box_object))
+                .chain(core::iter::once(&self.stts_box).map(as_box_object))
+                .chain(core::iter::once(&self.stsc_box).map(as_box_object))
+                .chain(core::iter::once(&self.stsz_box).map(as_box_object))
+                .chain(core::iter::once(&self.stco_or_co64_box).map(as_box_object))
                 .chain(self.stss_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
@@ -2123,7 +2135,7 @@ impl StsdBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let entry_count = u32::decode(&mut reader)?;
         let mut entries = Vec::new();
@@ -2357,7 +2369,7 @@ impl Avc1Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut avcc_box = None;
         let mut unknown_boxes = Vec::new();
@@ -2408,8 +2420,8 @@ impl BaseBox for Avc1Box {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.avcc_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.avcc_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2492,7 +2504,7 @@ impl AvccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let configuration_version = u8::decode(&mut reader)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
             return Err(Error::invalid_data(&format!(
@@ -2582,7 +2594,7 @@ impl BaseBox for AvccBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -2608,7 +2620,7 @@ impl Hev1Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut hvcc_box = None;
         let mut unknown_boxes = Vec::new();
@@ -2659,8 +2671,8 @@ impl BaseBox for Hev1Box {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.hvcc_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.hvcc_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2751,7 +2763,7 @@ impl HvccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let configuration_version = u8::decode(&mut reader)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
             return Err(Error::invalid_data(&format!(
@@ -2854,7 +2866,7 @@ impl BaseBox for HvccBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -2880,7 +2892,7 @@ impl Vp08Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut vpcc_box = None;
         let mut unknown_boxes = Vec::new();
@@ -2931,8 +2943,8 @@ impl BaseBox for Vp08Box {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.vpcc_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.vpcc_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2960,7 +2972,7 @@ impl Vp09Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut vpcc_box = None;
         let mut unknown_boxes = Vec::new();
@@ -3011,8 +3023,8 @@ impl BaseBox for Vp09Box {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.vpcc_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.vpcc_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -3053,7 +3065,7 @@ impl VpccBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let header = FullBoxHeader::decode(&mut reader)?;
         if header.version != 1 {
             return Err(Error::invalid_data(&format!(
@@ -3115,7 +3127,7 @@ impl BaseBox for VpccBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3151,7 +3163,7 @@ impl Av01Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut av1c_box = None;
         let mut unknown_boxes = Vec::new();
@@ -3202,8 +3214,8 @@ impl BaseBox for Av01Box {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.av1c_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.av1c_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -3253,7 +3265,7 @@ impl Av1cBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let b = u8::decode(&mut reader)?;
         let marker = Uint::from_bits(b);
         let version = Uint::from_bits(b);
@@ -3332,7 +3344,7 @@ impl BaseBox for Av1cBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3386,7 +3398,7 @@ impl SttsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
         let mut entries = Vec::with_capacity(count);
@@ -3426,7 +3438,7 @@ impl BaseBox for SttsBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3471,7 +3483,7 @@ impl StscBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
         let mut entries = Vec::with_capacity(count);
@@ -3512,7 +3524,7 @@ impl BaseBox for StscBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3564,7 +3576,7 @@ impl StszBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let sample_size = u32::decode(&mut reader)?;
         let sample_count = u32::decode(&mut reader)?;
@@ -3609,7 +3621,7 @@ impl BaseBox for StszBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3643,7 +3655,7 @@ impl StcoBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
         let mut chunk_offsets = Vec::with_capacity(count);
@@ -3680,7 +3692,7 @@ impl BaseBox for StcoBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3714,7 +3726,7 @@ impl Co64Box {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
         let mut chunk_offsets = Vec::with_capacity(count);
@@ -3751,7 +3763,7 @@ impl BaseBox for Co64Box {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3785,7 +3797,7 @@ impl StssBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
         let mut sample_numbers = Vec::with_capacity(count);
@@ -3822,7 +3834,7 @@ impl BaseBox for StssBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -3858,7 +3870,7 @@ impl OpusBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(&mut reader)?;
         let mut dops_box = None;
         let mut unknown_boxes = Vec::new();
@@ -3909,8 +3921,8 @@ impl BaseBox for OpusBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.dops_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.dops_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -3938,7 +3950,7 @@ impl Mp4aBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(&mut reader)?;
         let mut esds_box = None;
         let mut unknown_boxes = Vec::new();
@@ -3989,8 +4001,8 @@ impl BaseBox for Mp4aBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
-            std::iter::empty()
-                .chain(std::iter::once(&self.esds_box).map(as_box_object))
+            core::iter::empty()
+                .chain(core::iter::once(&self.esds_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -4073,7 +4085,7 @@ impl DopsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let version = u8::decode(&mut reader)?;
         if version != Self::VERSION {
             return Err(Error::invalid_data(&format!(
@@ -4126,7 +4138,7 @@ impl BaseBox for DopsBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 
@@ -4147,7 +4159,7 @@ impl EsdsBox {
         Ok(())
     }
 
-    fn decode_payload<R: Read>(mut reader: &mut std::io::Take<R>) -> Result<Self> {
+    fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let es = EsDescriptor::decode(&mut reader)?;
         Ok(Self { es })
@@ -4180,7 +4192,7 @@ impl BaseBox for EsdsBox {
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(std::iter::empty())
+        Box::new(core::iter::empty())
     }
 }
 

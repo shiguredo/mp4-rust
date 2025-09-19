@@ -1,5 +1,10 @@
 //! MP4 のボックスのエンコードおよびデコードを行うためのライブラリ
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 mod auxiliary;
 mod basic_types;
 pub mod boxes;

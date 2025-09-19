@@ -1,7 +1,20 @@
-use std::{
-    io::{Read, Write},
+#[cfg(feature = "std")]
+use std::io::{Read, Write};
+
+#[cfg(not(feature = "std"))]
+use crate::io::{Read, Write};
+
+use core::{
     ops::{BitAnd, Shl, Shr, Sub},
     time::Duration,
+};
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    vec::Vec,
+    string::String,
+    format,
 };
 
 use crate::{
@@ -9,6 +22,133 @@ use crate::{
     boxes::{FtypBox, RootBox},
     io::PeekReader,
 };
+
+/// Take adapter for Read trait
+pub struct Take<R> {
+    inner: R,
+    limit: u64,
+}
+
+impl<R: Read> Take<R> {
+    pub fn new(inner: R, limit: u64) -> Self {
+        Take { inner, limit }
+    }
+
+    pub fn limit(&self) -> u64 {
+        self.limit
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R: Read> std::io::Read for Take<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.limit == 0 {
+            return Ok(0);
+        }
+        let max = core::cmp::min(buf.len() as u64, self.limit) as usize;
+        let n = self.inner.read(&mut buf[..max])?;
+        self.limit -= n as u64;
+        Ok(n)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<R: Read> Read for Take<R> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if self.limit == 0 {
+            return Ok(0);
+        }
+        let max = core::cmp::min(buf.len() as u64, self.limit) as usize;
+        let n = self.inner.read(&mut buf[..max])?;
+        self.limit -= n as u64;
+        Ok(n)
+    }
+}
+
+/// Chain adapter for Read trait
+pub struct Chain<R1, R2> {
+    first: R1,
+    second: R2,
+    reading_second: bool,
+}
+
+impl<R1: Read, R2: Read> Chain<R1, R2> {
+    pub fn new(first: R1, second: R2) -> Self {
+        Chain {
+            first,
+            second,
+            reading_second: false,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R1: Read, R2: Read> std::io::Read for Chain<R1, R2> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if !self.reading_second {
+            match self.first.read(buf)? {
+                0 => {
+                    self.reading_second = true;
+                    self.second.read(buf)
+                }
+                n => Ok(n),
+            }
+        } else {
+            self.second.read(buf)
+        }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if !self.reading_second {
+            match self.first.read(buf)? {
+                0 => {
+                    self.reading_second = true;
+                    self.second.read(buf)
+                }
+                n => Ok(n),
+            }
+        } else {
+            self.second.read(buf)
+        }
+    }
+}
+
+/// Extension trait for Read to add take() and chain() methods
+pub trait ReadExt: Read + Sized {
+    fn take(self, limit: u64) -> Take<Self> {
+        Take::new(self, limit)
+    }
+
+    fn chain<R: Read>(self, next: R) -> Chain<Self, R> {
+        Chain::new(self, next)
+    }
+}
+
+impl<R: Read> ReadExt for R {}
+
+// 配列にReadトレイトを実装
+#[cfg(not(feature = "std"))]
+impl<const N: usize> Read for [u8; N] {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let len = core::cmp::min(buf.len(), self.len());
+        buf[..len].copy_from_slice(&self[..len]);
+        Ok(len)
+    }
+}
+
+// &[u8]にReadトレイトを実装
+#[cfg(not(feature = "std"))]
+impl Read for &[u8] {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let len = core::cmp::min(buf.len(), self.len());
+        buf[..len].copy_from_slice(&self[..len]);
+        *self = &self[len..];
+        Ok(len)
+    }
+}
 
 /// 全てのボックスが実装するトレイト
 ///
@@ -67,8 +207,8 @@ pub struct Mp4File<B = RootBox> {
 impl<B: BaseBox> Mp4File<B> {
     /// ファイル内のトップレベルのボックス群を走査するイテレーターを返す
     pub fn iter(&self) -> impl Iterator<Item = &dyn BaseBox> {
-        std::iter::empty()
-            .chain(std::iter::once(&self.ftyp_box).map(as_box_object))
+        core::iter::empty()
+            .chain(core::iter::once(&self.ftyp_box).map(as_box_object))
             .chain(self.boxes.iter().map(as_box_object))
     }
 }
@@ -80,7 +220,12 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
         let mut boxes = Vec::new();
         let mut buf = [0];
         while reader.read(&mut buf)? != 0 {
-            let b = B::decode(&mut buf.chain(&mut reader))?;
+            #[cfg(feature = "std")]
+            let b = B::decode(&mut std::io::Read::chain(&buf[..], &mut reader))?;
+
+            #[cfg(not(feature = "std"))]
+            let b = B::decode(&mut ReadExt::chain(buf, &mut reader))?;
+
             boxes.push(b);
         }
         Ok(Self { ftyp_box, boxes })
@@ -126,10 +271,10 @@ impl BoxHeader {
     /// このヘッダーに対応するボックスのペイロード部分をデコードするためのリーダーを引数にして、指定された関数を呼び出す
     pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> Result<T>
     where
-        F: FnOnce(&mut std::io::Take<R>) -> Result<T>,
+        F: FnOnce(&mut Take<R>) -> Result<T>,
     {
         let mut reader = if self.box_size.get() == 0 {
-            reader.take(u64::MAX)
+            Take::new(reader, u64::MAX)
         } else {
             let payload_size = self
                 .box_size
@@ -143,7 +288,7 @@ impl BoxHeader {
                     ))
                     .with_box_type(self.box_type)
                 })?;
-            reader.take(payload_size)
+            Take::new(reader, payload_size)
         };
 
         let value = f(&mut reader).map_err(|e| e.with_box_type(self.box_type))?;
@@ -404,11 +549,11 @@ impl BoxType {
     }
 }
 
-impl std::fmt::Debug for BoxType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for BoxType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             BoxType::Normal(ty) => {
-                if let Ok(ty) = std::str::from_utf8(ty) {
+                if let Ok(ty) = core::str::from_utf8(ty) {
                     f.debug_tuple("BoxType").field(&ty).finish()
                 } else {
                     f.debug_tuple("BoxType").field(ty).finish()
@@ -419,10 +564,10 @@ impl std::fmt::Debug for BoxType {
     }
 }
 
-impl std::fmt::Display for BoxType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BoxType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if let BoxType::Normal(ty) = self
-            && let Ok(ty) = std::str::from_utf8(&ty[..])
+            && let Ok(ty) = core::str::from_utf8(&ty[..])
         {
             return write!(f, "{ty}");
         }
@@ -445,7 +590,7 @@ impl Mp4FileTime {
         self.0
     }
 
-    /// [`std::time::UNIX_EPOCH`] を起点とした経過時間を受け取って、対応する [`Mp4FileTime`] インスタンスを作成する
+    /// UNIX EPOCH (1970-01-01 00:00:00 UTC) を起点とした経過時間を受け取って、対応する [`Mp4FileTime`] インスタンスを作成する
     pub const fn from_unix_time(unix_time: Duration) -> Self {
         let delta = 2082844800; // 1904/1/1 から 1970/1/1 までの経過秒数
         let unix_time_secs = unix_time.as_secs();
@@ -502,7 +647,7 @@ impl Utf8String {
         if s.as_bytes().contains(&0) {
             return None;
         }
-        Some(Self(s.to_owned()))
+        Some(Self(String::from(s)))
     }
 
     /// このインスタンスが保持する、null 終端部分を含まない文字列を返す
@@ -537,7 +682,11 @@ impl Decode for Utf8String {
             bytes.push(b);
         }
         let s = String::from_utf8(bytes).map_err(|e| {
-            Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
+            #[cfg(feature = "std")]
+            return Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()));
+
+            #[cfg(not(feature = "std"))]
+            return Error::invalid_data("Invalid UTF-8 string");
         })?;
         Ok(Self(s))
     }

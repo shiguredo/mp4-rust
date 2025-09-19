@@ -12,5 +12,9 @@ readme = "README.md"
 
 [dependencies]
 
+[features]
+default = ["std"]
+std = []
+
 [workspace]
 members = ["examples/dump_wasm", "examples/transcode_wasm"]
