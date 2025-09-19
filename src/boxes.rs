@@ -8,7 +8,7 @@ use crate::io::{Read, Write};
 use core::num::{NonZeroU16, NonZeroU32};
 
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
@@ -42,6 +42,7 @@ impl Encode for UnknownBox {
 }
 
 impl Decode for UnknownBox {
+    #[allow(clippy::needless_question_mark)]
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let header = BoxHeader::decode(&mut reader)?;
         let mut payload = Vec::new();
@@ -395,6 +396,7 @@ impl Encode for FreeBox {
 }
 
 impl Decode for FreeBox {
+    #[allow(clippy::needless_question_mark)]
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
@@ -443,6 +445,7 @@ impl Encode for MdatBox {
 }
 
 impl Decode for MdatBox {
+    #[allow(clippy::needless_question_mark)]
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;

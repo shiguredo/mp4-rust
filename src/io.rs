@@ -20,7 +20,9 @@ use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct IoError {
+    /// エラーの種類
     pub kind: ErrorKind,
+    /// エラーメッセージ
     pub message: &'static str,
 }
 
@@ -73,7 +75,7 @@ pub trait Read: Sized {
 
 // &mut Rにもトレイトを実装
 #[cfg(not(feature = "std"))]
-impl<'a, R: Read + ?Sized> Read for &'a mut R {
+impl<R: Read> Read for &mut R {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         (*self).read(buf)
     }
@@ -98,7 +100,7 @@ pub trait Write: Sized {
 
 // &mut Wにもトレイトを実装
 #[cfg(not(feature = "std"))]
-impl<'a, W: Write + ?Sized> Write for &'a mut W {
+impl<W: Write> Write for &mut W {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         (*self).write(buf)
     }
@@ -173,6 +175,7 @@ impl<R1: Read, R2: Read> Read for ChainReader<R1, R2> {
 #[cfg(feature = "std")]
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// no-std環境用の結果型
 #[cfg(not(feature = "std"))]
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -182,6 +185,7 @@ pub struct Error {
     #[cfg(feature = "std")]
     pub io_error: std::io::Error,
 
+    /// 具体的なエラー理由
     #[cfg(not(feature = "std"))]
     pub io_error: IoError,
 
@@ -189,6 +193,7 @@ pub struct Error {
     #[cfg(feature = "std")]
     pub location: Option<&'static Location<'static>>,
 
+    /// エラー発生場所（no-std環境では未使用）
     #[cfg(not(feature = "std"))]
     pub location: Option<()>,
 
@@ -228,6 +233,7 @@ impl Error {
     }
 
     #[track_caller]
+    #[allow(unused_variables)]
     pub(crate) fn invalid_data(message: &str) -> Self {
         #[cfg(feature = "std")]
         return Self::from(std::io::Error::new(ErrorKind::InvalidData, message));
@@ -244,6 +250,7 @@ impl Error {
     }
 
     #[track_caller]
+    #[allow(unused_variables)]
     pub(crate) fn invalid_input(message: &str) -> Self {
         #[cfg(feature = "std")]
         return Self::from(std::io::Error::new(ErrorKind::InvalidInput, message));
@@ -260,6 +267,7 @@ impl Error {
     }
 
     #[track_caller]
+    #[allow(unused_variables)]
     pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
         #[cfg(feature = "std")]
         return Self::invalid_data(&format!(
@@ -271,6 +279,7 @@ impl Error {
     }
 
     #[track_caller]
+    #[allow(unused_variables)]
     pub(crate) fn unsupported(message: &str) -> Self {
         #[cfg(feature = "std")]
         return Self::from(std::io::Error::other(message));

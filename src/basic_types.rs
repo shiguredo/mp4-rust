@@ -61,35 +61,20 @@ impl<R: Read> Read for Take<R> {
 }
 
 /// Chain adapter for Read trait
+#[cfg(not(feature = "std"))]
 pub struct Chain<R1, R2> {
     first: R1,
     second: R2,
     reading_second: bool,
 }
 
+#[cfg(not(feature = "std"))]
 impl<R1: Read, R2: Read> Chain<R1, R2> {
     pub fn new(first: R1, second: R2) -> Self {
         Chain {
             first,
             second,
             reading_second: false,
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl<R1: Read, R2: Read> std::io::Read for Chain<R1, R2> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if !self.reading_second {
-            match self.first.read(buf)? {
-                0 => {
-                    self.reading_second = true;
-                    self.second.read(buf)
-                }
-                n => Ok(n),
-            }
-        } else {
-            self.second.read(buf)
         }
     }
 }
@@ -112,6 +97,7 @@ impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
 }
 
 /// Extension trait for Read to add take() and chain() methods
+#[cfg(not(feature = "std"))]
 pub trait ReadExt: Read + Sized {
     fn take(self, limit: u64) -> Take<Self> {
         Take::new(self, limit)
@@ -122,6 +108,7 @@ pub trait ReadExt: Read + Sized {
     }
 }
 
+#[cfg(not(feature = "std"))]
 impl<R: Read> ReadExt for R {}
 
 // 配列にReadトレイトを実装
@@ -676,6 +663,7 @@ impl Decode for Utf8String {
             }
             bytes.push(b);
         }
+        #[allow(unused_variables)]
         let s = String::from_utf8(bytes).map_err(|e| {
             #[cfg(feature = "std")]
             return Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()));
