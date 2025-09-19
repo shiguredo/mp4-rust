@@ -64,7 +64,8 @@ pub trait Read: Sized {
     fn read_to_string(&mut self, buf: &mut alloc::string::String) -> Result<usize> {
         let mut bytes = Vec::new();
         let size = self.read_to_end(&mut bytes)?;
-        let s = alloc::string::String::from_utf8(bytes).map_err(|_| Error::invalid_data("Invalid UTF-8"))?;
+        let s = alloc::string::String::from_utf8(bytes)
+            .map_err(|_| Error::invalid_data("Invalid UTF-8"))?;
         buf.push_str(&s);
         Ok(size)
     }
@@ -351,12 +352,17 @@ impl core::fmt::Display for Error {
 
         #[cfg(not(feature = "std"))]
         {
-            write!(f, "{}: {}", match self.io_error.kind {
-                ErrorKind::InvalidData => "InvalidData",
-                ErrorKind::InvalidInput => "InvalidInput",
-                ErrorKind::UnexpectedEof => "UnexpectedEof",
-                ErrorKind::Other => "Other",
-            }, self.io_error.message)?;
+            write!(
+                f,
+                "{}: {}",
+                match self.io_error.kind {
+                    ErrorKind::InvalidData => "InvalidData",
+                    ErrorKind::InvalidInput => "InvalidInput",
+                    ErrorKind::UnexpectedEof => "UnexpectedEof",
+                    ErrorKind::Other => "Other",
+                },
+                self.io_error.message
+            )?;
         }
 
         Ok(())
@@ -644,7 +650,7 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
             first: CursorReader {
                 buf: self.buf,
                 pos: 0,
-                len: self.buf_start
+                len: self.buf_start,
             },
             second: self.inner,
             reading_second: false,

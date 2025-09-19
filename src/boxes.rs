@@ -8,18 +8,14 @@ use crate::io::{Read, Write};
 use core::num::{NonZeroU16, NonZeroU32};
 
 #[cfg(not(feature = "std"))]
-use alloc::{
-    boxed::Box,
-    vec,
-    vec::Vec,
-    format,
-    string::String,
-};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::{as_box_object, Take},
-    descriptors::EsDescriptor, io::ExternalBytes,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
+    basic_types::{Take, as_box_object},
+    descriptors::EsDescriptor,
+    io::ExternalBytes,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体

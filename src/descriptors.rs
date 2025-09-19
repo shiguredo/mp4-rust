@@ -6,12 +6,7 @@ use std::io::{Read, Write};
 use crate::io::{Read, Write};
 
 #[cfg(not(feature = "std"))]
-use alloc::{
-    vec,
-    vec::Vec,
-    string::String,
-    format,
-};
+use alloc::{format, string::String, vec, vec::Vec};
 
 use crate::{Decode, Encode, Error, Result, Uint};
 

@@ -10,12 +10,7 @@ use core::{
 };
 
 #[cfg(not(feature = "std"))]
-use alloc::{
-    boxed::Box,
-    vec::Vec,
-    string::String,
-    format,
-};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
     Decode, Encode, Error, Result,
