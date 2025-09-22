@@ -20,7 +20,7 @@ jobs:
         toolchain: [stable, beta, nightly]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
       - run: cargo check
 
@@ -32,7 +32,7 @@ jobs:
         toolchain: [stable, beta, nightly]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
       - run: cargo test
 
@@ -44,7 +44,7 @@ jobs:
         toolchain: [stable, beta, nightly]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
       - run: cargo fmt -- --check
       - run: cargo clippy -- -D warnings
