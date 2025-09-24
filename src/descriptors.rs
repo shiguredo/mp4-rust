@@ -1,14 +1,11 @@
 //! ISO_IEC_14496-1 で定義されているディスクリプター群
-#[cfg(feature = "std")]
-use std::io::{Read, Write};
-
-#[cfg(not(feature = "std"))]
-use crate::io::{Read, Write};
-
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode, Encode, Error, Result, Uint};
+use crate::{
+    Decode, Encode, Error, Result, Uint,
+    io::{Read, Write},
+};
 
 #[cfg(not(feature = "std"))]
 use crate::basic_types::ReadExt;

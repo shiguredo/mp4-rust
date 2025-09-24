@@ -1,10 +1,4 @@
 //! ボックス群
-#[cfg(feature = "std")]
-use std::io::{Read, Write};
-
-#[cfg(not(feature = "std"))]
-use crate::io::{Read, Write};
-
 use core::num::{NonZeroU16, NonZeroU32};
 
 #[cfg(not(feature = "std"))]
@@ -15,7 +9,7 @@ use crate::{
     FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
     basic_types::{Take, as_box_object},
     descriptors::EsDescriptor,
-    io::ExternalBytes,
+    io::{ExternalBytes, Read, Write},
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体

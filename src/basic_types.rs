@@ -1,9 +1,3 @@
-#[cfg(feature = "std")]
-use std::io::{Read, Write};
-
-#[cfg(not(feature = "std"))]
-use crate::io::{Read, Write};
-
 use core::{
     ops::{BitAnd, Shl, Shr, Sub},
     time::Duration,
@@ -15,7 +9,7 @@ use alloc::{boxed::Box, format, string::String, vec::Vec};
 use crate::{
     Decode, Encode, Error, Result,
     boxes::{FtypBox, RootBox},
-    io::PeekReader,
+    io::{PeekReader, Read, Write},
 };
 
 /// Take adapter for Read trait
