@@ -1,4 +1,4 @@
-//! TODO: Add doc
+//! I/O 関連のコンポーネントを提供するモジュール
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
