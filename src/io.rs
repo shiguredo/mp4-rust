@@ -113,6 +113,16 @@ impl<R: Read> Read for &mut R {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl Read for &[u8] {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        let len = core::cmp::min(buf.len(), self.len());
+        buf[..len].copy_from_slice(&self[..len]);
+        *self = &self[len..];
+        Ok(len)
+    }
+}
+
 #[cfg(feature = "std")]
 pub use std::io::Write;
 
@@ -326,15 +336,5 @@ impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
         } else {
             self.second.read(buf)
         }
-    }
-}
-
-#[cfg(not(feature = "std"))]
-impl Read for &[u8] {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        let len = core::cmp::min(buf.len(), self.len());
-        buf[..len].copy_from_slice(&self[..len]);
-        *self = &self[len..];
-        Ok(len)
     }
 }
