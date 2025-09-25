@@ -260,7 +260,7 @@ impl<R: Read, const N: usize> Read for PeekReader<R, N> {
 #[cfg(feature = "std")]
 pub use std::io::Take;
 
-/// no_std 用の [`std::io::Take`] のサブセット実装
+/// no-std 環境用の [`std::io::Take`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub struct Take<R> {
     inner: R,
