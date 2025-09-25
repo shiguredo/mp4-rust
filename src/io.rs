@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 #[cfg(feature = "std")]
 pub use std::io::Error;
 
-/// no-std環境用のI/Oエラー型
+/// no-std 環境用の [`std::io::Error`] のサブセット実装
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -15,12 +15,37 @@ pub struct Error {
     pub message: &'static str,
 }
 
+#[cfg(not(feature = "std"))]
+impl Error {
+    fn unexpected_eof() -> Self {
+        Error {
+            kind: ErrorKind::UnexpectedEof,
+            message: "Unexpected end of file",
+        }
+    }
+
+    fn write_zero() -> Self {
+        Error {
+            kind: ErrorKind::Other,
+            message: "Write returned zero",
+        }
+    }
+
+    fn invalid_data(message: &'static str) -> Self {
+        Error {
+            kind: ErrorKind::InvalidData,
+            message,
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 pub use std::io::ErrorKind;
 
-/// no-std環境用のエラー種別
+/// no-std 環境用の [`std::io::ErrorKind`] のサブセット実装
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(missing_docs)]
 pub enum ErrorKind {
     InvalidData,
     InvalidInput,
@@ -31,12 +56,14 @@ pub enum ErrorKind {
 #[cfg(feature = "std")]
 pub use std::io::Read;
 
-/// no-std環境用のReadトレイト
+/// no-std 環境用の [`std::io::Read`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub trait Read: Sized {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+    /// バッファにデータを読み込み、読み込んだバイト数を返す
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error>;
 
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+    /// バッファを完全に埋めるまでデータを読み込む
+    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         let mut pos = 0;
         while pos < buf.len() {
             match self.read(&mut buf[pos..])? {
@@ -47,7 +74,8 @@ pub trait Read: Sized {
         Ok(())
     }
 
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize> {
+    /// EOF まで全てのデータをベクターに読み込み、読み込んだバイト数を返す
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize, Error> {
         let start = buf.len();
         let mut tmp = [0u8; 512];
         loop {
@@ -58,7 +86,8 @@ pub trait Read: Sized {
         }
     }
 
-    fn read_to_string(&mut self, buf: &mut alloc::string::String) -> Result<usize> {
+    /// EOF まで全てのデータを文字列として読み込み、読み込んだバイト数を返す
+    fn read_to_string(&mut self, buf: &mut alloc::string::String) -> Result<usize, Error> {
         let mut bytes = Vec::new();
         let size = self.read_to_end(&mut bytes)?;
         let s = alloc::string::String::from_utf8(bytes)
@@ -67,10 +96,12 @@ pub trait Read: Sized {
         Ok(size)
     }
 
+    /// 指定されたバイト数まで読み込みを制限する [`Take`] アダプターを作成する
     fn take(self, limit: u64) -> Take<Self> {
         Take::new(self, limit)
     }
 
+    /// このリーダーと別のリーダーを連結する [`Chain`] アダプターを作成する
     fn chain<R: Read>(self, next: R) -> Chain<Self, R> {
         Chain::new(self, next)
     }
@@ -78,7 +109,7 @@ pub trait Read: Sized {
 
 #[cfg(not(feature = "std"))]
 impl<R: Read> Read for &mut R {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         (*self).read(buf)
     }
 }
@@ -86,13 +117,17 @@ impl<R: Read> Read for &mut R {
 #[cfg(feature = "std")]
 pub use std::io::Write;
 
-/// no-std環境用のWriteトレイト
+/// no-std 環境用の [`std::io::Write`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub trait Write: Sized {
-    fn write(&mut self, buf: &[u8]) -> Result<usize>;
-    fn flush(&mut self) -> Result<()>;
+    /// バッファからデータを書き込み、書き込んだバイト数を返す
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
 
-    fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
+    /// バッファに残っているデータを強制的に出力先に送信する
+    fn flush(&mut self) -> Result<(), Error>;
+
+    /// バッファの全てのデータを完全に書き込む
+    fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Error> {
         while !buf.is_empty() {
             match self.write(buf)? {
                 0 => return Err(Error::write_zero()),
@@ -103,27 +138,25 @@ pub trait Write: Sized {
     }
 }
 
-// &mut Wにもトレイトを実装
 #[cfg(not(feature = "std"))]
 impl<W: Write> Write for &mut W {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         (*self).write(buf)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         (*self).flush()
     }
 }
 
-// Vec<u8>にWriteトレイトを実装
 #[cfg(not(feature = "std"))]
 impl Write for Vec<u8> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         self.extend_from_slice(buf);
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -138,7 +171,7 @@ struct CursorReader<const N: usize> {
 
 #[cfg(not(feature = "std"))]
 impl<const N: usize> Read for CursorReader<N> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let remaining = self.len.saturating_sub(self.pos);
         let to_read = core::cmp::min(buf.len(), remaining);
         buf[..to_read].copy_from_slice(&self.buf[self.pos..self.pos + to_read]);
@@ -157,7 +190,7 @@ struct ChainReader<R1, R2> {
 
 #[cfg(not(feature = "std"))]
 impl<R1: Read, R2: Read> Read for ChainReader<R1, R2> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if !self.reading_second {
             match self.first.read(buf)? {
                 0 => {
@@ -190,26 +223,13 @@ impl ExternalBytes {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::io::Write for ExternalBytes {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0 += buf.len() as u64;
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "std"))]
 impl Write for ExternalBytes {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         self.0 += buf.len() as u64;
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -250,6 +270,7 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
     }
 
     pub fn into_reader(self) -> impl Read {
+        // TODO: CursorReader のインタフェースをCursorにあわせる
         ChainReader {
             first: CursorReader {
                 buf: self.buf,
@@ -262,28 +283,8 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<R: std::io::Read, const N: usize> std::io::Read for PeekReader<R, N> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if N < self.buf_start + buf.len() {
-            return Err(std::io::Error::other(format!(
-                "[BUG] Peek buffer exhausted: buffer_size={N}"
-            )));
-        }
-
-        let read_size = self
-            .inner
-            .read(&mut self.buf[self.buf_start..][..buf.len()])?;
-        buf[..read_size].copy_from_slice(&self.buf[self.buf_start..][..read_size]);
-        self.buf_start += read_size;
-
-        Ok(read_size)
-    }
-}
-
-#[cfg(not(feature = "std"))]
 impl<R: Read, const N: usize> Read for PeekReader<R, N> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if N < self.buf_start + buf.len() {
             return Err(Error::invalid_data("Peek buffer exhausted"));
         }
@@ -298,7 +299,7 @@ impl<R: Read, const N: usize> Read for PeekReader<R, N> {
     }
 }
 
-/// Take adapter for Read trait
+/// no_std 用の [`std::io::Take`] のサブセット実装
 pub struct Take<R> {
     inner: R,
     limit: u64,
@@ -331,7 +332,7 @@ impl<R: Read> std::io::Read for Take<R> {
 
 #[cfg(not(feature = "std"))]
 impl<R: Read> Read for Take<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if self.limit == 0 {
             return Ok(0);
         }
@@ -342,7 +343,7 @@ impl<R: Read> Read for Take<R> {
     }
 }
 
-/// Chain adapter for Read trait
+/// no-std 環境用の [`std::io::Chain`] 実装
 #[cfg(not(feature = "std"))]
 pub struct Chain<R1, R2> {
     first: R1,
@@ -352,7 +353,7 @@ pub struct Chain<R1, R2> {
 
 #[cfg(not(feature = "std"))]
 impl<R1: Read, R2: Read> Chain<R1, R2> {
-    pub fn new(first: R1, second: R2) -> Self {
+    fn new(first: R1, second: R2) -> Self {
         Chain {
             first,
             second,
@@ -363,7 +364,7 @@ impl<R1: Read, R2: Read> Chain<R1, R2> {
 
 #[cfg(not(feature = "std"))]
 impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if !self.reading_second {
             match self.first.read(buf)? {
                 0 => {
@@ -378,20 +379,18 @@ impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
     }
 }
 
-// 配列にReadトレイトを実装
 #[cfg(not(feature = "std"))]
 impl<const N: usize> Read for [u8; N] {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let len = core::cmp::min(buf.len(), self.len());
         buf[..len].copy_from_slice(&self[..len]);
         Ok(len)
     }
 }
 
-// &[u8]にReadトレイトを実装
 #[cfg(not(feature = "std"))]
 impl Read for &[u8] {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let len = core::cmp::min(buf.len(), self.len());
         buf[..len].copy_from_slice(&self[..len]);
         *self = &self[len..];

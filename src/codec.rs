@@ -10,11 +10,8 @@ use core::num::{NonZeroU16, NonZeroU32};
 use crate::BoxType;
 use crate::io::{ErrorKind, Read, Write};
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 /// このライブラリ用の Result 型
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// このライブラリ用のエラー型
 pub struct Error {
@@ -36,22 +33,6 @@ pub struct Error {
 }
 
 impl Error {
-    #[cfg(not(feature = "std"))]
-    pub(crate) fn unexpected_eof() -> Self {
-        Self::from(crate::io::Error {
-            kind: ErrorKind::UnexpectedEof,
-            message: "Unexpected end of file",
-        });
-    }
-
-    #[cfg(not(feature = "std"))]
-    pub(crate) fn write_zero() -> Self {
-        Self::from(crate::io::Error {
-            kind: ErrorKind::Other,
-            message: "Write returned zero",
-        });
-    }
-
     #[track_caller]
     #[allow(unused_variables)]
     pub(crate) fn invalid_data(message: &str) -> Self {
@@ -114,7 +95,7 @@ impl Error {
 #[cfg(feature = "std")]
 impl From<crate::io::Error> for Error {
     #[track_caller]
-    fn from(value: std::io::Error) -> Self {
+    fn from(value: crate::io::Error) -> Self {
         Self {
             io_error: value,
             location: Some(std::panic::Location::caller()),
@@ -126,10 +107,9 @@ impl From<crate::io::Error> for Error {
 
 #[cfg(not(feature = "std"))]
 impl From<crate::io::Error> for Error {
-    fn from(value: IoError) -> Self {
+    fn from(value: crate::io::Error) -> Self {
         Self {
             io_error: value,
-            location: None,
             box_type: None,
         }
     }

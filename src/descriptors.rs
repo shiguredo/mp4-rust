@@ -7,9 +7,6 @@ use crate::{
     io::{Read, Write},
 };
 
-#[cfg(not(feature = "std"))]
-use crate::basic_types::ReadExt;
-
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]

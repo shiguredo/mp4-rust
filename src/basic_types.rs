@@ -82,12 +82,7 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
         let mut boxes = Vec::new();
         let mut buf = [0];
         while reader.read(&mut buf)? != 0 {
-            #[cfg(feature = "std")]
-            let b = B::decode(&mut std::io::Read::chain(&buf[..], &mut reader))?;
-
-            #[cfg(not(feature = "std"))]
-            let b = B::decode(&mut ReadExt::chain(buf, &mut reader))?;
-
+            let b = B::decode(&mut buf.chain(&mut reader))?;
             boxes.push(b);
         }
         Ok(Self { ftyp_box, boxes })
