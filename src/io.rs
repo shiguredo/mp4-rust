@@ -66,9 +66,16 @@ pub trait Read: Sized {
         buf.push_str(&s);
         Ok(size)
     }
+
+    fn take(self, limit: u64) -> Take<Self> {
+        Take::new(self, limit)
+    }
+
+    fn chain<R: Read>(self, next: R) -> Chain<Self, R> {
+        Chain::new(self, next)
+    }
 }
 
-// &mut Rにもトレイトを実装
 #[cfg(not(feature = "std"))]
 impl<R: Read> Read for &mut R {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -370,21 +377,6 @@ impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
         }
     }
 }
-
-/// Extension trait for Read to add take() and chain() methods
-#[cfg(not(feature = "std"))]
-pub trait ReadExt: Read + Sized {
-    fn take(self, limit: u64) -> Take<Self> {
-        Take::new(self, limit)
-    }
-
-    fn chain<R: Read>(self, next: R) -> Chain<Self, R> {
-        Chain::new(self, next)
-    }
-}
-
-#[cfg(not(feature = "std"))]
-impl<R: Read> ReadExt for R {}
 
 // 配列にReadトレイトを実装
 #[cfg(not(feature = "std"))]
