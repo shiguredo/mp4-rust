@@ -176,47 +176,29 @@ impl Write for Vec<u8> {
     }
 }
 
-/// no-std環境用のCursor風リーダー
 #[cfg(not(feature = "std"))]
-struct CursorReader<const N: usize> {
+struct Cursor<const N: usize> {
     buf: [u8; N],
     pos: usize,
     len: usize,
 }
 
 #[cfg(not(feature = "std"))]
-impl<const N: usize> Read for CursorReader<N> {
+impl<const N: usize> Cursor<N> {
+    fn new(buf: [u8; N]) -> Self {
+        let len = buf.len();
+        Self { buf, pos: 0, len }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<const N: usize> Read for Cursor<N> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let remaining = self.len.saturating_sub(self.pos);
         let to_read = core::cmp::min(buf.len(), remaining);
         buf[..to_read].copy_from_slice(&self.buf[self.pos..self.pos + to_read]);
         self.pos += to_read;
         Ok(to_read)
-    }
-}
-
-/// no-std環境用のChain風リーダー
-#[cfg(not(feature = "std"))]
-struct ChainReader<R1, R2> {
-    first: R1,
-    second: R2,
-    reading_second: bool,
-}
-
-#[cfg(not(feature = "std"))]
-impl<R1: Read, R2: Read> Read for ChainReader<R1, R2> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        if !self.reading_second {
-            match self.first.read(buf)? {
-                0 => {
-                    self.reading_second = true;
-                    self.second.read(buf)
-                }
-                n => Ok(n),
-            }
-        } else {
-            self.second.read(buf)
-        }
     }
 }
 
@@ -256,25 +238,6 @@ pub(crate) struct PeekReader<R, const N: usize> {
     inner: R,
 }
 
-#[cfg(feature = "std")]
-impl<R: std::io::Read, const N: usize> PeekReader<R, N> {
-    pub fn new(inner: R) -> Self {
-        Self {
-            buf: [0; N],
-            buf_start: 0,
-            inner,
-        }
-    }
-
-    pub fn into_reader(self) -> impl std::io::Read {
-        std::io::Read::chain(
-            std::io::Cursor::new(self.buf).take(self.buf_start as u64),
-            self.inner,
-        )
-    }
-}
-
-#[cfg(not(feature = "std"))]
 impl<R: Read, const N: usize> PeekReader<R, N> {
     pub fn new(inner: R) -> Self {
         Self {
@@ -285,16 +248,9 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
     }
 
     pub fn into_reader(self) -> impl Read {
-        // TODO: CursorReader のインタフェースをCursorにあわせる
-        ChainReader {
-            first: CursorReader {
-                buf: self.buf,
-                pos: 0,
-                len: self.buf_start,
-            },
-            second: self.inner,
-            reading_second: false,
-        }
+        Cursor::new(self.buf)
+            .take(self.buf_start as u64)
+            .chain(self.inner)
     }
 }
 
