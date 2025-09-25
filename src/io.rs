@@ -1,4 +1,4 @@
-//! I/O 関連のコンポーネントを提供するモジュール
+//! no-std 環境用に [`std::io`] の代替コンポーネントを提供するためのモジュール
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
@@ -23,27 +23,6 @@ impl Error {
     /// エラーの種類を返す
     pub fn kind(&self) -> ErrorKind {
         self.kind
-    }
-
-    fn unexpected_eof() -> Self {
-        Error {
-            kind: ErrorKind::UnexpectedEof,
-            message: "Unexpected end of file",
-        }
-    }
-
-    fn write_zero() -> Self {
-        Error {
-            kind: ErrorKind::Other,
-            message: "Write returned zero",
-        }
-    }
-
-    fn invalid_data(message: &'static str) -> Self {
-        Error {
-            kind: ErrorKind::InvalidData,
-            message,
-        }
     }
 }
 
@@ -82,7 +61,12 @@ pub trait Read: Sized {
         let mut pos = 0;
         while pos < buf.len() {
             match self.read(&mut buf[pos..])? {
-                0 => return Err(Error::unexpected_eof()),
+                0 => {
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedEof,
+                        "Unexpected end of file",
+                    ));
+                }
                 n => pos += n,
             }
         }
@@ -106,7 +90,7 @@ pub trait Read: Sized {
         let mut bytes = Vec::new();
         let size = self.read_to_end(&mut bytes)?;
         let s = alloc::string::String::from_utf8(bytes)
-            .map_err(|_| Error::invalid_data("Invalid UTF-8"))?;
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8"))?;
         buf.push_str(&s);
         Ok(size)
     }
@@ -145,7 +129,7 @@ pub trait Write: Sized {
     fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Error> {
         while !buf.is_empty() {
             match self.write(buf)? {
-                0 => return Err(Error::write_zero()),
+                0 => return Err(Error::new(ErrorKind::Other, "Write returned zero")),
                 n => buf = &buf[n..],
             }
         }
