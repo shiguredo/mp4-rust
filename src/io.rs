@@ -386,15 +386,6 @@ impl<R1: Read, R2: Read> Read for Chain<R1, R2> {
 }
 
 #[cfg(not(feature = "std"))]
-impl<const N: usize> Read for [u8; N] {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        let len = core::cmp::min(buf.len(), self.len());
-        buf[..len].copy_from_slice(&self[..len]);
-        Ok(len)
-    }
-}
-
-#[cfg(not(feature = "std"))]
 impl Read for &[u8] {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         let len = core::cmp::min(buf.len(), self.len());
