@@ -1,8 +1,12 @@
 #[cfg(feature = "std")]
-use std::{backtrace::Backtrace, panic::Location};
+use std::{
+    backtrace::Backtrace,
+    num::{NonZeroU16, NonZeroU32},
+    panic::Location,
+};
 
-#[cfg(feature = "std")]
-use std::num::{NonZeroU16, NonZeroU32};
+#[cfg(not(feature = "std"))]
+use alloc::format;
 
 #[cfg(not(feature = "std"))]
 use core::num::{NonZeroU16, NonZeroU32};
@@ -36,52 +40,27 @@ impl Error {
     #[track_caller]
     #[allow(unused_variables)]
     pub(crate) fn invalid_data(message: &str) -> Self {
-        #[cfg(feature = "std")]
-        return Self::from(crate::io::Error::new(ErrorKind::InvalidData, message));
-
-        #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error::new(
-            ErrorKind::InvalidData,
-            "Invalid data",
-        ));
+        Self::from(crate::io::Error::new(ErrorKind::InvalidData, message))
     }
 
     #[track_caller]
     #[allow(unused_variables)]
     pub(crate) fn invalid_input(message: &str) -> Self {
-        #[cfg(feature = "std")]
-        return Self::from(crate::io::Error::new(ErrorKind::InvalidInput, message));
-
-        #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error::new(
-            ErrorKind::InvalidInput,
-            "Invalid input",
-        ));
+        Self::from(crate::io::Error::new(ErrorKind::InvalidInput, message))
     }
 
     #[track_caller]
     #[allow(unused_variables)]
     pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
-        #[cfg(feature = "std")]
-        return Self::invalid_data(&format!(
+        Self::invalid_data(&format!(
             "Missing mandatory '{missing_box}' box in '{parent_box}' box"
-        ));
-
-        #[cfg(not(feature = "std"))]
-        return Self::invalid_data("Missing mandatory box");
+        ))
     }
 
     #[track_caller]
     #[allow(unused_variables)]
     pub(crate) fn unsupported(message: &str) -> Self {
-        #[cfg(feature = "std")]
-        return Self::from(crate::io::Error::other(message));
-
-        #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error::new(
-            ErrorKind::Other,
-            "Unsupported operation",
-        ));
+        Self::from(crate::io::Error::other(message))
     }
 
     pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {

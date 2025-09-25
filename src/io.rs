@@ -1,6 +1,6 @@
 //! no-std 環境用に [`std::io`] の代替コンポーネントを提供するためのモジュール
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 #[cfg(feature = "std")]
 pub use std::io::Error;
@@ -10,14 +10,28 @@ pub use std::io::Error;
 #[derive(Debug, Clone)]
 pub struct Error {
     kind: ErrorKind,
-    message: &'static str,
+    message: String,
 }
 
 #[cfg(not(feature = "std"))]
 impl Error {
     /// [`Error`] インスタンスを生成する
-    pub fn new(kind: ErrorKind, message: &'static str) -> Self {
-        Self { kind, message }
+    pub fn new<E>(kind: ErrorKind, message: E) -> Self
+    where
+        E: Into<String>,
+    {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    /// 汎用的なエラーを作成するメソッド
+    pub fn other<E>(message: E) -> Self
+    where
+        E: Into<String>,
+    {
+        Self::new(ErrorKind::Other, message)
     }
 
     /// エラーの種類を返す
