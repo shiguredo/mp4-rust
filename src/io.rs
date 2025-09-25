@@ -9,11 +9,8 @@ pub use std::io::Error;
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct Error {
-    // TODO: private にする
-    /// エラーの種類
-    pub kind: ErrorKind,
-    /// エラーメッセージ
-    pub message: &'static str,
+    kind: ErrorKind,
+    message: &'static str,
 }
 
 #[cfg(not(feature = "std"))]
@@ -21,6 +18,11 @@ impl Error {
     /// [`Error`] インスタンスを生成する
     pub fn new(kind: ErrorKind, message: &'static str) -> Self {
         Self { kind, message }
+    }
+
+    /// エラーの種類を返す
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
     }
 
     fn unexpected_eof() -> Self {
@@ -42,6 +44,13 @@ impl Error {
             kind: ErrorKind::InvalidData,
             message,
         }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}: {}", self.kind, self.message)
     }
 }
 

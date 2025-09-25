@@ -40,10 +40,10 @@ impl Error {
         return Self::from(crate::io::Error::new(ErrorKind::InvalidData, message));
 
         #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error {
-            kind: ErrorKind::InvalidData,
-            message: "Invalid data",
-        });
+        return Self::from(crate::io::Error::new(
+            ErrorKind::InvalidData,
+            "Invalid data",
+        ));
     }
 
     #[track_caller]
@@ -53,10 +53,10 @@ impl Error {
         return Self::from(crate::io::Error::new(ErrorKind::InvalidInput, message));
 
         #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error {
-            kind: ErrorKind::InvalidInput,
-            message: "Invalid input",
-        });
+        return Self::from(crate::io::Error::new(
+            ErrorKind::InvalidInput,
+            "Invalid input",
+        ));
     }
 
     #[track_caller]
@@ -78,10 +78,10 @@ impl Error {
         return Self::from(crate::io::Error::other(message));
 
         #[cfg(not(feature = "std"))]
-        return Self::from(crate::io::Error {
-            kind: ErrorKind::Other,
-            message: "Unsupported operation",
-        });
+        return Self::from(crate::io::Error::new(
+            ErrorKind::Other,
+            "Unsupported operation",
+        ));
     }
 
     pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {
@@ -134,10 +134,10 @@ impl core::fmt::Display for Error {
             write!(f, "[{ty}] ")?;
         }
 
+        write!(f, "{}", self.io_error)?;
+
         #[cfg(feature = "std")]
         {
-            write!(f, "{}", self.io_error)?;
-
             if let Some(l) = &self.location {
                 write!(f, " (at {}:{})", l.file(), l.line())?;
             }
@@ -145,21 +145,6 @@ impl core::fmt::Display for Error {
             if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
                 write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
             }
-        }
-
-        #[cfg(not(feature = "std"))]
-        {
-            write!(
-                f,
-                "{}: {}",
-                match self.io_error.kind {
-                    ErrorKind::InvalidData => "InvalidData",
-                    ErrorKind::InvalidInput => "InvalidInput",
-                    ErrorKind::UnexpectedEof => "UnexpectedEof",
-                    ErrorKind::Other => "Other",
-                },
-                self.io_error.message
-            )?;
         }
 
         Ok(())
