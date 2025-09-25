@@ -50,7 +50,7 @@ pub enum ErrorKind {
 }
 
 /// no_std 環境用の [`std::io::Read`] のサブセット実装
-pub trait Read: Sized {
+pub trait Read {
     /// バッファにデータを読み込み、読み込んだバイト数を返す
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error>;
 
@@ -94,12 +94,18 @@ pub trait Read: Sized {
     }
 
     /// 指定されたバイト数まで読み込みを制限する [`Take`] アダプターを作成する
-    fn take(self, limit: u64) -> Take<Self> {
+    fn take(self, limit: u64) -> Take<Self>
+    where
+        Self: Sized,
+    {
         Take::new(self, limit)
     }
 
     /// このリーダーと別のリーダーを連結する [`Chain`] アダプターを作成する
-    fn chain<R: Read>(self, next: R) -> Chain<Self, R> {
+    fn chain<R: Read>(self, next: R) -> Chain<Self, R>
+    where
+        Self: Sized,
+    {
         Chain::new(self, next)
     }
 }
@@ -120,7 +126,7 @@ impl Read for &[u8] {
 }
 
 /// no_std 環境用の [`std::io::Write`] のサブセット実装
-pub trait Write: Sized {
+pub trait Write {
     /// バッファからデータを書き込み、書き込んだバイト数を返す
     fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
 
