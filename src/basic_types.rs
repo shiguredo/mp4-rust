@@ -131,7 +131,7 @@ impl BoxHeader {
         F: FnOnce(&mut Take<R>) -> Result<T>,
     {
         let mut reader = if self.box_size.get() == 0 {
-            Take::new(reader, u64::MAX)
+            reader.take(u64::MAX)
         } else {
             let payload_size = self
                 .box_size
@@ -145,7 +145,7 @@ impl BoxHeader {
                     ))
                     .with_box_type(self.box_type)
                 })?;
-            Take::new(reader, payload_size)
+            reader.take(payload_size)
         };
 
         let value = f(&mut reader).map_err(|e| e.with_box_type(self.box_type))?;
@@ -540,11 +540,7 @@ impl Decode for Utf8String {
         }
         #[allow(unused_variables)]
         let s = String::from_utf8(bytes).map_err(|e| {
-            #[cfg(feature = "std")]
             return Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()));
-
-            #[cfg(not(feature = "std"))]
-            return Error::invalid_data("Invalid UTF-8 string");
         })?;
         Ok(Self(s))
     }
