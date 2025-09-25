@@ -18,7 +18,17 @@ Please read <https://github.com/shiguredo/oss> before use.
 
 Rust で実装された MP4 ファイルを読み書きするためのライブラリです。
 
-依存ライブラリ 0 で実現しています。
+## 特徴
+
+- 依存ライブラリ 0 で実現しています
+- `no_std` 環境で利用ができます
+  - <https://docs.rust-embedded.org/book/intro/no-std.html>
+
+## ロードマップ
+
+- 高レベル API の提供
+- C 互換 API の提供
+- AV2 のサポート
 
 ## WebAssembly サンプルページ
 
