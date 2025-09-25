@@ -38,19 +38,16 @@ pub struct Error {
 
 impl Error {
     #[track_caller]
-    #[allow(unused_variables)]
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(crate::io::Error::new(ErrorKind::InvalidData, message))
     }
 
     #[track_caller]
-    #[allow(unused_variables)]
     pub(crate) fn invalid_input(message: &str) -> Self {
         Self::from(crate::io::Error::new(ErrorKind::InvalidInput, message))
     }
 
     #[track_caller]
-    #[allow(unused_variables)]
     pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
         Self::invalid_data(&format!(
             "Missing mandatory '{missing_box}' box in '{parent_box}' box"
@@ -58,7 +55,6 @@ impl Error {
     }
 
     #[track_caller]
-    #[allow(unused_variables)]
     pub(crate) fn unsupported(message: &str) -> Self {
         Self::from(crate::io::Error::other(message))
     }
