@@ -4,7 +4,7 @@ use core::{
 };
 
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
     Decode, Encode, Error, Result,
@@ -504,7 +504,7 @@ impl Utf8String {
         if s.as_bytes().contains(&0) {
             return None;
         }
-        Some(Self(String::from(s)))
+        Some(Self(s.to_owned()))
     }
 
     /// このインスタンスが保持する、null 終端部分を含まない文字列を返す
@@ -538,9 +538,8 @@ impl Decode for Utf8String {
             }
             bytes.push(b);
         }
-        #[allow(unused_variables)]
         let s = String::from_utf8(bytes).map_err(|e| {
-            return Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()));
+            Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
         })?;
         Ok(Self(s))
     }
