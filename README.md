@@ -29,6 +29,7 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 - 高レベル API の提供
 - C 互換 API の提供
 - AV2 のサポート
+- Fragmented MP4 のサポート
 
 ## WebAssembly サンプルページ
 
@@ -40,7 +41,7 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 ## 規格書
 
 - ISO/IEC 14496-1
-- ISO/IEC 14496-12
+- ISO/IEC 14496-1v
 - ISO/IEC 14496-14
 - ISO/IEC 14496-15
 - [VP Codec ISO Media File Format Binding](https://www.webmproject.org/vp9/mp4/)
