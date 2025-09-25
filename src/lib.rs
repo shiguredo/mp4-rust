@@ -11,6 +11,8 @@ pub mod boxes;
 mod codec;
 pub mod descriptors;
 pub mod io;
+#[cfg(not(feature = "std"))]
+mod io_no_std;
 
 pub use basic_types::{
     BaseBox, BoxHeader, BoxSize, BoxType, Either, FixedPointNumber, FullBox, FullBoxFlags,
