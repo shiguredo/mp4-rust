@@ -9,6 +9,7 @@ pub use std::io::Error;
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct Error {
+    // TODO: private にする
     /// エラーの種類
     pub kind: ErrorKind,
     /// エラーメッセージ
@@ -17,6 +18,11 @@ pub struct Error {
 
 #[cfg(not(feature = "std"))]
 impl Error {
+    /// [`Error`] インスタンスを生成する
+    pub fn new(kind: ErrorKind, message: &'static str) -> Self {
+        Self { kind, message }
+    }
+
     fn unexpected_eof() -> Self {
         Error {
             kind: ErrorKind::UnexpectedEof,
@@ -286,7 +292,7 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
 impl<R: Read, const N: usize> Read for PeekReader<R, N> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if N < self.buf_start + buf.len() {
-            return Err(Error::invalid_data("Peek buffer exhausted"));
+            return Err(Error::new(ErrorKind::InvalidData, "Peek buffer exhausted"));
         }
 
         let read_size = self

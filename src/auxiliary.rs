@@ -465,6 +465,9 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
+
     use crate::{
         BaseBox, BoxSize, BoxType,
         boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},
