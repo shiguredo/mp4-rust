@@ -1,11 +1,11 @@
-//! no-std 環境用に [`std::io`] の代替コンポーネントを提供するためのモジュール
+//! no_std 環境用に [`std::io`] の代替コンポーネントを提供するためのモジュール
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
 
 #[cfg(feature = "std")]
 pub use std::io::Error;
 
-/// no-std 環境用の [`std::io::Error`] のサブセット実装
+/// no_std 環境用の [`std::io::Error`] のサブセット実装
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -50,7 +50,7 @@ impl core::fmt::Display for Error {
 #[cfg(feature = "std")]
 pub use std::io::ErrorKind;
 
-/// no-std 環境用の [`std::io::ErrorKind`] のサブセット実装
+/// no_std 環境用の [`std::io::ErrorKind`] のサブセット実装
 #[cfg(not(feature = "std"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[expect(missing_docs)]
@@ -64,7 +64,7 @@ pub enum ErrorKind {
 #[cfg(feature = "std")]
 pub use std::io::Read;
 
-/// no-std 環境用の [`std::io::Read`] のサブセット実装
+/// no_std 環境用の [`std::io::Read`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub trait Read: Sized {
     /// バッファにデータを読み込み、読み込んだバイト数を返す
@@ -140,7 +140,7 @@ impl Read for &[u8] {
 #[cfg(feature = "std")]
 pub use std::io::Write;
 
-/// no-std 環境用の [`std::io::Write`] のサブセット実装
+/// no_std 環境用の [`std::io::Write`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub trait Write: Sized {
     /// バッファからデータを書き込み、書き込んだバイト数を返す
@@ -284,7 +284,7 @@ impl<R: Read, const N: usize> Read for PeekReader<R, N> {
 #[cfg(feature = "std")]
 pub use std::io::Take;
 
-/// no-std 環境用の [`std::io::Take`] のサブセット実装
+/// no_std 環境用の [`std::io::Take`] のサブセット実装
 #[cfg(not(feature = "std"))]
 pub struct Take<R> {
     inner: R,
@@ -317,7 +317,7 @@ impl<R: Read> Read for Take<R> {
     }
 }
 
-/// no-std 環境用の [`std::io::Chain`] 実装
+/// no_std 環境用の [`std::io::Chain`] 実装
 #[cfg(not(feature = "std"))]
 pub struct Chain<R1, R2> {
     first: R1,

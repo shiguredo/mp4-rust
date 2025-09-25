@@ -11,9 +11,9 @@
 
 ## develop
 
-- [ADD] no-std 環境のサポートを追加する
-  - `default-features = false` を指定することで no-std 環境でも利用可能になった
-  - no-std 環境では独自の I/O トレイトを使用し、alloc クレートに依存する
+- [ADD] no_std 環境のサポートを追加する
+  - `default-features = false` を指定することで no_std 環境でも利用可能になった
+  - no_std 環境では独自の I/O トレイトを使用し、alloc クレートに依存する
   - std 環境がデフォルトなので、既存のコードへの影響はない
   - @voluntas
 
