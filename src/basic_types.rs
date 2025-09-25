@@ -1,13 +1,15 @@
-use std::{
-    io::{Read, Write},
+use core::{
     ops::{BitAnd, Shl, Shr, Sub},
     time::Duration,
 };
 
+#[cfg(not(feature = "std"))]
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
+
 use crate::{
     Decode, Encode, Error, Result,
     boxes::{FtypBox, RootBox},
-    io::PeekReader,
+    io::{PeekReader, Read, Take, Write},
 };
 
 /// 全てのボックスが実装するトレイト
@@ -67,8 +69,8 @@ pub struct Mp4File<B = RootBox> {
 impl<B: BaseBox> Mp4File<B> {
     /// ファイル内のトップレベルのボックス群を走査するイテレーターを返す
     pub fn iter(&self) -> impl Iterator<Item = &dyn BaseBox> {
-        std::iter::empty()
-            .chain(std::iter::once(&self.ftyp_box).map(as_box_object))
+        core::iter::empty()
+            .chain(core::iter::once(&self.ftyp_box).map(as_box_object))
             .chain(self.boxes.iter().map(as_box_object))
     }
 }
@@ -126,7 +128,7 @@ impl BoxHeader {
     /// このヘッダーに対応するボックスのペイロード部分をデコードするためのリーダーを引数にして、指定された関数を呼び出す
     pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> Result<T>
     where
-        F: FnOnce(&mut std::io::Take<R>) -> Result<T>,
+        F: FnOnce(&mut Take<R>) -> Result<T>,
     {
         let mut reader = if self.box_size.get() == 0 {
             reader.take(u64::MAX)
@@ -404,11 +406,11 @@ impl BoxType {
     }
 }
 
-impl std::fmt::Debug for BoxType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for BoxType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             BoxType::Normal(ty) => {
-                if let Ok(ty) = std::str::from_utf8(ty) {
+                if let Ok(ty) = core::str::from_utf8(ty) {
                     f.debug_tuple("BoxType").field(&ty).finish()
                 } else {
                     f.debug_tuple("BoxType").field(ty).finish()
@@ -419,10 +421,10 @@ impl std::fmt::Debug for BoxType {
     }
 }
 
-impl std::fmt::Display for BoxType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BoxType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if let BoxType::Normal(ty) = self
-            && let Ok(ty) = std::str::from_utf8(&ty[..])
+            && let Ok(ty) = core::str::from_utf8(&ty[..])
         {
             return write!(f, "{ty}");
         }
@@ -445,7 +447,7 @@ impl Mp4FileTime {
         self.0
     }
 
-    /// [`std::time::UNIX_EPOCH`] を起点とした経過時間を受け取って、対応する [`Mp4FileTime`] インスタンスを作成する
+    /// UNIX EPOCH (1970-01-01 00:00:00 UTC) を起点とした経過時間を受け取って、対応する [`Mp4FileTime`] インスタンスを作成する
     pub const fn from_unix_time(unix_time: Duration) -> Self {
         let delta = 2082844800; // 1904/1/1 から 1970/1/1 までの経過秒数
         let unix_time_secs = unix_time.as_secs();

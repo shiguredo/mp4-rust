@@ -1,7 +1,11 @@
 //! ISO_IEC_14496-1 で定義されているディスクリプター群
-use std::io::{Read, Write};
+#[cfg(not(feature = "std"))]
+use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode, Encode, Error, Result, Uint};
+use crate::{
+    Decode, Encode, Error, Result, Uint,
+    io::{Read, Write},
+};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

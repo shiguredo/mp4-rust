@@ -11,6 +11,12 @@
 
 ## develop
 
+- [ADD] no_std 環境のサポートを追加する
+  - `default-features = false` を指定することで no_std 環境でも利用可能になった
+  - no_std 環境では独自の I/O トレイトを使用し、alloc クレートに依存する
+  - std 環境がデフォルトなので、既存のコードへの影響はない
+  - @voluntas
+
 ## 2025.2.0
 
 - [FIX] Windows でリポジトリの clone に失敗する問題を修正する

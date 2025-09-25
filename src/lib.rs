@@ -1,16 +1,24 @@
 //! MP4 のボックスのエンコードおよびデコードを行うためのライブラリ
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 mod auxiliary;
 mod basic_types;
 pub mod boxes;
+mod codec;
 pub mod descriptors;
-mod io;
+pub mod io;
+#[cfg(not(feature = "std"))]
+mod io_no_std;
 
 pub use basic_types::{
     BaseBox, BoxHeader, BoxSize, BoxType, Either, FixedPointNumber, FullBox, FullBoxFlags,
     FullBoxHeader, Mp4File, Mp4FileTime, Uint, Utf8String,
 };
-pub use io::{Decode, Encode, Error, Result};
+pub use codec::{Decode, Encode, Error, Result};
 
 // [NOTE]
 // Windows 環境では aux.rs というファイル名が予約語で、リポジトリに含まれていると git clone に失敗するため、

@@ -1,5 +1,8 @@
 //! MP4 の仕様とは直接は関係がない、実装上便利な補助的なコンポーネントを集めたモジュール
-use std::num::NonZeroU32;
+use core::num::NonZeroU32;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 
 use crate::{
     BoxType, Either,
@@ -168,11 +171,11 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             let sample_timestamp = sample.timestamp();
 
             match timestamp.cmp(&sample_timestamp) {
-                std::cmp::Ordering::Less => {
+                core::cmp::Ordering::Less => {
                     high = i;
                 }
-                std::cmp::Ordering::Equal => return Some(sample),
-                std::cmp::Ordering::Greater => {
+                core::cmp::Ordering::Equal => return Some(sample),
+                core::cmp::Ordering::Greater => {
                     if timestamp < sample_timestamp + sample.duration() as u64 {
                         return Some(sample);
                     }
@@ -261,8 +264,8 @@ pub enum SampleTableAccessorError {
     ChunkIndicesNotMonotonicallyIncreasing,
 }
 
-impl std::fmt::Display for SampleTableAccessorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for SampleTableAccessorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             SampleTableAccessorError::InconsistentSampleCount {
                 stts_sample_count,
@@ -307,6 +310,7 @@ impl std::fmt::Display for SampleTableAccessorError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for SampleTableAccessorError {}
 
 /// [`StblBox`] 内の個々のサンプルの情報を取得するための構造体
@@ -461,6 +465,9 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
+
     use crate::{
         BaseBox, BoxSize, BoxType,
         boxes::{StcoBox, StscBox, StscEntry, StsdBox, StssBox, SttsBox, UnknownBox},

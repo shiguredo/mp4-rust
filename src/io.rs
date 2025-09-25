@@ -1,313 +1,24 @@
-use std::{
-    backtrace::Backtrace,
-    io::{Cursor, ErrorKind, Read, Write},
-    num::{NonZeroU16, NonZeroU32},
-    panic::Location,
-};
+//! no_std 環境用に [`std::io`] の代替コンポーネントを提供するためのモジュール
 
-use crate::BoxType;
+#[cfg(feature = "std")]
+pub use std::io::{Chain, Error, ErrorKind, Read, Take, Write};
 
-/// このライブラリ用の [`std::result::Result`] 型
-pub type Result<T> = std::result::Result<T, Error>;
+#[cfg(not(feature = "std"))]
+pub use crate::io_no_std::{Chain, Error, ErrorKind, Read, Take, Write};
 
-/// このライブラリ用のエラー型
-pub struct Error {
-    /// 具体的なエラー理由
-    pub io_error: std::io::Error,
+#[cfg(feature = "std")]
+use std::io::Cursor;
 
-    /// エラー発生場所
-    pub location: Option<&'static Location<'static>>,
-
-    /// エラーが発生したボックスの種別
-    pub box_type: Option<BoxType>,
-
-    /// エラー発生箇所を示すバックトレース
-    ///
-    /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
-    pub backtrace: Backtrace,
-}
-
-impl Error {
-    #[track_caller]
-    pub(crate) fn invalid_data(message: &str) -> Self {
-        Self::from(std::io::Error::new(ErrorKind::InvalidData, message))
-    }
-
-    #[track_caller]
-    pub(crate) fn invalid_input(message: &str) -> Self {
-        Self::from(std::io::Error::new(ErrorKind::InvalidInput, message))
-    }
-
-    #[track_caller]
-    pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
-        Self::invalid_data(&format!(
-            "Missing mandatory '{missing_box}' box in '{parent_box}' box"
-        ))
-    }
-
-    #[track_caller]
-    pub(crate) fn unsupported(message: &str) -> Self {
-        Self::from(std::io::Error::other(message))
-    }
-
-    pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {
-        if self.box_type.is_none() {
-            self.box_type = Some(box_type);
-        }
-        self
-    }
-}
-
-impl From<std::io::Error> for Error {
-    #[track_caller]
-    fn from(value: std::io::Error) -> Self {
-        Self {
-            io_error: value,
-            location: Some(std::panic::Location::caller()),
-            box_type: None,
-            backtrace: Backtrace::capture(),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.io_error)
-    }
-}
-
-impl std::fmt::Debug for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self}")
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(ty) = self.box_type {
-            write!(f, "[{ty}] ")?;
-        }
-
-        write!(f, "{}", self.io_error)?;
-
-        if let Some(l) = &self.location {
-            write!(f, " (at {}:{})", l.file(), l.line())?;
-        }
-
-        if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-            write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
-        }
-
-        Ok(())
-    }
-}
-
-/// `self` のバイト列への変換を行うためのトレイト
-pub trait Encode {
-    /// `self` をバイト列に変換して `writer` に書き込む
-    fn encode<W: Write>(&self, writer: W) -> Result<()>;
-}
-
-impl Encode for u8 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u64 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i8 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i64 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for NonZeroU16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        self.get().encode(writer)
-    }
-}
-
-impl Encode for NonZeroU32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        self.get().encode(writer)
-    }
-}
-
-impl<T: Encode, const N: usize> Encode for [T; N] {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        for item in self {
-            item.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-}
-
-/// バイト列を `Self` に変換するためのトレイト
-pub trait Decode: Sized {
-    /// `reader` から読み込んだバイト列から `Self` を構築する
-    fn decode<R: Read>(reader: R) -> Result<Self>;
-}
-
-impl Decode for u8 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for u16 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for u32 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for u64 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for i8 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for i16 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for i32 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for i64 {
-    #[track_caller]
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; Self::BITS as usize / 8];
-        reader.read_exact(&mut buf)?;
-        Ok(Self::from_be_bytes(buf))
-    }
-}
-
-impl Decode for NonZeroU16 {
-    #[track_caller]
-    fn decode<R: Read>(reader: R) -> Result<Self> {
-        let v = u16::decode(reader)?;
-        NonZeroU16::new(v)
-            .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
-    }
-}
-
-impl Decode for NonZeroU32 {
-    #[track_caller]
-    fn decode<R: Read>(reader: R) -> Result<Self> {
-        let v = u32::decode(reader)?;
-        NonZeroU32::new(v)
-            .ok_or_else(|| Error::invalid_data("Expected a non-zero integer, but got 0"))
-    }
-}
-
-impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut items = [T::default(); N];
-        for item in &mut items {
-            *item = T::decode(&mut reader)?;
-        }
-        Ok(items)
-    }
-}
+#[cfg(not(feature = "std"))]
+use crate::io_no_std::Cursor;
 
 #[derive(Debug, Default)]
-pub struct ExternalBytes(pub u64);
+pub(crate) struct ExternalBytes(pub u64);
 
 impl ExternalBytes {
     pub fn calc<F>(f: F) -> u64
     where
-        F: FnOnce(&mut Self) -> Result<()>,
+        F: FnOnce(&mut Self) -> crate::Result<()>,
     {
         let mut external_bytes = Self(0);
 
@@ -320,18 +31,18 @@ impl ExternalBytes {
 }
 
 impl Write for ExternalBytes {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         self.0 += buf.len() as u64;
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct PeekReader<R, const N: usize> {
+pub(crate) struct PeekReader<R, const N: usize> {
     buf: [u8; N],
     buf_start: usize,
     inner: R,
@@ -347,19 +58,16 @@ impl<R: Read, const N: usize> PeekReader<R, N> {
     }
 
     pub fn into_reader(self) -> impl Read {
-        Read::chain(
-            Cursor::new(self.buf).take(self.buf_start as u64),
-            self.inner,
-        )
+        Cursor::new(self.buf)
+            .take(self.buf_start as u64)
+            .chain(self.inner)
     }
 }
 
 impl<R: Read, const N: usize> Read for PeekReader<R, N> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         if N < self.buf_start + buf.len() {
-            return Err(std::io::Error::other(format!(
-                "[BUG] Peek buffer exhausted: buffer_size={N}"
-            )));
+            return Err(Error::new(ErrorKind::InvalidData, "Peek buffer exhausted"));
         }
 
         let read_size = self
