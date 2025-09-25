@@ -176,6 +176,9 @@ impl Write for Vec<u8> {
     }
 }
 
+#[cfg(feature = "std")]
+use std::io::Cursor;
+
 #[cfg(not(feature = "std"))]
 struct Cursor<const N: usize> {
     buf: [u8; N],
@@ -270,12 +273,17 @@ impl<R: Read, const N: usize> Read for PeekReader<R, N> {
     }
 }
 
+#[cfg(feature = "std")]
+pub use std::io::Take;
+
 /// no_std 用の [`std::io::Take`] のサブセット実装
+#[cfg(not(feature = "std"))]
 pub struct Take<R> {
     inner: R,
     limit: u64,
 }
 
+#[cfg(not(feature = "std"))]
 impl<R: Read> Take<R> {
     /// 指定されたリーダーとバイト制限で新しいTakeインスタンスを作成する
     pub fn new(inner: R, limit: u64) -> Self {
@@ -285,19 +293,6 @@ impl<R: Read> Take<R> {
     /// 残りの読み取り可能バイト数を返す
     pub fn limit(&self) -> u64 {
         self.limit
-    }
-}
-
-#[cfg(feature = "std")]
-impl<R: Read> std::io::Read for Take<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if self.limit == 0 {
-            return Ok(0);
-        }
-        let max = core::cmp::min(buf.len() as u64, self.limit) as usize;
-        let n = self.inner.read(&mut buf[..max])?;
-        self.limit -= n as u64;
-        Ok(n)
     }
 }
 
