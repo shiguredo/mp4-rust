@@ -126,6 +126,12 @@ impl core::fmt::Display for Error {
     }
 }
 
+/// TODO: doc
+pub trait Encode2 {
+    /// TODO: doc
+    fn encode2(&self, buf: &mut [u8]) -> Result<usize>;
+}
+
 /// `self` のバイト列への変換を行うためのトレイト
 pub trait Encode {
     /// `self` をバイト列に変換して `writer` に書き込む
