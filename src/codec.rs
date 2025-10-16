@@ -41,7 +41,7 @@ pub struct Error2 {
 
     /// エラー発生場所
     #[cfg(feature = "std")]
-    pub location: Option<&'static Location<'static>>,
+    pub location: &'static Location<'static>,
 
     /// エラーが発生したボックスの種別
     pub box_type: Option<BoxType>,
@@ -52,6 +52,46 @@ pub struct Error2 {
     #[cfg(feature = "std")]
     pub backtrace: Backtrace,
 }
+
+impl Error2 {
+    /// TODO: doc
+    #[track_caller]
+    pub fn new(kind: ErrorKind2) -> Self {
+        Self::with_reason(kind, String::new())
+    }
+
+    /// TODO: doc
+    #[track_caller]
+    pub fn with_reason<T: Into<String>>(kind: ErrorKind2, reason: T) -> Self {
+        Self {
+            kind,
+            reason: reason.into(),
+            #[cfg(feature = "std")]
+            location: std::panic::Location::caller(),
+            box_type: None,
+            #[cfg(feature = "std")]
+            backtrace: Backtrace::capture(),
+        }
+    }
+
+    /// TODO: doc
+    #[track_caller]
+    pub fn insufficient_buffer() -> Self {
+        Self::new(ErrorKind2::InsufficientBuffer)
+    }
+
+    /// TODO: doc
+    #[track_caller]
+    pub fn check_buffer_size(required_size: usize, buf: &[u8]) -> Result2<()> {
+        if buf.len() < required_size {
+            Err(Self::insufficient_buffer())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+// TODO: impl std::error::Error
 
 /// このライブラリ用のエラー型
 pub struct Error {
@@ -166,6 +206,15 @@ impl core::fmt::Display for Error {
 pub trait Encode2 {
     /// TODO: doc
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize>;
+}
+
+impl Encode2 for u8 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(1, buf)?;
+        buf[0] = *self;
+        Ok(1)
+    }
 }
 
 /// `self` のバイト列への変換を行うためのトレイト
