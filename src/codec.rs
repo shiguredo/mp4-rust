@@ -217,6 +217,94 @@ impl Encode2 for u8 {
     }
 }
 
+impl Encode2 for u16 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(2, buf)?;
+        buf[..2].copy_from_slice(&self.to_be_bytes());
+        Ok(2)
+    }
+}
+
+impl Encode2 for u32 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(4, buf)?;
+        buf[..4].copy_from_slice(&self.to_be_bytes());
+        Ok(4)
+    }
+}
+
+impl Encode2 for u64 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(8, buf)?;
+        buf[..8].copy_from_slice(&self.to_be_bytes());
+        Ok(8)
+    }
+}
+
+impl Encode2 for i8 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(1, buf)?;
+        buf[0] = *self as u8;
+        Ok(1)
+    }
+}
+
+impl Encode2 for i16 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(2, buf)?;
+        buf[..2].copy_from_slice(&self.to_be_bytes());
+        Ok(2)
+    }
+}
+
+impl Encode2 for i32 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(4, buf)?;
+        buf[..4].copy_from_slice(&self.to_be_bytes());
+        Ok(4)
+    }
+}
+
+impl Encode2 for i64 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(8, buf)?;
+        buf[..8].copy_from_slice(&self.to_be_bytes());
+        Ok(8)
+    }
+}
+
+impl Encode2 for NonZeroU16 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.get().encode2(buf)
+    }
+}
+
+impl Encode2 for NonZeroU32 {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.get().encode2(buf)
+    }
+}
+
+impl<T: Encode2, const N: usize> Encode2 for [T; N] {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        for item in self {
+            offset += item.encode2(&mut buf[offset..])?;
+        }
+        Ok(offset)
+    }
+}
+
 /// `self` のバイト列への変換を行うためのトレイト
 pub trait Encode {
     /// `self` をバイト列に変換して `writer` に書き込む
