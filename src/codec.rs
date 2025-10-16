@@ -17,6 +17,42 @@ use crate::io::{ErrorKind, Read, Write};
 /// このライブラリ用の Result 型
 pub type Result<T> = core::result::Result<T, Error>;
 
+/// このライブラリ用の Result 型
+pub type Result2<T> = core::result::Result<T, Error2>;
+
+/// TODO: doc
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErrorKind2 {
+    /// TODO: doc
+    InvalidInput,
+    /// TODO: doc
+    InvalidData,
+    /// TODO: doc
+    InsufficientBuffer,
+}
+
+/// TODO: doc
+pub struct Error2 {
+    /// TODO: doc
+    pub kind: ErrorKind2,
+
+    /// TODO: doc
+    pub reason: String,
+
+    /// エラー発生場所
+    #[cfg(feature = "std")]
+    pub location: Option<&'static Location<'static>>,
+
+    /// エラーが発生したボックスの種別
+    pub box_type: Option<BoxType>,
+
+    /// エラー発生箇所を示すバックトレース
+    ///
+    /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
+    #[cfg(feature = "std")]
+    pub backtrace: Backtrace,
+}
+
 /// このライブラリ用のエラー型
 pub struct Error {
     /// 具体的なエラー理由
@@ -129,7 +165,7 @@ impl core::fmt::Display for Error {
 /// TODO: doc
 pub trait Encode2 {
     /// TODO: doc
-    fn encode2(&self, buf: &mut [u8]) -> Result<usize>;
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize>;
 }
 
 /// `self` のバイト列への変換を行うためのトレイト
@@ -223,6 +259,12 @@ impl<T: Encode, const N: usize> Encode for [T; N] {
         }
         Ok(())
     }
+}
+
+/// TODO: doc
+pub trait Decode2: Sized {
+    /// TODO: doc
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)>;
 }
 
 /// バイト列を `Self` に変換するためのトレイト
