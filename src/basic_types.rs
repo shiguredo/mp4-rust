@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Encode2, Error, Error2, Result, Result2,
+    Decode, Encode, Encode2, Error, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{PeekReader, Read, Take, Write},
 };
