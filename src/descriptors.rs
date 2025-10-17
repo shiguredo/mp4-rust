@@ -113,8 +113,6 @@ impl Encode for EsDescriptor {
 impl Encode2 for EsDescriptor {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-
-        // ペイロードを書き込む
         offset += self.es_id.encode2(&mut buf[offset..])?;
         offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
             | Uint::<u8, 1, 6>::new(self.url_string.is_some() as u8).to_bits()
@@ -136,14 +134,7 @@ impl Encode2 for EsDescriptor {
         offset += self.dec_config_descr.encode2(&mut buf[offset..])?;
         offset += self.sl_config_descr.encode2(&mut buf[offset..])?;
 
-        // ペイロードをずらして、先頭にタグとサイズを書き込む
-        let mut header_buf = [0; 64];
-        let header_size = encode_tag_and_size2(&mut header_buf, Self::TAG, offset)?;
-        Error2::check_buffer_size(header_size + offset, buf)?;
-        buf.copy_within(..offset, header_size);
-        buf[..header_size].copy_from_slice(&header_buf[..header_size]);
-
-        Ok(header_size + offset)
+        encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
 
@@ -242,23 +233,7 @@ impl Encode2 for DecoderConfigDescriptor {
         offset += self.avg_bitrate.encode2(&mut buf[offset..])?;
         offset += self.dec_specific_info.encode2(&mut buf[offset..])?;
 
-        let mut header_offset = 0;
-        header_offset += encode_tag_and_size2(
-            buf.get_mut(header_offset..)
-                .ok_or_else(Error2::insufficient_buffer)?,
-            Self::TAG,
-            offset,
-        )?;
-
-        let required = header_offset + offset;
-        Error2::check_buffer_size(required, buf)?;
-
-        // Shift payload to make room for header if needed
-        if header_offset > 0 && offset > 0 {
-            buf.copy_within(..offset, header_offset);
-        }
-
-        Ok(required)
+        encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
 
@@ -307,10 +282,10 @@ impl Encode2 for DecoderSpecificInfo {
             Self::TAG,
             self.payload.len(),
         )?;
-        let required = offset + self.payload.len();
-        Error2::check_buffer_size(required, buf)?;
-        buf[offset..required].copy_from_slice(&self.payload);
-        Ok(required)
+        let size = offset + self.payload.len();
+        Error2::check_buffer_size(size, buf)?;
+        buf[offset..size].copy_from_slice(&self.payload);
+        Ok(size)
     }
 }
 
@@ -412,6 +387,16 @@ fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Res
     writer.write_all(&buf)?;
 
     Ok(())
+}
+
+// buf の先頭にペイロードが格納されている前提
+fn encode_tag_and_payload(buf: &mut [u8], tag: u8, payload_size: usize) -> Result2<usize> {
+    let mut header_buf = [0; 64];
+    let header_size = encode_tag_and_size2(&mut header_buf, tag, payload_size)?;
+    Error2::check_buffer_size(header_size + payload_size, buf)?;
+    buf.copy_within(..payload_size, header_size);
+    buf[..header_size].copy_from_slice(&header_buf[..header_size]);
+    Ok(header_size + payload_size)
 }
 
 fn encode_tag_and_size2(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
