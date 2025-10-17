@@ -76,6 +76,12 @@ impl Error2 {
 
     /// TODO: doc
     #[track_caller]
+    pub fn invalid_input<T: Into<String>>(reason: T) -> Self {
+        Self::with_reason(ErrorKind2::InvalidInput, reason)
+    }
+
+    /// TODO: doc
+    #[track_caller]
     pub fn insufficient_buffer() -> Self {
         Self::new(ErrorKind2::InsufficientBuffer)
     }
