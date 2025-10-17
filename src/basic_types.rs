@@ -92,6 +92,21 @@ pub struct BoxHeader {
 impl BoxHeader {
     const MAX_SIZE: usize = (4 + 8) + (4 + 16);
 
+    /// TODO: doc
+    pub fn new_variable_size(box_type: BoxType) -> Self {
+        Self {
+            box_type,
+            box_size: BoxSize::VARIABLE_SIZE,
+        }
+    }
+
+    /// TODO: doc
+    pub fn finalize_box_size(self, actual_box_size: usize, buf: &mut [u8]) -> Result2<()> {
+        // or update_box_header(self, old:Self,buf:&mut [u8])
+        Ok(())
+    }
+
+    // TODO: remove
     /// ボックスへの参照を受け取って、対応するヘッダーを作成する
     pub fn from_box<B: BaseBox>(b: &B) -> Self {
         let box_type = b.box_type();
