@@ -3354,7 +3354,7 @@ impl Encode2 for HvccBox {
         .encode2(&mut buf[offset..])?;
         offset += u8::try_from(self.nalu_arrays.len())
             .map_err(|_| {
-                Error2::invalid_input(&format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
+                Error2::invalid_input(format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
             })?
             .encode2(&mut buf[offset..])?;
         for nalu_array in &self.nalu_arrays {
@@ -3363,12 +3363,12 @@ impl Encode2 for HvccBox {
             .encode2(&mut buf[offset..])?;
             offset += u16::try_from(nalu_array.nalus.len())
                 .map_err(|_| {
-                    Error2::invalid_input(&format!("Too many NALUs: {}", nalu_array.nalus.len()))
+                    Error2::invalid_input(format!("Too many NALUs: {}", nalu_array.nalus.len()))
                 })?
                 .encode2(&mut buf[offset..])?;
             for nalu in &nalu_array.nalus {
                 offset += u16::try_from(nalu.len())
-                    .map_err(|_| Error2::invalid_input(&format!("Too large NALU: {}", nalu.len())))?
+                    .map_err(|_| Error2::invalid_input(format!("Too large NALU: {}", nalu.len())))?
                     .encode2(&mut buf[offset..])?;
                 offset += nalu.encode2(&mut buf[offset..])?;
             }
