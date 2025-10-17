@@ -373,10 +373,6 @@ impl BaseBox for FreeBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        self.payload.len() as u64
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }

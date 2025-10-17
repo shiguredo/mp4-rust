@@ -95,8 +95,9 @@ impl BoxHeader {
     /// ボックスへの参照を受け取って、対応するヘッダーを作成する
     pub fn from_box<B: BaseBox>(b: &B) -> Self {
         let box_type = b.box_type();
-        let box_size = b.box_size();
-        Self { box_type, box_size }
+        todo!()
+        //let box_size = b.box_size();
+        //Self { box_type, box_size }
     }
 
     /// ヘッダーをエンコードした際のバイト数を返す
