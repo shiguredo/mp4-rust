@@ -54,14 +54,6 @@ impl BaseBox for UnknownBox {
         self.box_type
     }
 
-    fn box_size(&self) -> BoxSize {
-        self.box_size
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.payload.len() as u64
-    }
-
     fn is_unknown_box(&self) -> bool {
         true
     }
@@ -127,14 +119,6 @@ impl Decode for IgnoredBox {
 impl BaseBox for IgnoredBox {
     fn box_type(&self) -> BoxType {
         self.box_type
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.box_size
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.box_payload_size
     }
 
     fn is_unknown_box(&self) -> bool {
@@ -289,10 +273,6 @@ impl BaseBox for FtypBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -345,14 +325,6 @@ impl Decode for RootBox {
 impl BaseBox for RootBox {
     fn box_type(&self) -> BoxType {
         self.inner_box().box_type()
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.inner_box().box_size()
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.inner_box().box_payload_size()
     }
 
     fn is_unknown_box(&self) -> bool {
@@ -453,18 +425,6 @@ impl BaseBox for MdatBox {
         Self::TYPE
     }
 
-    fn box_size(&self) -> BoxSize {
-        if self.is_variable_size {
-            BoxSize::VARIABLE_SIZE
-        } else {
-            BoxSize::with_payload_size(Self::TYPE, self.box_payload_size())
-        }
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.payload.len() as u64
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -537,10 +497,6 @@ impl Decode for MoovBox {
 impl BaseBox for MoovBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -660,10 +616,6 @@ impl BaseBox for MvhdBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -761,10 +713,6 @@ impl Decode for TrakBox {
 impl BaseBox for TrakBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -918,10 +866,6 @@ impl BaseBox for TkhdBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -1007,10 +951,6 @@ impl Decode for EdtsBox {
 impl BaseBox for EdtsBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1104,10 +1044,6 @@ impl BaseBox for ElstBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -1199,10 +1135,6 @@ impl Decode for MdiaBox {
 impl BaseBox for MdiaBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1322,10 +1254,6 @@ impl BaseBox for MdhdBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -1409,10 +1337,6 @@ impl Decode for HdlrBox {
 impl BaseBox for HdlrBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1515,10 +1439,6 @@ impl BaseBox for MinfBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
@@ -1574,10 +1494,6 @@ impl Decode for SmhdBox {
 impl BaseBox for SmhdBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1653,10 +1569,6 @@ impl Decode for VmhdBox {
 impl BaseBox for VmhdBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1739,10 +1651,6 @@ impl BaseBox for DinfBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
@@ -1823,10 +1731,6 @@ impl BaseBox for DrefBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
@@ -1894,10 +1798,6 @@ impl Decode for UrlBox {
 impl BaseBox for UrlBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2025,10 +1925,6 @@ impl BaseBox for StblBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
@@ -2096,10 +1992,6 @@ impl Decode for StsdBox {
 impl BaseBox for StsdBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2180,14 +2072,6 @@ impl Decode for SampleEntry {
 impl BaseBox for SampleEntry {
     fn box_type(&self) -> BoxType {
         self.inner_box().box_type()
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.inner_box().box_size()
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.inner_box().box_payload_size()
     }
 
     fn is_unknown_box(&self) -> bool {
@@ -2340,10 +2224,6 @@ impl Decode for Avc1Box {
 impl BaseBox for Avc1Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2513,10 +2393,6 @@ impl BaseBox for AvccBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -2583,10 +2459,6 @@ impl Decode for Hev1Box {
 impl BaseBox for Hev1Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2780,10 +2652,6 @@ impl BaseBox for HvccBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -2850,10 +2718,6 @@ impl Decode for Vp08Box {
 impl BaseBox for Vp08Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2926,10 +2790,6 @@ impl Decode for Vp09Box {
 impl BaseBox for Vp09Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3029,10 +2889,6 @@ impl BaseBox for VpccBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -3109,10 +2965,6 @@ impl Decode for Av01Box {
 impl BaseBox for Av01Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3239,10 +3091,6 @@ impl BaseBox for Av1cBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -3329,10 +3177,6 @@ impl BaseBox for SttsBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -3409,10 +3253,6 @@ impl Decode for StscBox {
 impl BaseBox for StscBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3504,10 +3344,6 @@ impl BaseBox for StszBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -3569,10 +3405,6 @@ impl Decode for StcoBox {
 impl BaseBox for StcoBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3638,10 +3470,6 @@ impl BaseBox for Co64Box {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -3703,10 +3531,6 @@ impl Decode for StssBox {
 impl BaseBox for StssBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3787,10 +3611,6 @@ impl BaseBox for OpusBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
@@ -3861,10 +3681,6 @@ impl Decode for Mp4aBox {
 impl BaseBox for Mp4aBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3998,10 +3814,6 @@ impl BaseBox for DopsBox {
         Self::TYPE
     }
 
-    fn box_payload_size(&self) -> u64 {
-        todo!()
-    }
-
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
     }
@@ -4046,10 +3858,6 @@ impl Decode for EsdsBox {
 impl BaseBox for EsdsBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {

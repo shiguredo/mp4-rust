@@ -20,16 +20,6 @@ pub trait BaseBox {
     /// ボックスの種別
     fn box_type(&self) -> BoxType;
 
-    /// ボックスのサイズ
-    ///
-    /// サイズが可変長になる可能性がある `mdat` ボックス以外はデフォルト実装のままで問題ない
-    fn box_size(&self) -> BoxSize {
-        BoxSize::with_payload_size(self.box_type(), self.box_payload_size())
-    }
-
-    /// ボックスのペイロードのバイト数
-    fn box_payload_size(&self) -> u64;
-
     /// 未知のボックスかどうか
     ///
     /// 基本的には `false` を返すデフォルト実装のままで問題ないが、
@@ -558,14 +548,6 @@ impl<A: BaseBox, B: BaseBox> Either<A, B> {
 impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
     fn box_type(&self) -> BoxType {
         self.inner_box().box_type()
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.inner_box().box_size()
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.inner_box().box_payload_size()
     }
 
     fn is_unknown_box(&self) -> bool {
