@@ -3,7 +3,7 @@
 use alloc::{format, string::String, vec, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error, Result, Uint,
+    Decode, Encode, Encode2, Error, Error2, Result, Result2, Uint,
     io::{Read, Write},
 };
 
@@ -110,6 +110,46 @@ impl Encode for EsDescriptor {
     }
 }
 
+impl Encode2 for EsDescriptor {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        // 先頭にタグやペイロードサイズを付与する必要があるので、まずはペイロードを別に構築する
+        let mut payload_offset = 0;
+        let mut payload = [0; 1024]; // 十分なサイズのバッファを用意する
+
+        payload_offset += self.es_id.encode2(&mut payload[payload_offset..])?;
+        payload_offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
+            | Uint::<u8, 1, 6>::new(self.url_string.is_some() as u8).to_bits()
+            | Uint::<u8, 1, 5>::new(self.ocr_es_id.is_some() as u8).to_bits()
+            | self.stream_priority.to_bits())
+        .encode2(&mut payload[payload_offset..])?;
+
+        if let Some(v) = self.depends_on_es_id {
+            payload_offset += v.encode2(&mut payload[payload_offset..])?;
+        }
+
+        if let Some(v) = &self.url_string {
+            payload_offset += (v.len() as u8).encode2(&mut payload[payload_offset..])?;
+            payload_offset += v.as_bytes().encode2(&mut payload[payload_offset..])?;
+        }
+
+        if let Some(v) = self.ocr_es_id {
+            payload_offset += v.encode2(&mut payload[payload_offset..])?;
+        }
+
+        payload_offset += self
+            .dec_config_descr
+            .encode2(&mut payload[payload_offset..])?;
+        payload_offset += self
+            .sl_config_descr
+            .encode2(&mut payload[payload_offset..])?;
+
+        // 最終的な内容を、バッファに書き込む
+        let offset = encode_tag_and_size2(buf, Self::TAG, payload_offset)?;
+        offset += payload.encode2(&mut buf[offset..])?;
+        Ok(offset)
+    }
+}
+
 /// [ISO_IEC_14496-1] DecoderConfigDescriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -191,6 +231,40 @@ impl Encode for DecoderConfigDescriptor {
     }
 }
 
+impl Encode2 for DecoderConfigDescriptor {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+
+        offset += self.object_type_indication.encode2(&mut buf[offset..])?;
+        offset += (self.stream_type.to_bits()
+            | self.up_stream.to_bits()
+            | Uint::<u8, 1>::new(1).to_bits())
+        .encode2(&mut buf[offset..])?;
+        offset += self.buffer_size_db.to_bits().to_be_bytes()[1..].encode2(&mut buf[offset..])?;
+        offset += self.max_bitrate.encode2(&mut buf[offset..])?;
+        offset += self.avg_bitrate.encode2(&mut buf[offset..])?;
+        offset += self.dec_specific_info.encode2(&mut buf[offset..])?;
+
+        let mut header_offset = 0;
+        header_offset += encode_tag_and_size2(
+            buf.get_mut(header_offset..)
+                .ok_or_else(Error2::insufficient_buffer)?,
+            Self::TAG,
+            offset,
+        )?;
+
+        let required = header_offset + offset;
+        Error2::check_buffer_size(required, buf)?;
+
+        // Shift payload to make room for header if needed
+        if header_offset > 0 && offset > 0 {
+            buf.copy_within(..offset, header_offset);
+        }
+
+        Ok(required)
+    }
+}
+
 /// [ISO_IEC_14496-1] DecoderSpecificInfo class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -224,6 +298,22 @@ impl Encode for DecoderSpecificInfo {
         encode_tag_and_size(&mut writer, Self::TAG, self.payload.len())?;
         writer.write_all(&self.payload)?;
         Ok(())
+    }
+}
+
+impl Encode2 for DecoderSpecificInfo {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += encode_tag_and_size2(
+            buf.get_mut(offset..)
+                .ok_or_else(Error2::insufficient_buffer)?,
+            Self::TAG,
+            self.payload.len(),
+        )?;
+        let required = offset + self.payload.len();
+        Error2::check_buffer_size(required, buf)?;
+        buf[offset..required].copy_from_slice(&self.payload);
+        Ok(required)
     }
 }
 
@@ -272,6 +362,24 @@ impl Encode for SlConfigDescriptor {
     }
 }
 
+impl Encode2 for SlConfigDescriptor {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let predefined = 2;
+        let payload = [predefined];
+        let mut offset = 0;
+        offset += encode_tag_and_size2(
+            buf.get_mut(offset..)
+                .ok_or_else(Error2::insufficient_buffer)?,
+            Self::TAG,
+            payload.len(),
+        )?;
+        let required = offset + payload.len();
+        Error2::check_buffer_size(required, buf)?;
+        buf[offset..required].copy_from_slice(&payload);
+        Ok(required)
+    }
+}
+
 fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
     let tag = u8::decode(&mut reader)?;
 
@@ -307,6 +415,30 @@ fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Res
     writer.write_all(&buf)?;
 
     Ok(())
+}
+
+fn encode_tag_and_size2(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
+    let mut offset = 0;
+    offset += tag.encode2(&mut buf[offset..])?;
+
+    let mut size_bytes = Vec::new();
+    for i in 0.. {
+        let mut b = (size & 0b0111_1111) as u8;
+        size >>= 7;
+
+        if i > 0 {
+            b |= 0b1000_0000;
+        }
+        size_bytes.push(b);
+
+        if size == 0 {
+            break;
+        }
+    }
+    size_bytes.reverse(); // リトルエンディアンからビッグエンディアンにする
+
+    offset += size_bytes.encode2(&mut buf[offset..])?;
+    Ok(offset)
 }
 
 #[cfg(test)]
