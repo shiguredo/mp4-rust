@@ -12,35 +12,6 @@ use std::io::Cursor;
 #[cfg(not(feature = "std"))]
 use crate::io_no_std::Cursor;
 
-#[derive(Debug, Default)]
-pub(crate) struct ExternalBytes(pub u64);
-
-impl ExternalBytes {
-    pub fn calc<F>(f: F) -> u64
-    where
-        F: FnOnce(&mut Self) -> crate::Result<()>,
-    {
-        let mut external_bytes = Self(0);
-
-        // エンコード処理が途中で失敗した場合には、失敗時点までに書き込まれたバイト数が採用される。
-        // その失敗時の値は不正確であるが、いずれにせよここで失敗するということは、
-        // 後続の実際のエンコード処理でも失敗するはずなので、その際のサイズ値が不正確でも問題はない。
-        let _ = f(&mut external_bytes);
-        external_bytes.0
-    }
-}
-
-impl Write for ExternalBytes {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.0 += buf.len() as u64;
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct PeekReader<R, const N: usize> {
     buf: [u8; N],

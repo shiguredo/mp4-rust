@@ -5,12 +5,11 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Encode2, Error, Error2,
-    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint,
-    Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode2, Error, Error2, FixedPointNumber,
+    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint, Utf8String,
     basic_types::as_box_object,
     descriptors::EsDescriptor,
-    io::{ExternalBytes, Read, Take, Write},
+    io::{Read, Take},
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -26,14 +25,6 @@ pub struct UnknownBox {
 
     /// ペイロード
     pub payload: Vec<u8>,
-}
-
-impl Encode for UnknownBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        writer.write_all(&self.payload)?;
-        Ok(())
-    }
 }
 
 impl Encode2 for UnknownBox {
@@ -231,13 +222,6 @@ impl core::fmt::Debug for Brand {
     }
 }
 
-impl Encode for Brand {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.0)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for Brand {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         self.0.encode2(buf)
@@ -264,23 +248,6 @@ pub struct FtypBox {
 impl FtypBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"ftyp");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.major_brand.encode(&mut writer)?;
-        self.minor_version.encode(&mut writer)?;
-        for brand in &self.compatible_brands {
-            brand.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-}
-
-impl Encode for FtypBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
 }
 
 impl Encode2 for FtypBox {
@@ -323,7 +290,7 @@ impl BaseBox for FtypBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -348,17 +315,6 @@ impl RootBox {
             RootBox::Mdat(b) => b,
             RootBox::Moov(b) => b,
             RootBox::Unknown(b) => b,
-        }
-    }
-}
-
-impl Encode for RootBox {
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        match self {
-            RootBox::Free(b) => b.encode(writer),
-            RootBox::Mdat(b) => b.encode(writer),
-            RootBox::Moov(b) => b.encode(writer),
-            RootBox::Unknown(b) => b.encode(writer),
         }
     }
 }
@@ -420,14 +376,6 @@ impl FreeBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"free");
 }
 
-impl Encode for FreeBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        writer.write_all(&self.payload)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for FreeBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -475,14 +423,6 @@ pub struct MdatBox {
 impl MdatBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdat");
-}
-
-impl Encode for MdatBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        writer.write_all(&self.payload)?;
-        Ok(())
-    }
 }
 
 impl Encode2 for MdatBox {
@@ -543,17 +483,6 @@ impl MoovBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"moov");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.mvhd_box.encode(&mut writer)?;
-        for b in &self.trak_boxes {
-            b.encode(&mut writer)?;
-        }
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut mvhd_box = None;
         let mut trak_boxes = Vec::new();
@@ -579,14 +508,6 @@ impl MoovBox {
             trak_boxes,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for MoovBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -619,7 +540,7 @@ impl BaseBox for MoovBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -659,28 +580,6 @@ impl MvhdBox {
     /// [`MvhdBox::matrix`] のデフォルト値
     pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(&mut writer)?;
-            self.modification_time.as_secs().encode(&mut writer)?;
-            self.timescale.encode(&mut writer)?;
-            self.duration.encode(&mut writer)?;
-        } else {
-            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
-            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
-            self.timescale.encode(&mut writer)?;
-            (self.duration as u32).encode(&mut writer)?;
-        }
-        self.rate.encode(&mut writer)?;
-        self.volume.encode(&mut writer)?;
-        [0u8; 2 + 4 * 2].encode(&mut writer)?;
-        self.matrix.encode(&mut writer)?;
-        [0u8; 4 * 6].encode(&mut writer)?;
-        self.next_track_id.encode(writer)?;
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let mut this = Self {
@@ -716,14 +615,6 @@ impl MvhdBox {
         this.next_track_id = u32::decode(reader)?;
 
         Ok(this)
-    }
-}
-
-impl Encode for MvhdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -770,7 +661,7 @@ impl BaseBox for MvhdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -809,18 +700,6 @@ impl TrakBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"trak");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.tkhd_box.encode(&mut writer)?;
-        if let Some(b) = &self.edts_box {
-            b.encode(&mut writer)?;
-        }
-        self.mdia_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut tkhd_box = None;
         let mut edts_box = None;
@@ -855,14 +734,6 @@ impl TrakBox {
     }
 }
 
-impl Encode for TrakBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for TrakBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -893,7 +764,7 @@ impl BaseBox for TrakBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -946,32 +817,6 @@ impl TkhdBox {
 
     /// [`TkhdBox::matrix`] のデフォルト値
     pub const DEFAULT_MATRIX: [i32; 9] = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000];
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(&mut writer)?;
-            self.modification_time.as_secs().encode(&mut writer)?;
-            self.track_id.encode(&mut writer)?;
-            [0u8; 4].encode(&mut writer)?;
-            self.duration.encode(&mut writer)?;
-        } else {
-            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
-            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
-            self.track_id.encode(&mut writer)?;
-            [0u8; 4].encode(&mut writer)?;
-            (self.duration as u32).encode(&mut writer)?;
-        }
-        [0u8; 4 * 2].encode(&mut writer)?;
-        self.layer.encode(&mut writer)?;
-        self.alternate_group.encode(&mut writer)?;
-        self.volume.encode(&mut writer)?;
-        [0u8; 2].encode(&mut writer)?;
-        self.matrix.encode(&mut writer)?;
-        self.width.encode(&mut writer)?;
-        self.height.encode(writer)?;
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
@@ -1027,14 +872,6 @@ impl TkhdBox {
     }
 }
 
-impl Encode for TkhdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for TkhdBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -1082,7 +919,7 @@ impl BaseBox for TkhdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1124,16 +961,6 @@ impl EdtsBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"edts");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        if let Some(b) = &self.elst_box {
-            b.encode(&mut writer)?;
-        }
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut elst_box = None;
         let mut unknown_boxes = Vec::new();
@@ -1152,14 +979,6 @@ impl EdtsBox {
             elst_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for EdtsBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1191,7 +1010,7 @@ impl BaseBox for EdtsBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1223,24 +1042,6 @@ impl ElstBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"elst");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-
-        let version = self.full_box_version();
-        (self.entries.len() as u32).encode(&mut writer)?;
-        for entry in &self.entries {
-            if version == 1 {
-                entry.edit_duration.encode(&mut writer)?;
-                entry.media_time.encode(&mut writer)?;
-            } else {
-                (entry.edit_duration as u32).encode(&mut writer)?;
-                (entry.media_time as i32).encode(&mut writer)?;
-            }
-            entry.media_rate.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
 
@@ -1265,14 +1066,6 @@ impl ElstBox {
         }
 
         Ok(Self { entries })
-    }
-}
-
-impl Encode for ElstBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1312,7 +1105,7 @@ impl BaseBox for ElstBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1346,16 +1139,6 @@ pub struct MdiaBox {
 impl MdiaBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mdia");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.mdhd_box.encode(&mut writer)?;
-        self.hdlr_box.encode(&mut writer)?;
-        self.minf_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut mdhd_box = None;
@@ -1391,14 +1174,6 @@ impl MdiaBox {
     }
 }
 
-impl Encode for MdiaBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for MdiaBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -1427,7 +1202,7 @@ impl BaseBox for MdiaBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1460,33 +1235,6 @@ impl MdhdBox {
 
     /// 未定義を表す言語コード
     pub const LANGUAGE_UNDEFINED: [u8; 3] = *b"und";
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        if self.full_box_version() == 1 {
-            self.creation_time.as_secs().encode(&mut writer)?;
-            self.modification_time.as_secs().encode(&mut writer)?;
-            self.timescale.encode(&mut writer)?;
-            self.duration.encode(&mut writer)?;
-        } else {
-            (self.creation_time.as_secs() as u32).encode(&mut writer)?;
-            (self.modification_time.as_secs() as u32).encode(&mut writer)?;
-            self.timescale.encode(&mut writer)?;
-            (self.duration as u32).encode(&mut writer)?;
-        }
-
-        let mut language: u16 = 0;
-        for l in &self.language {
-            language = (language << 5)
-                | l.checked_sub(0x60).ok_or_else(|| {
-                    Error::invalid_input(&format!("Invalid language code: {:?}", self.language))
-                })? as u16;
-        }
-        language.encode(&mut writer)?;
-        [0u8; 2].encode(writer)?;
-
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
@@ -1522,14 +1270,6 @@ impl MdhdBox {
         let _ = <[u8; 2]>::decode(reader)?;
 
         Ok(this)
-    }
-}
-
-impl Encode for MdhdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1583,7 +1323,7 @@ impl BaseBox for MdhdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1634,15 +1374,6 @@ impl HdlrBox {
     /// 映像用のハンドラー種別
     pub const HANDLER_TYPE_VIDE: [u8; 4] = *b"vide";
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        [0u8; 4].encode(&mut writer)?;
-        self.handler_type.encode(&mut writer)?;
-        [0u8; 4 * 3].encode(&mut writer)?;
-        writer.write_all(&self.name)?;
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _full_header = FullBoxHeader::decode(&mut reader)?;
         let _ = <[u8; 4]>::decode(&mut reader)?;
@@ -1651,14 +1382,6 @@ impl HdlrBox {
         let mut name = Vec::new();
         reader.read_to_end(&mut name)?;
         Ok(Self { handler_type, name })
-    }
-}
-
-impl Encode for HdlrBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1689,7 +1412,7 @@ impl BaseBox for HdlrBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1720,19 +1443,6 @@ pub struct MinfBox {
 impl MinfBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"minf");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        match &self.smhd_or_vmhd_box {
-            Either::A(b) => b.encode(&mut writer)?,
-            Either::B(b) => b.encode(&mut writer)?,
-        }
-        self.dinf_box.encode(&mut writer)?;
-        self.stbl_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut smhd_box = None;
@@ -1775,14 +1485,6 @@ impl MinfBox {
     }
 }
 
-impl Encode for MinfBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for MinfBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -1814,7 +1516,7 @@ impl BaseBox for MinfBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1842,26 +1544,11 @@ impl SmhdBox {
     /// [`SmhdBox::balance`] のデフォルト値（中央）
     pub const DEFAULT_BALANCE: FixedPointNumber<u8, u8> = FixedPointNumber::new(0, 0);
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        self.balance.encode(&mut writer)?;
-        [0u8; 2].encode(writer)?;
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _full_header = FullBoxHeader::decode(&mut reader)?;
         let balance = FixedPointNumber::decode(&mut reader)?;
         let _ = <[u8; 2]>::decode(reader)?;
         Ok(Self { balance })
-    }
-}
-
-impl Encode for SmhdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1890,7 +1577,7 @@ impl BaseBox for SmhdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -1926,13 +1613,6 @@ impl VmhdBox {
     /// [`Vmhd::graphicsmode`] のデフォルト値
     pub const DEFAULT_OPCOLOR: [u16; 3] = [0, 0, 0];
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        self.graphicsmode.encode(&mut writer)?;
-        self.opcolor.encode(writer)?;
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         if full_header.flags.get() != 1 {
@@ -1948,14 +1628,6 @@ impl VmhdBox {
             graphicsmode,
             opcolor,
         })
-    }
-}
-
-impl Encode for VmhdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -1984,7 +1656,7 @@ impl BaseBox for VmhdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2020,14 +1692,6 @@ impl DinfBox {
         unknown_boxes: Vec::new(),
     };
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.dref_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut dref_box = None;
         let mut unknown_boxes = Vec::new();
@@ -2047,14 +1711,6 @@ impl DinfBox {
             dref_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for DinfBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -2084,7 +1740,7 @@ impl BaseBox for DinfBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2114,19 +1770,6 @@ impl DrefBox {
         unknown_boxes: Vec::new(),
     };
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        let entry_count = (self.url_box.is_some() as usize + self.unknown_boxes.len()) as u32;
-        entry_count.encode(&mut writer)?;
-        if let Some(b) = &self.url_box {
-            b.encode(&mut writer)?;
-        }
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let entry_count = u32::decode(&mut reader)?;
@@ -2147,14 +1790,6 @@ impl DrefBox {
             url_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for DrefBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -2189,7 +1824,7 @@ impl BaseBox for DrefBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2225,14 +1860,6 @@ impl UrlBox {
     /// メディアデータが同じファイル内に格納されていることを示す [`UrlBox`] の値
     pub const LOCAL_FILE: Self = Self { location: None };
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        if let Some(l) = &self.location {
-            l.encode(writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let full_header = FullBoxHeader::decode(&mut reader)?;
         let location = if full_header.flags.is_set(0) {
@@ -2241,14 +1868,6 @@ impl UrlBox {
             Some(Utf8String::decode(reader)?)
         };
         Ok(Self { location })
-    }
-}
-
-impl Encode for UrlBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -2278,7 +1897,7 @@ impl BaseBox for UrlBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2312,24 +1931,6 @@ pub struct StblBox {
 impl StblBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stbl");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.stsd_box.encode(&mut writer)?;
-        self.stts_box.encode(&mut writer)?;
-        self.stsc_box.encode(&mut writer)?;
-        self.stsz_box.encode(&mut writer)?;
-        match &self.stco_or_co64_box {
-            Either::A(b) => b.encode(&mut writer)?,
-            Either::B(b) => b.encode(&mut writer)?,
-        }
-        if let Some(b) = &self.stss_box {
-            b.encode(&mut writer)?;
-        }
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let mut stsd_box = None;
@@ -2389,14 +1990,6 @@ impl StblBox {
     }
 }
 
-impl Encode for StblBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for StblBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -2433,7 +2026,7 @@ impl BaseBox for StblBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2467,16 +2060,6 @@ impl StsdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsd");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        let entry_count = (self.entries.len()) as u32;
-        entry_count.encode(&mut writer)?;
-        for b in &self.entries {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let entry_count = u32::decode(&mut reader)?;
@@ -2485,14 +2068,6 @@ impl StsdBox {
             entries.push(SampleEntry::decode(&mut reader)?);
         }
         Ok(Self { entries })
-    }
-}
-
-impl Encode for StsdBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -2524,7 +2099,7 @@ impl BaseBox for StsdBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2567,21 +2142,6 @@ impl SampleEntry {
             Self::Opus(b) => b,
             Self::Mp4a(b) => b,
             Self::Unknown(b) => b,
-        }
-    }
-}
-
-impl Encode for SampleEntry {
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        match self {
-            Self::Avc1(b) => b.encode(writer),
-            Self::Hev1(b) => b.encode(writer),
-            Self::Vp08(b) => b.encode(writer),
-            Self::Vp09(b) => b.encode(writer),
-            Self::Av01(b) => b.encode(writer),
-            Self::Opus(b) => b.encode(writer),
-            Self::Mp4a(b) => b.encode(writer),
-            Self::Unknown(b) => b.encode(writer),
         }
     }
 }
@@ -2673,24 +2233,6 @@ impl VisualSampleEntryFields {
     pub const NULL_COMPRESSORNAME: [u8; 32] = [0; 32];
 }
 
-impl Encode for VisualSampleEntryFields {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        [0u8; 6].encode(&mut writer)?;
-        self.data_reference_index.encode(&mut writer)?;
-        [0u8; 2 + 2 + 4 * 3].encode(&mut writer)?;
-        self.width.encode(&mut writer)?;
-        self.height.encode(&mut writer)?;
-        self.horizresolution.encode(&mut writer)?;
-        self.vertresolution.encode(&mut writer)?;
-        [0u8; 4].encode(&mut writer)?;
-        self.frame_count.encode(&mut writer)?;
-        self.compressorname.encode(&mut writer)?;
-        self.depth.encode(&mut writer)?;
-        (-1i16).encode(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for VisualSampleEntryFields {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -2750,15 +2292,6 @@ impl Avc1Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"avc1");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.visual.encode(&mut writer)?;
-        self.avcc_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut avcc_box = None;
@@ -2780,14 +2313,6 @@ impl Avc1Box {
             avcc_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Avc1Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -2818,7 +2343,7 @@ impl BaseBox for Avc1Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -2851,61 +2376,6 @@ impl AvccBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"avcC");
 
     const CONFIGURATION_VERSION: u8 = 1;
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        Self::CONFIGURATION_VERSION.encode(&mut writer)?;
-        self.avc_profile_indication.encode(&mut writer)?;
-        self.profile_compatibility.encode(&mut writer)?;
-        self.avc_level_indication.encode(&mut writer)?;
-        (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut writer)?;
-
-        let sps_count =
-            u8::try_from(self.sps_list.len()).map_err(|_| Error::invalid_input("Too many SPSs"))?;
-        (0b1110_0000 | sps_count).encode(&mut writer)?;
-        for sps in &self.sps_list {
-            let size = u16::try_from(sps.len())
-                .map_err(|e| Error::invalid_input(&format!("Too long SPS: {e}")))?;
-            size.encode(&mut writer)?;
-            writer.write_all(sps)?;
-        }
-
-        let pps_count =
-            u8::try_from(self.pps_list.len()).map_err(|_| Error::invalid_input("Too many PPSs"))?;
-        pps_count.encode(&mut writer)?;
-        for pps in &self.pps_list {
-            let size = u16::try_from(pps.len())
-                .map_err(|e| Error::invalid_input(&format!("Too long PPS: {e}")))?;
-            size.encode(&mut writer)?;
-            writer.write_all(pps)?;
-        }
-
-        if !matches!(self.avc_profile_indication, 66 | 77 | 88) {
-            let chroma_format = self.chroma_format.ok_or_else(|| {
-                Error::invalid_input("Missing 'chroma_format' field in 'avcC' boc")
-            })?;
-            let bit_depth_luma_minus8 = self.bit_depth_luma_minus8.ok_or_else(|| {
-                Error::invalid_input("Missing 'bit_depth_luma_minus8' field in 'avcC' boc")
-            })?;
-            let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
-                Error::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' boc")
-            })?;
-            (0b1111_1100 | chroma_format.get()).encode(&mut writer)?;
-            (0b1111_1000 | bit_depth_luma_minus8.get()).encode(&mut writer)?;
-            (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(&mut writer)?;
-
-            let sps_ext_count = u8::try_from(self.sps_ext_list.len())
-                .map_err(|_| Error::invalid_input("Too many SPS EXTs"))?;
-            sps_ext_count.encode(&mut writer)?;
-            for sps_ext in &self.sps_ext_list {
-                let size = u16::try_from(sps_ext.len())
-                    .map_err(|e| Error::invalid_input(&format!("Too long SPS EXT: {e}")))?;
-                size.encode(&mut writer)?;
-                writer.write_all(sps_ext)?;
-            }
-        }
-
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let configuration_version = u8::decode(&mut reader)?;
@@ -2968,14 +2438,6 @@ impl AvccBox {
             bit_depth_chroma_minus8,
             sps_ext_list,
         })
-    }
-}
-
-impl Encode for AvccBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -3052,7 +2514,7 @@ impl BaseBox for AvccBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3072,15 +2534,6 @@ pub struct Hev1Box {
 impl Hev1Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"hev1");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.visual.encode(&mut writer)?;
-        self.hvcc_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
@@ -3103,14 +2556,6 @@ impl Hev1Box {
             hvcc_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Hev1Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -3141,7 +2586,7 @@ impl BaseBox for Hev1Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3190,53 +2635,6 @@ impl HvccBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"hvcC");
 
     const CONFIGURATION_VERSION: u8 = 1;
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        Self::CONFIGURATION_VERSION.encode(&mut writer)?;
-        (self.general_profile_space.to_bits()
-            | self.general_tier_flag.to_bits()
-            | self.general_profile_idc.to_bits())
-        .encode(&mut writer)?;
-        self.general_profile_compatibility_flags
-            .encode(&mut writer)?;
-        writer.write_all(&self.general_constraint_indicator_flags.get().to_be_bytes()[2..])?;
-        self.general_level_idc.encode(&mut writer)?;
-        (0b1111_0000_0000_0000 | self.min_spatial_segmentation_idc.to_bits())
-            .encode(&mut writer)?;
-        (0b1111_1100 | self.parallelism_type.to_bits()).encode(&mut writer)?;
-        (0b1111_1100 | self.chroma_format_idc.to_bits()).encode(&mut writer)?;
-        (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(&mut writer)?;
-        (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(&mut writer)?;
-        self.avg_frame_rate.encode(&mut writer)?;
-        (self.constant_frame_rate.to_bits()
-            | self.num_temporal_layers.to_bits()
-            | self.temporal_id_nested.to_bits()
-            | self.length_size_minus_one.to_bits())
-        .encode(&mut writer)?;
-        u8::try_from(self.nalu_arrays.len())
-            .map_err(|_| {
-                Error::invalid_input(&format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
-            })?
-            .encode(&mut writer)?;
-        for nalu_array in &self.nalu_arrays {
-            (nalu_array.array_completeness.to_bits() | nalu_array.nal_unit_type.to_bits())
-                .encode(&mut writer)?;
-            u16::try_from(nalu_array.nalus.len())
-                .map_err(|_| {
-                    Error::invalid_input(&format!("Too many NALUs: {}", self.nalu_arrays.len()))
-                })?
-                .encode(&mut writer)?;
-            for nalu in &nalu_array.nalus {
-                u16::try_from(nalu.len())
-                    .map_err(|_| {
-                        Error::invalid_input(&format!("Too large NALU: {}", self.nalu_arrays.len()))
-                    })?
-                    .encode(&mut writer)?;
-                writer.write_all(nalu)?;
-            }
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let configuration_version = u8::decode(&mut reader)?;
@@ -3315,14 +2713,6 @@ impl HvccBox {
     }
 }
 
-impl Encode for HvccBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for HvccBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -3391,7 +2781,7 @@ impl BaseBox for HvccBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3411,15 +2801,6 @@ pub struct Vp08Box {
 impl Vp08Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp08");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.visual.encode(&mut writer)?;
-        self.vpcc_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
@@ -3442,14 +2823,6 @@ impl Vp08Box {
             vpcc_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Vp08Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -3480,7 +2853,7 @@ impl BaseBox for Vp08Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3505,15 +2878,6 @@ impl Vp09Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vp09");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.visual.encode(&mut writer)?;
-        self.vpcc_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut vpcc_box = None;
@@ -3535,14 +2899,6 @@ impl Vp09Box {
             vpcc_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Vp09Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -3573,7 +2929,7 @@ impl BaseBox for Vp09Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3603,22 +2959,6 @@ pub struct VpccBox {
 impl VpccBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vpcC");
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        self.profile.encode(&mut writer)?;
-        self.level.encode(&mut writer)?;
-        (self.bit_depth.to_bits()
-            | self.chroma_subsampling.to_bits()
-            | self.video_full_range_flag.to_bits())
-        .encode(&mut writer)?;
-        self.colour_primaries.encode(&mut writer)?;
-        self.transfer_characteristics.encode(&mut writer)?;
-        self.matrix_coefficients.encode(&mut writer)?;
-        (self.codec_initialization_data.len() as u16).encode(&mut writer)?;
-        writer.write_all(&self.codec_initialization_data)?;
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let header = FullBoxHeader::decode(&mut reader)?;
@@ -3656,14 +2996,6 @@ impl VpccBox {
     }
 }
 
-impl Encode for VpccBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for VpccBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -3698,7 +3030,7 @@ impl BaseBox for VpccBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3729,15 +3061,6 @@ impl Av01Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"av01");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.visual.encode(&mut writer)?;
-        self.av1c_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let visual = VisualSampleEntryFields::decode(&mut reader)?;
         let mut av1c_box = None;
@@ -3759,14 +3082,6 @@ impl Av01Box {
             av1c_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Av01Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -3797,7 +3112,7 @@ impl BaseBox for Av01Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -3832,26 +3147,6 @@ impl Av1cBox {
 
     const MARKER: Uint<u8, 1, 7> = Uint::new(1);
     const VERSION: Uint<u8, 7, 0> = Uint::new(1);
-
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(&mut writer)?;
-        (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits()).encode(&mut writer)?;
-        (self.seq_tier_0.to_bits()
-            | self.high_bitdepth.to_bits()
-            | self.twelve_bit.to_bits()
-            | self.monochrome.to_bits()
-            | self.chroma_subsampling_x.to_bits()
-            | self.chroma_subsampling_y.to_bits()
-            | self.chroma_sample_position.to_bits())
-        .encode(&mut writer)?;
-        if let Some(v) = self.initial_presentation_delay_minus_one {
-            (0b1_0000 | v.to_bits()).encode(&mut writer)?;
-        } else {
-            0u8.encode(&mut writer)?;
-        }
-        writer.write_all(&self.config_obus)?;
-        Ok(())
-    }
 
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let b = u8::decode(&mut reader)?;
@@ -3906,14 +3201,6 @@ impl Av1cBox {
     }
 }
 
-impl Encode for Av1cBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for Av1cBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -3953,7 +3240,7 @@ impl BaseBox for Av1cBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4001,16 +3288,6 @@ impl SttsBox {
         Self { entries }
     }
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        (self.entries.len() as u32).encode(&mut writer)?;
-        for entry in &self.entries {
-            entry.sample_count.encode(&mut writer)?;
-            entry.sample_delta.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
@@ -4022,14 +3299,6 @@ impl SttsBox {
             });
         }
         Ok(Self { entries })
-    }
-}
-
-impl Encode for SttsBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4061,7 +3330,7 @@ impl BaseBox for SttsBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4099,17 +3368,6 @@ impl StscBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsc");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        (self.entries.len() as u32).encode(&mut writer)?;
-        for entry in &self.entries {
-            entry.first_chunk.encode(&mut writer)?;
-            entry.sample_per_chunk.encode(&mut writer)?;
-            entry.sample_description_index.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
@@ -4122,14 +3380,6 @@ impl StscBox {
             });
         }
         Ok(Self { entries })
-    }
-}
-
-impl Encode for StscBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4162,7 +3412,7 @@ impl BaseBox for StscBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4197,27 +3447,6 @@ impl StszBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stsz");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        match self {
-            StszBox::Fixed {
-                sample_size,
-                sample_count,
-            } => {
-                sample_size.get().encode(&mut writer)?;
-                sample_count.encode(writer)?;
-            }
-            StszBox::Variable { entry_sizes } => {
-                0u32.encode(&mut writer)?;
-                (entry_sizes.len() as u32).encode(&mut writer)?;
-                for size in entry_sizes {
-                    size.encode(&mut writer)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let sample_size = u32::decode(&mut reader)?;
@@ -4234,14 +3463,6 @@ impl StszBox {
             }
             Ok(Self::Variable { entry_sizes })
         }
-    }
-}
-
-impl Encode for StszBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4284,7 +3505,7 @@ impl BaseBox for StszBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4313,15 +3534,6 @@ impl StcoBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stco");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        (self.chunk_offsets.len() as u32).encode(&mut writer)?;
-        for offset in &self.chunk_offsets {
-            offset.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
@@ -4330,14 +3542,6 @@ impl StcoBox {
             chunk_offsets.push(u32::decode(&mut reader)?);
         }
         Ok(Self { chunk_offsets })
-    }
-}
-
-impl Encode for StcoBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4368,7 +3572,7 @@ impl BaseBox for StcoBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4397,15 +3601,6 @@ impl Co64Box {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"co64");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        (self.chunk_offsets.len() as u32).encode(&mut writer)?;
-        for offset in &self.chunk_offsets {
-            offset.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
@@ -4414,14 +3609,6 @@ impl Co64Box {
             chunk_offsets.push(u64::decode(&mut reader)?);
         }
         Ok(Self { chunk_offsets })
-    }
-}
-
-impl Encode for Co64Box {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4452,7 +3639,7 @@ impl BaseBox for Co64Box {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4481,15 +3668,6 @@ impl StssBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"stss");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        (self.sample_numbers.len() as u32).encode(&mut writer)?;
-        for offset in &self.sample_numbers {
-            offset.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let count = u32::decode(&mut reader)? as usize;
@@ -4498,14 +3676,6 @@ impl StssBox {
             sample_numbers.push(NonZeroU32::decode(&mut reader)?);
         }
         Ok(Self { sample_numbers })
-    }
-}
-
-impl Encode for StssBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4536,7 +3706,7 @@ impl BaseBox for StssBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4567,15 +3737,6 @@ impl OpusBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"Opus");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.audio.encode(&mut writer)?;
-        self.dops_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(&mut reader)?;
         let mut dops_box = None;
@@ -4597,14 +3758,6 @@ impl OpusBox {
             dops_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for OpusBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4635,7 +3788,7 @@ impl BaseBox for OpusBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4660,15 +3813,6 @@ impl Mp4aBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"mp4a");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.audio.encode(&mut writer)?;
-        self.esds_box.encode(&mut writer)?;
-        for b in &self.unknown_boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let audio = AudioSampleEntryFields::decode(&mut reader)?;
         let mut esds_box = None;
@@ -4690,14 +3834,6 @@ impl Mp4aBox {
             esds_box,
             unknown_boxes,
         })
-    }
-}
-
-impl Encode for Mp4aBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4728,7 +3864,7 @@ impl BaseBox for Mp4aBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4756,20 +3892,6 @@ impl AudioSampleEntryFields {
 
     /// [`AudioSampleEntryFields::sample_size`] のデフォルト値 (16)
     pub const DEFAULT_SAMPLESIZE: u16 = 16;
-}
-
-impl Encode for AudioSampleEntryFields {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        [0u8; 6].encode(&mut writer)?;
-        self.data_reference_index.encode(&mut writer)?;
-        [0u8; 4 * 2].encode(&mut writer)?;
-        self.channelcount.encode(&mut writer)?;
-        self.samplesize.encode(&mut writer)?;
-        [0u8; 2].encode(&mut writer)?;
-        [0u8; 2].encode(&mut writer)?;
-        self.samplerate.encode(writer)?;
-        Ok(())
-    }
 }
 
 impl Encode2 for AudioSampleEntryFields {
@@ -4822,16 +3944,6 @@ impl DopsBox {
 
     const VERSION: u8 = 0;
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        Self::VERSION.encode(&mut writer)?;
-        self.output_channel_count.encode(&mut writer)?;
-        self.pre_skip.encode(&mut writer)?;
-        self.input_sample_rate.encode(&mut writer)?;
-        self.output_gain.encode(&mut writer)?;
-        0u8.encode(writer)?; // ChannelMappingFamily
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let version = u8::decode(&mut reader)?;
         if version != Self::VERSION {
@@ -4856,14 +3968,6 @@ impl DopsBox {
             input_sample_rate,
             output_gain,
         })
-    }
-}
-
-impl Encode for DopsBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4895,7 +3999,7 @@ impl BaseBox for DopsBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
@@ -4914,24 +4018,10 @@ impl EsdsBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"esds");
 
-    fn encode_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        FullBoxHeader::from_box(self).encode(&mut writer)?;
-        self.es.encode(&mut writer)?;
-        Ok(())
-    }
-
     fn decode_payload<R: Read>(mut reader: &mut Take<R>) -> Result<Self> {
         let _ = FullBoxHeader::decode(&mut reader)?;
         let es = EsDescriptor::decode(&mut reader)?;
         Ok(Self { es })
-    }
-}
-
-impl Encode for EsdsBox {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        BoxHeader::from_box(self).encode(&mut writer)?;
-        self.encode_payload(writer)?;
-        Ok(())
     }
 }
 
@@ -4959,7 +4049,7 @@ impl BaseBox for EsdsBox {
     }
 
     fn box_payload_size(&self) -> u64 {
-        ExternalBytes::calc(|writer| self.encode_payload(writer))
+        todo!()
     }
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {

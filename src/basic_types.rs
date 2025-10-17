@@ -7,9 +7,9 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Encode2, Error, Result, Result2,
+    Decode, Encode2, Error, Result, Result2,
     boxes::{FtypBox, RootBox},
-    io::{PeekReader, Read, Take, Write},
+    io::{PeekReader, Read, Take},
 };
 
 /// 全てのボックスが実装するトレイト
@@ -89,17 +89,6 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
     }
 }
 
-impl<B: BaseBox + Encode> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.ftyp_box.encode(&mut writer)?;
-
-        for b in &self.boxes {
-            b.encode(&mut writer)?;
-        }
-        Ok(())
-    }
-}
-
 /// [`BaseBox`] に共通のヘッダー
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoxHeader {
@@ -167,37 +156,6 @@ impl BoxHeader {
         let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
         let header = BoxHeader::decode(&mut reader)?;
         Ok((header, reader.into_reader()))
-    }
-}
-
-impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        let large_size = match self.box_size {
-            BoxSize::U32(size) => {
-                size.encode(&mut writer)?;
-                None
-            }
-            BoxSize::U64(size) => {
-                1u32.encode(&mut writer)?;
-                Some(size)
-            }
-        };
-
-        match self.box_type {
-            BoxType::Normal(ty) => {
-                writer.write_all(&ty)?;
-            }
-            BoxType::Uuid(ty) => {
-                writer.write_all("uuid".as_bytes())?;
-                writer.write_all(&ty)?;
-            }
-        }
-
-        if let Some(large_size) = large_size {
-            large_size.encode(writer)?;
-        }
-
-        Ok(())
     }
 }
 
@@ -289,14 +247,6 @@ impl FullBoxHeader {
     }
 }
 
-impl Encode for FullBoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.version.encode(&mut writer)?;
-        self.flags.encode(writer)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for FullBoxHeader {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -347,13 +297,6 @@ impl FullBoxFlags {
     /// 指定されたビット位置のフラグがセットされているかどうかを判定する
     pub const fn is_set(self, i: usize) -> bool {
         (self.0 & (1 << i)) != 0
-    }
-}
-
-impl Encode for FullBoxFlags {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.0.to_be_bytes()[1..])?;
-        Ok(())
     }
 }
 
@@ -520,14 +463,6 @@ impl<I, F> FixedPointNumber<I, F> {
     }
 }
 
-impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.integer.encode(&mut writer)?;
-        self.fraction.encode(writer)?;
-        Ok(())
-    }
-}
-
 impl<I: Encode2, F: Encode2> Encode2 for FixedPointNumber<I, F> {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -574,14 +509,6 @@ impl Utf8String {
         let mut v = self.0.into_bytes();
         v.push(0);
         v
-    }
-}
-
-impl Encode for Utf8String {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(self.0.as_bytes())?;
-        writer.write_all(&[0])?;
-        Ok(())
     }
 }
 

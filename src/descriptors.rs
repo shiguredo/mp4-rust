@@ -2,10 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{
-    Decode, Encode, Encode2, Error, Error2, Result, Result2, Uint,
-    io::{Read, Write},
-};
+use crate::{Decode, Encode2, Error, Error2, Result, Result2, Uint, io::Read};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -77,36 +74,6 @@ impl Decode for EsDescriptor {
             dec_config_descr,
             sl_config_descr,
         })
-    }
-}
-
-impl Encode for EsDescriptor {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        let mut payload = Vec::new();
-
-        self.es_id.encode(&mut payload)?;
-        (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
-            | Uint::<u8, 1, 6>::new(self.url_string.is_some() as u8).to_bits()
-            | Uint::<u8, 1, 5>::new(self.ocr_es_id.is_some() as u8).to_bits()
-            | self.stream_priority.to_bits())
-        .encode(&mut payload)?;
-        if let Some(v) = self.depends_on_es_id {
-            v.encode(&mut payload)?;
-        }
-        if let Some(v) = &self.url_string {
-            (v.len() as u8).encode(&mut payload)?;
-            payload.write_all(v.as_bytes())?;
-        }
-        if let Some(v) = self.ocr_es_id {
-            v.encode(&mut payload)?;
-        }
-        self.dec_config_descr.encode(&mut payload)?;
-        self.sl_config_descr.encode(&mut payload)?;
-
-        encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
-        writer.write_all(&payload)?;
-
-        Ok(())
     }
 }
 
@@ -200,25 +167,6 @@ impl Decode for DecoderConfigDescriptor {
     }
 }
 
-impl Encode for DecoderConfigDescriptor {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        let mut payload = Vec::new();
-
-        self.object_type_indication.encode(&mut payload)?;
-        (self.stream_type.to_bits() | self.up_stream.to_bits() | Uint::<u8, 1>::new(1).to_bits())
-            .encode(&mut payload)?;
-        payload.write_all(&self.buffer_size_db.to_bits().to_be_bytes()[1..])?;
-        self.max_bitrate.encode(&mut payload)?;
-        self.avg_bitrate.encode(&mut payload)?;
-        self.dec_specific_info.encode(&mut payload)?;
-
-        encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
-        writer.write_all(&payload)?;
-
-        Ok(())
-    }
-}
-
 impl Encode2 for DecoderConfigDescriptor {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -265,14 +213,6 @@ impl Decode for DecoderSpecificInfo {
     }
 }
 
-impl Encode for DecoderSpecificInfo {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        encode_tag_and_size(&mut writer, Self::TAG, self.payload.len())?;
-        writer.write_all(&self.payload)?;
-        Ok(())
-    }
-}
-
 impl Encode2 for DecoderSpecificInfo {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let offset = self.payload.encode2(buf)?;
@@ -313,18 +253,6 @@ impl Decode for SlConfigDescriptor {
     }
 }
 
-impl Encode for SlConfigDescriptor {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        let predefined = 2;
-        let payload = [predefined];
-
-        encode_tag_and_size(&mut writer, Self::TAG, payload.len())?;
-        writer.write_all(&payload)?;
-
-        Ok(())
-    }
-}
-
 impl Encode2 for SlConfigDescriptor {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         let predefined = 2u8;
@@ -345,29 +273,6 @@ fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
     }
 
     Ok((tag, size))
-}
-
-fn encode_tag_and_size<W: Write>(mut writer: W, tag: u8, mut size: usize) -> Result<()> {
-    writer.write_all(&[tag])?;
-
-    let mut buf = Vec::new();
-    for i in 0.. {
-        let mut b = (size & 0b0111_1111) as u8;
-        size >>= 7;
-
-        if i > 0 {
-            b |= 0b1000_0000;
-        }
-        buf.push(b);
-
-        if size == 0 {
-            break;
-        }
-    }
-    buf.reverse(); // リトルエンディアンからビッグエンディアンにする
-    writer.write_all(&buf)?;
-
-    Ok(())
 }
 
 // buf の先頭にペイロードが格納されている前提

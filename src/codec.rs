@@ -12,7 +12,7 @@ use alloc::{format, string::String, vec::Vec};
 use core::num::{NonZeroU16, NonZeroU32};
 
 use crate::BoxType;
-use crate::io::{ErrorKind, Read, Write};
+use crate::io::{ErrorKind, Read};
 
 /// このライブラリ用の Result 型
 pub type Result<T> = core::result::Result<T, Error>;
@@ -122,11 +122,6 @@ impl Error {
     #[track_caller]
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(crate::io::Error::new(ErrorKind::InvalidData, message))
-    }
-
-    #[track_caller]
-    pub(crate) fn invalid_input(message: &str) -> Self {
-        Self::from(crate::io::Error::new(ErrorKind::InvalidInput, message))
     }
 
     #[track_caller]
@@ -334,99 +329,6 @@ impl Encode2 for [u8] {
         Error2::check_buffer_size(self.len(), buf)?;
         buf[..self.len()].copy_from_slice(self);
         Ok(self.len())
-    }
-}
-
-/// `self` のバイト列への変換を行うためのトレイト
-pub trait Encode {
-    /// `self` をバイト列に変換して `writer` に書き込む
-    fn encode<W: Write>(&self, writer: W) -> Result<()>;
-}
-
-impl Encode for u8 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for u64 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i8 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for i64 {
-    #[track_caller]
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.to_be_bytes())?;
-        Ok(())
-    }
-}
-
-impl Encode for NonZeroU16 {
-    #[track_caller]
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        self.get().encode(writer)
-    }
-}
-
-impl Encode for NonZeroU32 {
-    #[track_caller]
-    fn encode<W: Write>(&self, writer: W) -> Result<()> {
-        self.get().encode(writer)
-    }
-}
-
-impl<T: Encode, const N: usize> Encode for [T; N] {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        for item in self {
-            item.encode(&mut writer)?;
-        }
-        Ok(())
     }
 }
 
