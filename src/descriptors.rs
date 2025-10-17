@@ -275,17 +275,8 @@ impl Encode for DecoderSpecificInfo {
 
 impl Encode2 for DecoderSpecificInfo {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let mut offset = 0;
-        offset += encode_tag_and_size2(
-            buf.get_mut(offset..)
-                .ok_or_else(Error2::insufficient_buffer)?,
-            Self::TAG,
-            self.payload.len(),
-        )?;
-        let size = offset + self.payload.len();
-        Error2::check_buffer_size(size, buf)?;
-        buf[offset..size].copy_from_slice(&self.payload);
-        Ok(size)
+        let offset = self.payload.encode2(buf)?;
+        encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
 
@@ -336,19 +327,9 @@ impl Encode for SlConfigDescriptor {
 
 impl Encode2 for SlConfigDescriptor {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let predefined = 2;
-        let payload = [predefined];
-        let mut offset = 0;
-        offset += encode_tag_and_size2(
-            buf.get_mut(offset..)
-                .ok_or_else(Error2::insufficient_buffer)?,
-            Self::TAG,
-            payload.len(),
-        )?;
-        let required = offset + payload.len();
-        Error2::check_buffer_size(required, buf)?;
-        buf[offset..required].copy_from_slice(&payload);
-        Ok(required)
+        let predefined = 2u8;
+        let offset = predefined.encode2(buf)?;
+        encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
 
