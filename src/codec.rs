@@ -206,6 +206,23 @@ impl core::fmt::Display for Error {
 pub trait Encode2 {
     /// TODO: doc
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize>;
+
+    /// TODO: doc
+    fn encode_to_vec(&self) -> Result2<Vec<u8>> {
+        let mut buf = Vec::with_capacity(64);
+        loop {
+            match self.encode2(&mut buf) {
+                Ok(size) => {
+                    buf.truncate(size);
+                    return Ok(buf);
+                }
+                Err(e) if e.kind == ErrorKind2::InsufficientBuffer => {
+                    buf.resize(buf.len() * 2, 0);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
 }
 
 impl Encode2 for u8 {
