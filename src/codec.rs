@@ -322,6 +322,15 @@ impl<T: Encode2, const N: usize> Encode2 for [T; N] {
     }
 }
 
+impl Encode2 for &[u8] {
+    #[track_caller]
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(self.len(), buf)?;
+        buf[..self.len()].copy_from_slice(self);
+        Ok(self.len())
+    }
+}
+
 /// `self` のバイト列への変換を行うためのトレイト
 pub trait Encode {
     /// `self` をバイト列に変換して `writer` に書き込む
