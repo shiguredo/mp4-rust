@@ -5,8 +5,9 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Encode2, Error, Error2,
+    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint,
+    Utf8String,
     basic_types::as_box_object,
     descriptors::EsDescriptor,
     io::{ExternalBytes, Read, Take, Write},
@@ -32,6 +33,15 @@ impl Encode for UnknownBox {
         BoxHeader::from_box(self).encode(&mut writer)?;
         writer.write_all(&self.payload)?;
         Ok(())
+    }
+}
+
+impl Encode2 for UnknownBox {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += BoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        offset += self.payload.encode2(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -228,6 +238,12 @@ impl Encode for Brand {
     }
 }
 
+impl Encode2 for Brand {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.0.encode2(buf)
+    }
+}
+
 impl Decode for Brand {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let mut buf = [0; 4];
@@ -264,6 +280,19 @@ impl Encode for FtypBox {
         BoxHeader::from_box(self).encode(&mut writer)?;
         self.encode_payload(writer)?;
         Ok(())
+    }
+}
+
+impl Encode2 for FtypBox {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += BoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        offset += self.major_brand.encode2(&mut buf[offset..])?;
+        offset += self.minor_version.encode2(&mut buf[offset..])?;
+        for brand in &self.compatible_brands {
+            offset += brand.encode2(&mut buf[offset..])?;
+        }
+        Ok(offset)
     }
 }
 
