@@ -322,7 +322,7 @@ impl<T: Encode2, const N: usize> Encode2 for [T; N] {
     }
 }
 
-impl Encode2 for &[u8] {
+impl Encode2 for [u8] {
     #[track_caller]
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(self.len(), buf)?;

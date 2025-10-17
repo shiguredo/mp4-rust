@@ -218,15 +218,11 @@ impl Encode2 for BoxHeader {
 
         match self.box_type {
             BoxType::Normal(ty) => {
-                Error2::check_buffer_size(offset + 4, buf)?;
-                buf[offset..offset + 4].copy_from_slice(&ty);
-                offset += 4;
+                offset += ty.encode2(&mut buf[offset..])?;
             }
             BoxType::Uuid(ty) => {
-                Error2::check_buffer_size(offset + 20, buf)?;
-                buf[offset..offset + 4].copy_from_slice(b"uuid");
-                buf[offset + 4..offset + 20].copy_from_slice(&ty);
-                offset += 20;
+                offset += b"uuid".encode2(&mut buf[offset..])?;
+                offset += ty.encode2(&mut buf[offset..])?;
             }
         }
 
@@ -363,9 +359,7 @@ impl Encode for FullBoxFlags {
 
 impl Encode2 for FullBoxFlags {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(3, buf)?;
-        buf[..3].copy_from_slice(&self.0.to_be_bytes()[1..]);
-        Ok(3)
+        self.0.to_be_bytes()[1..].encode2(buf)
     }
 }
 
@@ -420,20 +414,6 @@ impl BoxSize {
     }
 }
 
-impl Encode2 for BoxSize {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        match self {
-            BoxSize::U32(size) => size.encode2(buf),
-            BoxSize::U64(size) => {
-                let mut offset = 0;
-                offset += 1u32.encode2(&mut buf[offset..])?;
-                offset += size.encode2(&mut buf[offset..])?;
-                Ok(offset)
-            }
-        }
-    }
-}
-
 /// [`BaseBox`] の種別
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BoxType {
@@ -470,24 +450,6 @@ impl BoxType {
             Err(Error::invalid_data(&format!(
                 "Expected box type `{expected}`, but got `{self}`"
             )))
-        }
-    }
-}
-
-impl Encode2 for BoxType {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        match self {
-            BoxType::Normal(ty) => {
-                Error2::check_buffer_size(4, buf)?;
-                buf[..4].copy_from_slice(ty);
-                Ok(4)
-            }
-            BoxType::Uuid(ty) => {
-                Error2::check_buffer_size(20, buf)?;
-                buf[..4].copy_from_slice(b"uuid");
-                buf[4..20].copy_from_slice(ty);
-                Ok(20)
-            }
         }
     }
 }
@@ -538,12 +500,6 @@ impl Mp4FileTime {
         let delta = 2082844800; // 1904/1/1 から 1970/1/1 までの経過秒数
         let unix_time_secs = unix_time.as_secs();
         Self::from_secs(unix_time_secs + delta)
-    }
-}
-
-impl Encode2 for Mp4FileTime {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        self.0.encode2(buf)
     }
 }
 
@@ -631,14 +587,10 @@ impl Encode for Utf8String {
 
 impl Encode2 for Utf8String {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let str_bytes = self.0.as_bytes();
-        let required_size = str_bytes.len() + 1; // +1 for null terminator
-        Error2::check_buffer_size(required_size, buf)?;
-
-        buf[..str_bytes.len()].copy_from_slice(str_bytes);
-        buf[str_bytes.len()] = 0;
-
-        Ok(required_size)
+        let mut offset = 0;
+        offset += self.0.as_bytes().encode2(&mut buf[offset..])?;
+        offset += 0u8.encode2(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -695,15 +647,6 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         self.inner_box().children()
-    }
-}
-
-impl<A: Encode2, B: Encode2> Encode2 for Either<A, B> {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        match self {
-            Either::A(a) => a.encode2(buf),
-            Either::B(b) => b.encode2(buf),
-        }
     }
 }
 
