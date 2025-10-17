@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error, Result,
+    Decode, Encode, Encode2, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{PeekReader, Read, Take, Write},
 };
@@ -201,6 +201,43 @@ impl Encode for BoxHeader {
     }
 }
 
+impl Encode2 for BoxHeader {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+
+        let large_size = match self.box_size {
+            BoxSize::U32(size) => {
+                offset += size.encode2(&mut buf[offset..])?;
+                None
+            }
+            BoxSize::U64(size) => {
+                offset += 1u32.encode2(&mut buf[offset..])?;
+                Some(size)
+            }
+        };
+
+        match self.box_type {
+            BoxType::Normal(ty) => {
+                Error2::check_buffer_size(offset + 4, buf)?;
+                buf[offset..offset + 4].copy_from_slice(&ty);
+                offset += 4;
+            }
+            BoxType::Uuid(ty) => {
+                Error2::check_buffer_size(offset + 20, buf)?;
+                buf[offset..offset + 4].copy_from_slice(b"uuid");
+                buf[offset + 4..offset + 20].copy_from_slice(&ty);
+                offset += 20;
+            }
+        }
+
+        if let Some(large_size) = large_size {
+            offset += large_size.encode2(&mut buf[offset..])?;
+        }
+
+        Ok(offset)
+    }
+}
+
 impl Decode for BoxHeader {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         let box_size = u32::decode(&mut reader)?;
@@ -264,6 +301,15 @@ impl Encode for FullBoxHeader {
     }
 }
 
+impl Encode2 for FullBoxHeader {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.version.encode2(&mut buf[offset..])?;
+        offset += self.flags.encode2(&mut buf[offset..])?;
+        Ok(offset)
+    }
+}
+
 impl Decode for FullBoxHeader {
     fn decode<R: Read>(mut reader: R) -> Result<Self> {
         Ok(Self {
@@ -312,6 +358,14 @@ impl Encode for FullBoxFlags {
     fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.0.to_be_bytes()[1..])?;
         Ok(())
+    }
+}
+
+impl Encode2 for FullBoxFlags {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        Error2::check_buffer_size(3, buf)?;
+        buf[..3].copy_from_slice(&self.0.to_be_bytes()[1..]);
+        Ok(3)
     }
 }
 
@@ -366,6 +420,20 @@ impl BoxSize {
     }
 }
 
+impl Encode2 for BoxSize {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        match self {
+            BoxSize::U32(size) => size.encode2(buf),
+            BoxSize::U64(size) => {
+                let mut offset = 0;
+                offset += 1u32.encode2(&mut buf[offset..])?;
+                offset += size.encode2(&mut buf[offset..])?;
+                Ok(offset)
+            }
+        }
+    }
+}
+
 /// [`BaseBox`] の種別
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum BoxType {
@@ -402,6 +470,24 @@ impl BoxType {
             Err(Error::invalid_data(&format!(
                 "Expected box type `{expected}`, but got `{self}`"
             )))
+        }
+    }
+}
+
+impl Encode2 for BoxType {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        match self {
+            BoxType::Normal(ty) => {
+                Error2::check_buffer_size(4, buf)?;
+                buf[..4].copy_from_slice(ty);
+                Ok(4)
+            }
+            BoxType::Uuid(ty) => {
+                Error2::check_buffer_size(20, buf)?;
+                buf[..4].copy_from_slice(b"uuid");
+                buf[4..20].copy_from_slice(ty);
+                Ok(20)
+            }
         }
     }
 }
@@ -455,6 +541,12 @@ impl Mp4FileTime {
     }
 }
 
+impl Encode2 for Mp4FileTime {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.0.encode2(buf)
+    }
+}
+
 /// 固定小数点数
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FixedPointNumber<I, F = I> {
@@ -477,6 +569,15 @@ impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
         self.integer.encode(&mut writer)?;
         self.fraction.encode(writer)?;
         Ok(())
+    }
+}
+
+impl<I: Encode2, F: Encode2> Encode2 for FixedPointNumber<I, F> {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.integer.encode2(&mut buf[offset..])?;
+        offset += self.fraction.encode2(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -525,6 +626,19 @@ impl Encode for Utf8String {
         writer.write_all(self.0.as_bytes())?;
         writer.write_all(&[0])?;
         Ok(())
+    }
+}
+
+impl Encode2 for Utf8String {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        let str_bytes = self.0.as_bytes();
+        let required_size = str_bytes.len() + 1; // +1 for null terminator
+        Error2::check_buffer_size(required_size, buf)?;
+
+        buf[..str_bytes.len()].copy_from_slice(str_bytes);
+        buf[str_bytes.len()] = 0;
+
+        Ok(required_size)
     }
 }
 
@@ -581,6 +695,15 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         self.inner_box().children()
+    }
+}
+
+impl<A: Encode2, B: Encode2> Encode2 for Either<A, B> {
+    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+        match self {
+            Either::A(a) => a.encode2(buf),
+            Either::B(b) => b.encode2(buf),
+        }
     }
 }
 
