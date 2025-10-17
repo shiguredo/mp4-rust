@@ -112,41 +112,38 @@ impl Encode for EsDescriptor {
 
 impl Encode2 for EsDescriptor {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        // 先頭にタグやペイロードサイズを付与する必要があるので、まずはペイロードを別に構築する
-        let mut payload_offset = 0;
-        let mut payload = [0; 1024]; // 十分なサイズのバッファを用意する
+        let mut offset = 0;
 
-        payload_offset += self.es_id.encode2(&mut payload[payload_offset..])?;
-        payload_offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
+        // ペイロードを書き込む
+        offset += self.es_id.encode2(&mut buf[offset..])?;
+        offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
             | Uint::<u8, 1, 6>::new(self.url_string.is_some() as u8).to_bits()
             | Uint::<u8, 1, 5>::new(self.ocr_es_id.is_some() as u8).to_bits()
             | self.stream_priority.to_bits())
-        .encode2(&mut payload[payload_offset..])?;
+        .encode2(&mut buf[offset..])?;
 
         if let Some(v) = self.depends_on_es_id {
-            payload_offset += v.encode2(&mut payload[payload_offset..])?;
+            offset += v.encode2(&mut buf[offset..])?;
         }
-
         if let Some(v) = &self.url_string {
-            payload_offset += (v.len() as u8).encode2(&mut payload[payload_offset..])?;
-            payload_offset += v.as_bytes().encode2(&mut payload[payload_offset..])?;
+            offset += (v.len() as u8).encode2(&mut buf[offset..])?;
+            offset += v.as_bytes().encode2(&mut buf[offset..])?;
         }
-
         if let Some(v) = self.ocr_es_id {
-            payload_offset += v.encode2(&mut payload[payload_offset..])?;
+            offset += v.encode2(&mut buf[offset..])?;
         }
 
-        payload_offset += self
-            .dec_config_descr
-            .encode2(&mut payload[payload_offset..])?;
-        payload_offset += self
-            .sl_config_descr
-            .encode2(&mut payload[payload_offset..])?;
+        offset += self.dec_config_descr.encode2(&mut buf[offset..])?;
+        offset += self.sl_config_descr.encode2(&mut buf[offset..])?;
 
-        // 最終的な内容を、バッファに書き込む
-        let offset = encode_tag_and_size2(buf, Self::TAG, payload_offset)?;
-        offset += payload.encode2(&mut buf[offset..])?;
-        Ok(offset)
+        // ペイロードをずらして、先頭にタグとサイズを書き込む
+        let mut header_buf = [0; 64];
+        let header_size = encode_tag_and_size2(&mut header_buf, Self::TAG, offset)?;
+        Error2::check_buffer_size(header_size + offset, buf)?;
+        buf.copy_within(..offset, header_size);
+        buf[..header_size].copy_from_slice(&header_buf[..header_size]);
+
+        Ok(header_size + offset)
     }
 }
 
