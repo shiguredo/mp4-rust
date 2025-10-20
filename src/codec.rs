@@ -268,7 +268,7 @@ pub trait Encode {
 
     /// TODO: doc
     fn encode_to_vec(&self) -> Result2<Vec<u8>> {
-        let mut buf = Vec::with_capacity(64);
+        let mut buf = vec![0; 64];
         loop {
             match self.encode(&mut buf) {
                 Ok(size) => {
