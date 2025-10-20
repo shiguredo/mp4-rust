@@ -125,15 +125,6 @@ impl BoxHeader {
         Ok(())
     }
 
-    // TODO: remove
-    /// ボックスへの参照を受け取って、対応するヘッダーを作成する
-    pub fn from_box<B: BaseBox>(b: &B) -> Self {
-        let box_type = b.box_type();
-        todo!()
-        //let box_size = b.box_size();
-        //Self { box_type, box_size }
-    }
-
     /// ヘッダーをエンコードした際のバイト数を返す
     pub fn external_size(self) -> usize {
         self.box_type.external_size() + self.box_size.external_size()
