@@ -5,7 +5,7 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode2, Error, Error2, FixedPointNumber,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, Error2, FixedPointNumber,
     FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint, Utf8String,
     basic_types::as_box_object,
     descriptors::EsDescriptor,
@@ -27,10 +27,10 @@ pub struct UnknownBox {
     pub payload: Vec<u8>,
 }
 
-impl Encode2 for UnknownBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let mut offset = BoxHeader::new(self.box_type, self.box_size).encode2(buf)?;
-        offset += self.payload.encode2(&mut buf[offset..])?;
+impl Encode for UnknownBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = BoxHeader::new(self.box_type, self.box_size).encode(buf)?;
+        offset += self.payload.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -205,9 +205,9 @@ impl core::fmt::Debug for Brand {
     }
 }
 
-impl Encode2 for Brand {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        self.0.encode2(buf)
+impl Encode for Brand {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.0.encode(buf)
     }
 }
 
@@ -233,14 +233,14 @@ impl FtypBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"ftyp");
 }
 
-impl Encode2 for FtypBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for FtypBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.major_brand.encode2(&mut buf[offset..])?;
-        offset += self.minor_version.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.major_brand.encode(&mut buf[offset..])?;
+        offset += self.minor_version.encode(&mut buf[offset..])?;
         for brand in &self.compatible_brands {
-            offset += brand.encode2(&mut buf[offset..])?;
+            offset += brand.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -299,13 +299,13 @@ impl RootBox {
     }
 }
 
-impl Encode2 for RootBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for RootBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         match self {
-            RootBox::Free(b) => b.encode2(buf),
-            RootBox::Mdat(b) => b.encode2(buf),
-            RootBox::Moov(b) => b.encode2(buf),
-            RootBox::Unknown(b) => b.encode2(buf),
+            RootBox::Free(b) => b.encode(buf),
+            RootBox::Mdat(b) => b.encode(buf),
+            RootBox::Moov(b) => b.encode(buf),
+            RootBox::Unknown(b) => b.encode(buf),
         }
     }
 }
@@ -348,11 +348,11 @@ impl FreeBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"free");
 }
 
-impl Encode2 for FreeBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for FreeBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let box_size = BoxSize::with_payload_size(Self::TYPE, self.payload.len() as u64);
-        let mut offset = BoxHeader::new(Self::TYPE, box_size).encode2(buf)?;
-        offset += self.payload.encode2(&mut buf[offset..])?;
+        let mut offset = BoxHeader::new(Self::TYPE, box_size).encode(buf)?;
+        offset += self.payload.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -393,15 +393,15 @@ impl MdatBox {
     pub const TYPE: BoxType = BoxType::Normal(*b"mdat");
 }
 
-impl Encode2 for MdatBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MdatBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let box_size = if self.is_variable_size {
             BoxSize::VARIABLE_SIZE
         } else {
             BoxSize::with_payload_size(Self::TYPE, self.payload.len() as u64)
         };
-        let mut offset = BoxHeader::new(Self::TYPE, box_size).encode2(buf)?;
-        offset += self.payload.encode2(&mut buf[offset..])?;
+        let mut offset = BoxHeader::new(Self::TYPE, box_size).encode(buf)?;
+        offset += self.payload.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -471,16 +471,16 @@ impl MoovBox {
     }
 }
 
-impl Encode2 for MoovBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MoovBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.mvhd_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.mvhd_box.encode(&mut buf[offset..])?;
         for b in &self.trak_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -575,31 +575,31 @@ impl MvhdBox {
     }
 }
 
-impl Encode2 for MvhdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MvhdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         if self.full_box_version() == 1 {
-            offset += self.creation_time.as_secs().encode2(&mut buf[offset..])?;
+            offset += self.creation_time.as_secs().encode(&mut buf[offset..])?;
             offset += self
                 .modification_time
                 .as_secs()
-                .encode2(&mut buf[offset..])?;
-            offset += self.timescale.encode2(&mut buf[offset..])?;
-            offset += self.duration.encode2(&mut buf[offset..])?;
+                .encode(&mut buf[offset..])?;
+            offset += self.timescale.encode(&mut buf[offset..])?;
+            offset += self.duration.encode(&mut buf[offset..])?;
         } else {
-            offset += (self.creation_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += (self.modification_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += self.timescale.encode2(&mut buf[offset..])?;
-            offset += (self.duration as u32).encode2(&mut buf[offset..])?;
+            offset += (self.creation_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += (self.modification_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += self.timescale.encode(&mut buf[offset..])?;
+            offset += (self.duration as u32).encode(&mut buf[offset..])?;
         }
-        offset += self.rate.encode2(&mut buf[offset..])?;
-        offset += self.volume.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2 + 4 * 2].encode2(&mut buf[offset..])?;
-        offset += self.matrix.encode2(&mut buf[offset..])?;
-        offset += [0u8; 4 * 6].encode2(&mut buf[offset..])?;
-        offset += self.next_track_id.encode2(&mut buf[offset..])?;
+        offset += self.rate.encode(&mut buf[offset..])?;
+        offset += self.volume.encode(&mut buf[offset..])?;
+        offset += [0u8; 2 + 4 * 2].encode(&mut buf[offset..])?;
+        offset += self.matrix.encode(&mut buf[offset..])?;
+        offset += [0u8; 4 * 6].encode(&mut buf[offset..])?;
+        offset += self.next_track_id.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -688,17 +688,17 @@ impl TrakBox {
     }
 }
 
-impl Encode2 for TrakBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for TrakBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.tkhd_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.tkhd_box.encode(&mut buf[offset..])?;
         if let Some(b) = &self.edts_box {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
-        offset += self.mdia_box.encode2(&mut buf[offset..])?;
+        offset += self.mdia_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -823,35 +823,35 @@ impl TkhdBox {
     }
 }
 
-impl Encode2 for TkhdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for TkhdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         if self.full_box_version() == 1 {
-            offset += self.creation_time.as_secs().encode2(&mut buf[offset..])?;
+            offset += self.creation_time.as_secs().encode(&mut buf[offset..])?;
             offset += self
                 .modification_time
                 .as_secs()
-                .encode2(&mut buf[offset..])?;
-            offset += self.track_id.encode2(&mut buf[offset..])?;
-            offset += [0u8; 4].encode2(&mut buf[offset..])?;
-            offset += self.duration.encode2(&mut buf[offset..])?;
+                .encode(&mut buf[offset..])?;
+            offset += self.track_id.encode(&mut buf[offset..])?;
+            offset += [0u8; 4].encode(&mut buf[offset..])?;
+            offset += self.duration.encode(&mut buf[offset..])?;
         } else {
-            offset += (self.creation_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += (self.modification_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += self.track_id.encode2(&mut buf[offset..])?;
-            offset += [0u8; 4].encode2(&mut buf[offset..])?;
-            offset += (self.duration as u32).encode2(&mut buf[offset..])?;
+            offset += (self.creation_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += (self.modification_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += self.track_id.encode(&mut buf[offset..])?;
+            offset += [0u8; 4].encode(&mut buf[offset..])?;
+            offset += (self.duration as u32).encode(&mut buf[offset..])?;
         }
-        offset += [0u8; 4 * 2].encode2(&mut buf[offset..])?;
-        offset += self.layer.encode2(&mut buf[offset..])?;
-        offset += self.alternate_group.encode2(&mut buf[offset..])?;
-        offset += self.volume.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2].encode2(&mut buf[offset..])?;
-        offset += self.matrix.encode2(&mut buf[offset..])?;
-        offset += self.width.encode2(&mut buf[offset..])?;
-        offset += self.height.encode2(&mut buf[offset..])?;
+        offset += [0u8; 4 * 2].encode(&mut buf[offset..])?;
+        offset += self.layer.encode(&mut buf[offset..])?;
+        offset += self.alternate_group.encode(&mut buf[offset..])?;
+        offset += self.volume.encode(&mut buf[offset..])?;
+        offset += [0u8; 2].encode(&mut buf[offset..])?;
+        offset += self.matrix.encode(&mut buf[offset..])?;
+        offset += self.width.encode(&mut buf[offset..])?;
+        offset += self.height.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -930,15 +930,15 @@ impl EdtsBox {
     }
 }
 
-impl Encode2 for EdtsBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for EdtsBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
+        let mut offset = header.encode(buf)?;
         if let Some(b) = &self.elst_box {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1014,23 +1014,23 @@ impl ElstBox {
     }
 }
 
-impl Encode2 for ElstBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for ElstBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
 
         let version = self.full_box_version();
-        offset += (self.entries.len() as u32).encode2(&mut buf[offset..])?;
+        offset += (self.entries.len() as u32).encode(&mut buf[offset..])?;
         for entry in &self.entries {
             if version == 1 {
-                offset += entry.edit_duration.encode2(&mut buf[offset..])?;
-                offset += entry.media_time.encode2(&mut buf[offset..])?;
+                offset += entry.edit_duration.encode(&mut buf[offset..])?;
+                offset += entry.media_time.encode(&mut buf[offset..])?;
             } else {
-                offset += (entry.edit_duration as u32).encode2(&mut buf[offset..])?;
-                offset += (entry.media_time as i32).encode2(&mut buf[offset..])?;
+                offset += (entry.edit_duration as u32).encode(&mut buf[offset..])?;
+                offset += (entry.media_time as i32).encode(&mut buf[offset..])?;
             }
-            offset += entry.media_rate.encode2(&mut buf[offset..])?;
+            offset += entry.media_rate.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1116,15 +1116,15 @@ impl MdiaBox {
     }
 }
 
-impl Encode2 for MdiaBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MdiaBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.mdhd_box.encode2(&mut buf[offset..])?;
-        offset += self.hdlr_box.encode2(&mut buf[offset..])?;
-        offset += self.minf_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.mdhd_box.encode(&mut buf[offset..])?;
+        offset += self.hdlr_box.encode(&mut buf[offset..])?;
+        offset += self.minf_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1212,24 +1212,24 @@ impl MdhdBox {
     }
 }
 
-impl Encode2 for MdhdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MdhdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         if self.full_box_version() == 1 {
-            offset += self.creation_time.as_secs().encode2(&mut buf[offset..])?;
+            offset += self.creation_time.as_secs().encode(&mut buf[offset..])?;
             offset += self
                 .modification_time
                 .as_secs()
-                .encode2(&mut buf[offset..])?;
-            offset += self.timescale.encode2(&mut buf[offset..])?;
-            offset += self.duration.encode2(&mut buf[offset..])?;
+                .encode(&mut buf[offset..])?;
+            offset += self.timescale.encode(&mut buf[offset..])?;
+            offset += self.duration.encode(&mut buf[offset..])?;
         } else {
-            offset += (self.creation_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += (self.modification_time.as_secs() as u32).encode2(&mut buf[offset..])?;
-            offset += self.timescale.encode2(&mut buf[offset..])?;
-            offset += (self.duration as u32).encode2(&mut buf[offset..])?;
+            offset += (self.creation_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += (self.modification_time.as_secs() as u32).encode(&mut buf[offset..])?;
+            offset += self.timescale.encode(&mut buf[offset..])?;
+            offset += (self.duration as u32).encode(&mut buf[offset..])?;
         }
 
         let mut language: u16 = 0;
@@ -1242,8 +1242,8 @@ impl Encode2 for MdhdBox {
             };
             language = (language << 5) | code as u16;
         }
-        offset += language.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2].encode2(&mut buf[offset..])?;
+        offset += language.encode(&mut buf[offset..])?;
+        offset += [0u8; 2].encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -1321,15 +1321,15 @@ impl HdlrBox {
     }
 }
 
-impl Encode2 for HdlrBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for HdlrBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += [0u8; 4].encode2(&mut buf[offset..])?;
-        offset += self.handler_type.encode2(&mut buf[offset..])?;
-        offset += [0u8; 4 * 3].encode2(&mut buf[offset..])?;
-        offset += self.name.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += [0u8; 4].encode(&mut buf[offset..])?;
+        offset += self.handler_type.encode(&mut buf[offset..])?;
+        offset += [0u8; 4 * 3].encode(&mut buf[offset..])?;
+        offset += self.name.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -1418,18 +1418,18 @@ impl MinfBox {
     }
 }
 
-impl Encode2 for MinfBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for MinfBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
+        let mut offset = header.encode(buf)?;
         match &self.smhd_or_vmhd_box {
-            Either::A(b) => offset += b.encode2(&mut buf[offset..])?,
-            Either::B(b) => offset += b.encode2(&mut buf[offset..])?,
+            Either::A(b) => offset += b.encode(&mut buf[offset..])?,
+            Either::B(b) => offset += b.encode(&mut buf[offset..])?,
         }
-        offset += self.dinf_box.encode2(&mut buf[offset..])?;
-        offset += self.stbl_box.encode2(&mut buf[offset..])?;
+        offset += self.dinf_box.encode(&mut buf[offset..])?;
+        offset += self.stbl_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1482,13 +1482,13 @@ impl SmhdBox {
     }
 }
 
-impl Encode2 for SmhdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for SmhdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += self.balance.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2].encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += self.balance.encode(&mut buf[offset..])?;
+        offset += [0u8; 2].encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -1558,13 +1558,13 @@ impl VmhdBox {
     }
 }
 
-impl Encode2 for VmhdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for VmhdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += self.graphicsmode.encode2(&mut buf[offset..])?;
-        offset += self.opcolor.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += self.graphicsmode.encode(&mut buf[offset..])?;
+        offset += self.opcolor.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -1638,13 +1638,13 @@ impl DinfBox {
     }
 }
 
-impl Encode2 for DinfBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for DinfBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.dref_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.dref_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1714,18 +1714,18 @@ impl DrefBox {
     }
 }
 
-impl Encode2 for DrefBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for DrefBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         let entry_count = (self.url_box.is_some() as usize + self.unknown_boxes.len()) as u32;
-        offset += entry_count.encode2(&mut buf[offset..])?;
+        offset += entry_count.encode(&mut buf[offset..])?;
         if let Some(b) = &self.url_box {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1789,13 +1789,13 @@ impl UrlBox {
     }
 }
 
-impl Encode2 for UrlBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for UrlBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         if let Some(l) = &self.location {
-            offset += l.encode2(&mut buf[offset..])?;
+            offset += l.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1905,23 +1905,23 @@ impl StblBox {
     }
 }
 
-impl Encode2 for StblBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StblBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.stsd_box.encode2(&mut buf[offset..])?;
-        offset += self.stts_box.encode2(&mut buf[offset..])?;
-        offset += self.stsc_box.encode2(&mut buf[offset..])?;
-        offset += self.stsz_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.stsd_box.encode(&mut buf[offset..])?;
+        offset += self.stts_box.encode(&mut buf[offset..])?;
+        offset += self.stsc_box.encode(&mut buf[offset..])?;
+        offset += self.stsz_box.encode(&mut buf[offset..])?;
         match &self.stco_or_co64_box {
-            Either::A(b) => offset += b.encode2(&mut buf[offset..])?,
-            Either::B(b) => offset += b.encode2(&mut buf[offset..])?,
+            Either::A(b) => offset += b.encode(&mut buf[offset..])?,
+            Either::B(b) => offset += b.encode(&mut buf[offset..])?,
         }
         if let Some(b) = &self.stss_box {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -1983,15 +1983,15 @@ impl StsdBox {
     }
 }
 
-impl Encode2 for StsdBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StsdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         let entry_count = (self.entries.len()) as u32;
-        offset += entry_count.encode2(&mut buf[offset..])?;
+        offset += entry_count.encode(&mut buf[offset..])?;
         for b in &self.entries {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -2055,17 +2055,17 @@ impl SampleEntry {
     }
 }
 
-impl Encode2 for SampleEntry {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for SampleEntry {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         match self {
-            Self::Avc1(b) => b.encode2(buf),
-            Self::Hev1(b) => b.encode2(buf),
-            Self::Vp08(b) => b.encode2(buf),
-            Self::Vp09(b) => b.encode2(buf),
-            Self::Av01(b) => b.encode2(buf),
-            Self::Opus(b) => b.encode2(buf),
-            Self::Mp4a(b) => b.encode2(buf),
-            Self::Unknown(b) => b.encode2(buf),
+            Self::Avc1(b) => b.encode(buf),
+            Self::Hev1(b) => b.encode(buf),
+            Self::Vp08(b) => b.encode(buf),
+            Self::Vp09(b) => b.encode(buf),
+            Self::Av01(b) => b.encode(buf),
+            Self::Opus(b) => b.encode(buf),
+            Self::Mp4a(b) => b.encode(buf),
+            Self::Unknown(b) => b.encode(buf),
         }
     }
 }
@@ -2134,21 +2134,21 @@ impl VisualSampleEntryFields {
     pub const NULL_COMPRESSORNAME: [u8; 32] = [0; 32];
 }
 
-impl Encode2 for VisualSampleEntryFields {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for VisualSampleEntryFields {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += [0u8; 6].encode2(&mut buf[offset..])?;
-        offset += self.data_reference_index.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2 + 2 + 4 * 3].encode2(&mut buf[offset..])?;
-        offset += self.width.encode2(&mut buf[offset..])?;
-        offset += self.height.encode2(&mut buf[offset..])?;
-        offset += self.horizresolution.encode2(&mut buf[offset..])?;
-        offset += self.vertresolution.encode2(&mut buf[offset..])?;
-        offset += [0u8; 4].encode2(&mut buf[offset..])?;
-        offset += self.frame_count.encode2(&mut buf[offset..])?;
-        offset += self.compressorname.encode2(&mut buf[offset..])?;
-        offset += self.depth.encode2(&mut buf[offset..])?;
-        offset += (-1i16).encode2(&mut buf[offset..])?;
+        offset += [0u8; 6].encode(&mut buf[offset..])?;
+        offset += self.data_reference_index.encode(&mut buf[offset..])?;
+        offset += [0u8; 2 + 2 + 4 * 3].encode(&mut buf[offset..])?;
+        offset += self.width.encode(&mut buf[offset..])?;
+        offset += self.height.encode(&mut buf[offset..])?;
+        offset += self.horizresolution.encode(&mut buf[offset..])?;
+        offset += self.vertresolution.encode(&mut buf[offset..])?;
+        offset += [0u8; 4].encode(&mut buf[offset..])?;
+        offset += self.frame_count.encode(&mut buf[offset..])?;
+        offset += self.compressorname.encode(&mut buf[offset..])?;
+        offset += self.depth.encode(&mut buf[offset..])?;
+        offset += (-1i16).encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -2217,14 +2217,14 @@ impl Avc1Box {
     }
 }
 
-impl Encode2 for Avc1Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Avc1Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.visual.encode2(&mut buf[offset..])?;
-        offset += self.avcc_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.avcc_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -2339,35 +2339,35 @@ impl AvccBox {
     }
 }
 
-impl Encode2 for AvccBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for AvccBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
+        let mut offset = header.encode(buf)?;
 
-        offset += Self::CONFIGURATION_VERSION.encode2(&mut buf[offset..])?;
-        offset += self.avc_profile_indication.encode2(&mut buf[offset..])?;
-        offset += self.profile_compatibility.encode2(&mut buf[offset..])?;
-        offset += self.avc_level_indication.encode2(&mut buf[offset..])?;
-        offset += (0b1111_1100 | self.length_size_minus_one.get()).encode2(&mut buf[offset..])?;
+        offset += Self::CONFIGURATION_VERSION.encode(&mut buf[offset..])?;
+        offset += self.avc_profile_indication.encode(&mut buf[offset..])?;
+        offset += self.profile_compatibility.encode(&mut buf[offset..])?;
+        offset += self.avc_level_indication.encode(&mut buf[offset..])?;
+        offset += (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut buf[offset..])?;
 
         let sps_count = u8::try_from(self.sps_list.len())
             .map_err(|_| Error2::invalid_input("Too many SPSs"))?;
-        offset += (0b1110_0000 | sps_count).encode2(&mut buf[offset..])?;
+        offset += (0b1110_0000 | sps_count).encode(&mut buf[offset..])?;
         for sps in &self.sps_list {
             let size =
                 u16::try_from(sps.len()).map_err(|_| Error2::invalid_input("Too long SPS"))?;
-            offset += size.encode2(&mut buf[offset..])?;
-            offset += sps.encode2(&mut buf[offset..])?;
+            offset += size.encode(&mut buf[offset..])?;
+            offset += sps.encode(&mut buf[offset..])?;
         }
 
         let pps_count = u8::try_from(self.pps_list.len())
             .map_err(|_| Error2::invalid_input("Too many PPSs"))?;
-        offset += pps_count.encode2(&mut buf[offset..])?;
+        offset += pps_count.encode(&mut buf[offset..])?;
         for pps in &self.pps_list {
             let size =
                 u16::try_from(pps.len()).map_err(|_| Error2::invalid_input("Too long PPS"))?;
-            offset += size.encode2(&mut buf[offset..])?;
-            offset += pps.encode2(&mut buf[offset..])?;
+            offset += size.encode(&mut buf[offset..])?;
+            offset += pps.encode(&mut buf[offset..])?;
         }
 
         if !matches!(self.avc_profile_indication, 66 | 77 | 88) {
@@ -2380,18 +2380,18 @@ impl Encode2 for AvccBox {
             let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
                 Error2::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' box")
             })?;
-            offset += (0b1111_1100 | chroma_format.get()).encode2(&mut buf[offset..])?;
-            offset += (0b1111_1000 | bit_depth_luma_minus8.get()).encode2(&mut buf[offset..])?;
-            offset += (0b1111_1000 | bit_depth_chroma_minus8.get()).encode2(&mut buf[offset..])?;
+            offset += (0b1111_1100 | chroma_format.get()).encode(&mut buf[offset..])?;
+            offset += (0b1111_1000 | bit_depth_luma_minus8.get()).encode(&mut buf[offset..])?;
+            offset += (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(&mut buf[offset..])?;
 
             let sps_ext_count = u8::try_from(self.sps_ext_list.len())
                 .map_err(|_| Error2::invalid_input("Too many SPS EXTs"))?;
-            offset += sps_ext_count.encode2(&mut buf[offset..])?;
+            offset += sps_ext_count.encode(&mut buf[offset..])?;
             for sps_ext in &self.sps_ext_list {
                 let size = u16::try_from(sps_ext.len())
                     .map_err(|_| Error2::invalid_input("Too long SPS EXT"))?;
-                offset += size.encode2(&mut buf[offset..])?;
-                offset += sps_ext.encode2(&mut buf[offset..])?;
+                offset += size.encode(&mut buf[offset..])?;
+                offset += sps_ext.encode(&mut buf[offset..])?;
             }
         }
 
@@ -2455,14 +2455,14 @@ impl Hev1Box {
     }
 }
 
-impl Encode2 for Hev1Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Hev1Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.visual.encode2(&mut buf[offset..])?;
-        offset += self.hvcc_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.hvcc_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -2606,54 +2606,54 @@ impl HvccBox {
     }
 }
 
-impl Encode2 for HvccBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for HvccBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += Self::CONFIGURATION_VERSION.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += Self::CONFIGURATION_VERSION.encode(&mut buf[offset..])?;
         offset += (self.general_profile_space.to_bits()
             | self.general_tier_flag.to_bits()
             | self.general_profile_idc.to_bits())
-        .encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
         offset += self
             .general_profile_compatibility_flags
-            .encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
         offset += self.general_constraint_indicator_flags.get().to_be_bytes()[2..]
-            .encode2(&mut buf[offset..])?;
-        offset += self.general_level_idc.encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
+        offset += self.general_level_idc.encode(&mut buf[offset..])?;
         offset += (0b1111_0000_0000_0000 | self.min_spatial_segmentation_idc.to_bits())
-            .encode2(&mut buf[offset..])?;
-        offset += (0b1111_1100 | self.parallelism_type.to_bits()).encode2(&mut buf[offset..])?;
-        offset += (0b1111_1100 | self.chroma_format_idc.to_bits()).encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
+        offset += (0b1111_1100 | self.parallelism_type.to_bits()).encode(&mut buf[offset..])?;
+        offset += (0b1111_1100 | self.chroma_format_idc.to_bits()).encode(&mut buf[offset..])?;
         offset +=
-            (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode2(&mut buf[offset..])?;
+            (0b1111_1000 | self.bit_depth_luma_minus8.to_bits()).encode(&mut buf[offset..])?;
         offset +=
-            (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode2(&mut buf[offset..])?;
-        offset += self.avg_frame_rate.encode2(&mut buf[offset..])?;
+            (0b1111_1000 | self.bit_depth_chroma_minus8.to_bits()).encode(&mut buf[offset..])?;
+        offset += self.avg_frame_rate.encode(&mut buf[offset..])?;
         offset += (self.constant_frame_rate.to_bits()
             | self.num_temporal_layers.to_bits()
             | self.temporal_id_nested.to_bits()
             | self.length_size_minus_one.to_bits())
-        .encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
         offset += u8::try_from(self.nalu_arrays.len())
             .map_err(|_| {
                 Error2::invalid_input(format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
             })?
-            .encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
         for nalu_array in &self.nalu_arrays {
             offset += (nalu_array.array_completeness.to_bits()
                 | nalu_array.nal_unit_type.to_bits())
-            .encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
             offset += u16::try_from(nalu_array.nalus.len())
                 .map_err(|_| {
                     Error2::invalid_input(format!("Too many NALUs: {}", nalu_array.nalus.len()))
                 })?
-                .encode2(&mut buf[offset..])?;
+                .encode(&mut buf[offset..])?;
             for nalu in &nalu_array.nalus {
                 offset += u16::try_from(nalu.len())
                     .map_err(|_| Error2::invalid_input(format!("Too large NALU: {}", nalu.len())))?
-                    .encode2(&mut buf[offset..])?;
-                offset += nalu.encode2(&mut buf[offset..])?;
+                    .encode(&mut buf[offset..])?;
+                offset += nalu.encode(&mut buf[offset..])?;
             }
         }
         header.finalize_box_size(&mut buf[..offset])?;
@@ -2716,14 +2716,14 @@ impl Vp08Box {
     }
 }
 
-impl Encode2 for Vp08Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Vp08Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.visual.encode2(&mut buf[offset..])?;
-        offset += self.vpcc_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.vpcc_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -2789,14 +2789,14 @@ impl Vp09Box {
     }
 }
 
-impl Encode2 for Vp09Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Vp09Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.visual.encode2(&mut buf[offset..])?;
-        offset += self.vpcc_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.vpcc_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -2880,22 +2880,22 @@ impl VpccBox {
     }
 }
 
-impl Encode2 for VpccBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for VpccBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += self.profile.encode2(&mut buf[offset..])?;
-        offset += self.level.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += self.profile.encode(&mut buf[offset..])?;
+        offset += self.level.encode(&mut buf[offset..])?;
         offset += (self.bit_depth.to_bits()
             | self.chroma_subsampling.to_bits()
             | self.video_full_range_flag.to_bits())
-        .encode2(&mut buf[offset..])?;
-        offset += self.colour_primaries.encode2(&mut buf[offset..])?;
-        offset += self.transfer_characteristics.encode2(&mut buf[offset..])?;
-        offset += self.matrix_coefficients.encode2(&mut buf[offset..])?;
-        offset += (self.codec_initialization_data.len() as u16).encode2(&mut buf[offset..])?;
-        offset += self.codec_initialization_data.encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
+        offset += self.colour_primaries.encode(&mut buf[offset..])?;
+        offset += self.transfer_characteristics.encode(&mut buf[offset..])?;
+        offset += self.matrix_coefficients.encode(&mut buf[offset..])?;
+        offset += (self.codec_initialization_data.len() as u16).encode(&mut buf[offset..])?;
+        offset += self.codec_initialization_data.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -2966,14 +2966,14 @@ impl Av01Box {
     }
 }
 
-impl Encode2 for Av01Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Av01Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.visual.encode2(&mut buf[offset..])?;
-        offset += self.av1c_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.av1c_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3079,13 +3079,13 @@ impl Av1cBox {
     }
 }
 
-impl Encode2 for Av1cBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Av1cBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(&mut buf[offset..])?;
         offset += (self.seq_profile.to_bits() | self.seq_level_idx_0.to_bits())
-            .encode2(&mut buf[offset..])?;
+            .encode(&mut buf[offset..])?;
         offset += (self.seq_tier_0.to_bits()
             | self.high_bitdepth.to_bits()
             | self.twelve_bit.to_bits()
@@ -3093,13 +3093,13 @@ impl Encode2 for Av1cBox {
             | self.chroma_subsampling_x.to_bits()
             | self.chroma_subsampling_y.to_bits()
             | self.chroma_sample_position.to_bits())
-        .encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
         if let Some(v) = self.initial_presentation_delay_minus_one {
-            offset += (0b1_0000 | v.to_bits()).encode2(&mut buf[offset..])?;
+            offset += (0b1_0000 | v.to_bits()).encode(&mut buf[offset..])?;
         } else {
-            offset += 0u8.encode2(&mut buf[offset..])?;
+            offset += 0u8.encode(&mut buf[offset..])?;
         }
-        offset += self.config_obus.encode2(&mut buf[offset..])?;
+        offset += self.config_obus.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -3177,15 +3177,15 @@ impl SttsBox {
     }
 }
 
-impl Encode2 for SttsBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for SttsBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += (self.entries.len() as u32).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.entries.len() as u32).encode(&mut buf[offset..])?;
         for entry in &self.entries {
-            offset += entry.sample_count.encode2(&mut buf[offset..])?;
-            offset += entry.sample_delta.encode2(&mut buf[offset..])?;
+            offset += entry.sample_count.encode(&mut buf[offset..])?;
+            offset += entry.sample_delta.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3255,16 +3255,16 @@ impl StscBox {
     }
 }
 
-impl Encode2 for StscBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StscBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += (self.entries.len() as u32).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.entries.len() as u32).encode(&mut buf[offset..])?;
         for entry in &self.entries {
-            offset += entry.first_chunk.encode2(&mut buf[offset..])?;
-            offset += entry.sample_per_chunk.encode2(&mut buf[offset..])?;
-            offset += entry.sample_description_index.encode2(&mut buf[offset..])?;
+            offset += entry.first_chunk.encode(&mut buf[offset..])?;
+            offset += entry.sample_per_chunk.encode(&mut buf[offset..])?;
+            offset += entry.sample_description_index.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3335,24 +3335,24 @@ impl StszBox {
     }
 }
 
-impl Encode2 for StszBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StszBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
         match self {
             StszBox::Fixed {
                 sample_size,
                 sample_count,
             } => {
-                offset += sample_size.get().encode2(&mut buf[offset..])?;
-                offset += sample_count.encode2(&mut buf[offset..])?;
+                offset += sample_size.get().encode(&mut buf[offset..])?;
+                offset += sample_count.encode(&mut buf[offset..])?;
             }
             StszBox::Variable { entry_sizes } => {
-                offset += 0u32.encode2(&mut buf[offset..])?;
-                offset += (entry_sizes.len() as u32).encode2(&mut buf[offset..])?;
+                offset += 0u32.encode(&mut buf[offset..])?;
+                offset += (entry_sizes.len() as u32).encode(&mut buf[offset..])?;
                 for size in entry_sizes {
-                    offset += size.encode2(&mut buf[offset..])?;
+                    offset += size.encode(&mut buf[offset..])?;
                 }
             }
         }
@@ -3411,14 +3411,14 @@ impl StcoBox {
     }
 }
 
-impl Encode2 for StcoBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StcoBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += (self.chunk_offsets.len() as u32).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.chunk_offsets.len() as u32).encode(&mut buf[offset..])?;
         for offset_val in &self.chunk_offsets {
-            offset += offset_val.encode2(&mut buf[offset..])?;
+            offset += offset_val.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3475,14 +3475,14 @@ impl Co64Box {
     }
 }
 
-impl Encode2 for Co64Box {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Co64Box {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += (self.chunk_offsets.len() as u32).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.chunk_offsets.len() as u32).encode(&mut buf[offset..])?;
         for offset_val in &self.chunk_offsets {
-            offset += offset_val.encode2(&mut buf[offset..])?;
+            offset += offset_val.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3539,14 +3539,14 @@ impl StssBox {
     }
 }
 
-impl Encode2 for StssBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for StssBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += (self.sample_numbers.len() as u32).encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.sample_numbers.len() as u32).encode(&mut buf[offset..])?;
         for offset_val in &self.sample_numbers {
-            offset += offset_val.encode2(&mut buf[offset..])?;
+            offset += offset_val.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3618,14 +3618,14 @@ impl OpusBox {
     }
 }
 
-impl Encode2 for OpusBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for OpusBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.audio.encode2(&mut buf[offset..])?;
-        offset += self.dops_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.audio.encode(&mut buf[offset..])?;
+        offset += self.dops_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3691,14 +3691,14 @@ impl Mp4aBox {
     }
 }
 
-impl Encode2 for Mp4aBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Mp4aBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += self.audio.encode2(&mut buf[offset..])?;
-        offset += self.esds_box.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += self.audio.encode(&mut buf[offset..])?;
+        offset += self.esds_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
-            offset += b.encode2(&mut buf[offset..])?;
+            offset += b.encode(&mut buf[offset..])?;
         }
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
@@ -3745,17 +3745,17 @@ impl AudioSampleEntryFields {
     pub const DEFAULT_SAMPLESIZE: u16 = 16;
 }
 
-impl Encode2 for AudioSampleEntryFields {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for AudioSampleEntryFields {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += [0u8; 6].encode2(&mut buf[offset..])?;
-        offset += self.data_reference_index.encode2(&mut buf[offset..])?;
-        offset += [0u8; 4 * 2].encode2(&mut buf[offset..])?;
-        offset += self.channelcount.encode2(&mut buf[offset..])?;
-        offset += self.samplesize.encode2(&mut buf[offset..])?;
-        offset += [0u8; 2].encode2(&mut buf[offset..])?;
-        offset += [0u8; 2].encode2(&mut buf[offset..])?;
-        offset += self.samplerate.encode2(&mut buf[offset..])?;
+        offset += [0u8; 6].encode(&mut buf[offset..])?;
+        offset += self.data_reference_index.encode(&mut buf[offset..])?;
+        offset += [0u8; 4 * 2].encode(&mut buf[offset..])?;
+        offset += self.channelcount.encode(&mut buf[offset..])?;
+        offset += self.samplesize.encode(&mut buf[offset..])?;
+        offset += [0u8; 2].encode(&mut buf[offset..])?;
+        offset += [0u8; 2].encode(&mut buf[offset..])?;
+        offset += self.samplerate.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -3822,16 +3822,16 @@ impl DopsBox {
     }
 }
 
-impl Encode2 for DopsBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for DopsBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += Self::VERSION.encode2(&mut buf[offset..])?;
-        offset += self.output_channel_count.encode2(&mut buf[offset..])?;
-        offset += self.pre_skip.encode2(&mut buf[offset..])?;
-        offset += self.input_sample_rate.encode2(&mut buf[offset..])?;
-        offset += self.output_gain.encode2(&mut buf[offset..])?;
-        offset += 0u8.encode2(&mut buf[offset..])?; // ChannelMappingFamily
+        let mut offset = header.encode(buf)?;
+        offset += Self::VERSION.encode(&mut buf[offset..])?;
+        offset += self.output_channel_count.encode(&mut buf[offset..])?;
+        offset += self.pre_skip.encode(&mut buf[offset..])?;
+        offset += self.input_sample_rate.encode(&mut buf[offset..])?;
+        offset += self.output_gain.encode(&mut buf[offset..])?;
+        offset += 0u8.encode(&mut buf[offset..])?; // ChannelMappingFamily
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }
@@ -3873,12 +3873,12 @@ impl EsdsBox {
     }
 }
 
-impl Encode2 for EsdsBox {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for EsdsBox {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
-        let mut offset = header.encode2(buf)?;
-        offset += FullBoxHeader::from_box(self).encode2(&mut buf[offset..])?;
-        offset += self.es.encode2(&mut buf[offset..])?;
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += self.es.encode(&mut buf[offset..])?;
         header.finalize_box_size(&mut buf[..offset])?;
         Ok(offset)
     }

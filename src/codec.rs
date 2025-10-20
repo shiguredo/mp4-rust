@@ -204,15 +204,15 @@ impl core::fmt::Display for Error {
 }
 
 /// TODO: doc
-pub trait Encode2 {
+pub trait Encode {
     /// TODO: doc
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize>;
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize>;
 
     /// TODO: doc
     fn encode_to_vec(&self) -> Result2<Vec<u8>> {
         let mut buf = Vec::with_capacity(64);
         loop {
-            match self.encode2(&mut buf) {
+            match self.encode(&mut buf) {
                 Ok(size) => {
                     buf.truncate(size);
                     return Ok(buf);
@@ -226,106 +226,106 @@ pub trait Encode2 {
     }
 }
 
-impl Encode2 for u8 {
+impl Encode for u8 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(1, buf)?;
         buf[0] = *self;
         Ok(1)
     }
 }
 
-impl Encode2 for u16 {
+impl Encode for u16 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(2, buf)?;
         buf[..2].copy_from_slice(&self.to_be_bytes());
         Ok(2)
     }
 }
 
-impl Encode2 for u32 {
+impl Encode for u32 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(4, buf)?;
         buf[..4].copy_from_slice(&self.to_be_bytes());
         Ok(4)
     }
 }
 
-impl Encode2 for u64 {
+impl Encode for u64 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(8, buf)?;
         buf[..8].copy_from_slice(&self.to_be_bytes());
         Ok(8)
     }
 }
 
-impl Encode2 for i8 {
+impl Encode for i8 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(1, buf)?;
         buf[0] = *self as u8;
         Ok(1)
     }
 }
 
-impl Encode2 for i16 {
+impl Encode for i16 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(2, buf)?;
         buf[..2].copy_from_slice(&self.to_be_bytes());
         Ok(2)
     }
 }
 
-impl Encode2 for i32 {
+impl Encode for i32 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(4, buf)?;
         buf[..4].copy_from_slice(&self.to_be_bytes());
         Ok(4)
     }
 }
 
-impl Encode2 for i64 {
+impl Encode for i64 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(8, buf)?;
         buf[..8].copy_from_slice(&self.to_be_bytes());
         Ok(8)
     }
 }
 
-impl Encode2 for NonZeroU16 {
+impl Encode for NonZeroU16 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        self.get().encode2(buf)
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.get().encode(buf)
     }
 }
 
-impl Encode2 for NonZeroU32 {
+impl Encode for NonZeroU32 {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        self.get().encode2(buf)
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.get().encode(buf)
     }
 }
 
-impl<T: Encode2, const N: usize> Encode2 for [T; N] {
+impl<T: Encode, const N: usize> Encode for [T; N] {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
         for item in self {
-            offset += item.encode2(&mut buf[offset..])?;
+            offset += item.encode(&mut buf[offset..])?;
         }
         Ok(offset)
     }
 }
 
-impl Encode2 for [u8] {
+impl Encode for [u8] {
     #[track_caller]
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         Error2::check_buffer_size(self.len(), buf)?;
         buf[..self.len()].copy_from_slice(self);
         Ok(self.len())

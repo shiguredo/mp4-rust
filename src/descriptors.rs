@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode, Encode2, Error, Error2, Result, Result2, Uint, io::Read};
+use crate::{Decode, Encode, Error, Error2, Result, Result2, Uint, io::Read};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -77,29 +77,29 @@ impl Decode for EsDescriptor {
     }
 }
 
-impl Encode2 for EsDescriptor {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for EsDescriptor {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += self.es_id.encode2(&mut buf[offset..])?;
+        offset += self.es_id.encode(&mut buf[offset..])?;
         offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
             | Uint::<u8, 1, 6>::new(self.url_string.is_some() as u8).to_bits()
             | Uint::<u8, 1, 5>::new(self.ocr_es_id.is_some() as u8).to_bits()
             | self.stream_priority.to_bits())
-        .encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
 
         if let Some(v) = self.depends_on_es_id {
-            offset += v.encode2(&mut buf[offset..])?;
+            offset += v.encode(&mut buf[offset..])?;
         }
         if let Some(v) = &self.url_string {
-            offset += (v.len() as u8).encode2(&mut buf[offset..])?;
-            offset += v.as_bytes().encode2(&mut buf[offset..])?;
+            offset += (v.len() as u8).encode(&mut buf[offset..])?;
+            offset += v.as_bytes().encode(&mut buf[offset..])?;
         }
         if let Some(v) = self.ocr_es_id {
-            offset += v.encode2(&mut buf[offset..])?;
+            offset += v.encode(&mut buf[offset..])?;
         }
 
-        offset += self.dec_config_descr.encode2(&mut buf[offset..])?;
-        offset += self.sl_config_descr.encode2(&mut buf[offset..])?;
+        offset += self.dec_config_descr.encode(&mut buf[offset..])?;
+        offset += self.sl_config_descr.encode(&mut buf[offset..])?;
 
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
@@ -167,19 +167,19 @@ impl Decode for DecoderConfigDescriptor {
     }
 }
 
-impl Encode2 for DecoderConfigDescriptor {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for DecoderConfigDescriptor {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
 
-        offset += self.object_type_indication.encode2(&mut buf[offset..])?;
+        offset += self.object_type_indication.encode(&mut buf[offset..])?;
         offset += (self.stream_type.to_bits()
             | self.up_stream.to_bits()
             | Uint::<u8, 1>::new(1).to_bits())
-        .encode2(&mut buf[offset..])?;
-        offset += self.buffer_size_db.to_bits().to_be_bytes()[1..].encode2(&mut buf[offset..])?;
-        offset += self.max_bitrate.encode2(&mut buf[offset..])?;
-        offset += self.avg_bitrate.encode2(&mut buf[offset..])?;
-        offset += self.dec_specific_info.encode2(&mut buf[offset..])?;
+        .encode(&mut buf[offset..])?;
+        offset += self.buffer_size_db.to_bits().to_be_bytes()[1..].encode(&mut buf[offset..])?;
+        offset += self.max_bitrate.encode(&mut buf[offset..])?;
+        offset += self.avg_bitrate.encode(&mut buf[offset..])?;
+        offset += self.dec_specific_info.encode(&mut buf[offset..])?;
 
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
@@ -213,9 +213,9 @@ impl Decode for DecoderSpecificInfo {
     }
 }
 
-impl Encode2 for DecoderSpecificInfo {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let offset = self.payload.encode2(buf)?;
+impl Encode for DecoderSpecificInfo {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let offset = self.payload.encode(buf)?;
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
@@ -253,10 +253,10 @@ impl Decode for SlConfigDescriptor {
     }
 }
 
-impl Encode2 for SlConfigDescriptor {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for SlConfigDescriptor {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let predefined = 2u8;
-        let offset = predefined.encode2(buf)?;
+        let offset = predefined.encode(buf)?;
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
@@ -287,7 +287,7 @@ fn encode_tag_and_payload(buf: &mut [u8], tag: u8, payload_size: usize) -> Resul
 
 fn encode_tag_and_size2(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
     let mut offset = 0;
-    offset += tag.encode2(&mut buf[offset..])?;
+    offset += tag.encode(&mut buf[offset..])?;
 
     let mut size_bytes = Vec::new();
     for i in 0.. {
@@ -305,7 +305,7 @@ fn encode_tag_and_size2(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usi
     }
     size_bytes.reverse(); // リトルエンディアンからビッグエンディアンにする
 
-    offset += size_bytes.encode2(&mut buf[offset..])?;
+    offset += size_bytes.encode(&mut buf[offset..])?;
     Ok(offset)
 }
 
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn tag_and_size() {
         let mut buf = Vec::new();
-        encode_tag_and_size(&mut buf, 12, 123456).unwrap();
+        encode_tag_and_size2(&mut buf, 12, 123456).unwrap();
 
         let (tag, size) = decode_tag_and_size(&buf[..]).unwrap();
         assert_eq!(tag, 12);

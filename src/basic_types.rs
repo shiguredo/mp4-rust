@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode2, Error, Error2, Result, Result2,
+    Decode, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{PeekReader, Read, Take},
 };
@@ -120,7 +120,7 @@ impl BoxHeader {
         }
 
         // 正しいサイズでヘッダー部分を上書きする
-        self.encode2(box_bytes)?;
+        self.encode(box_bytes)?;
 
         Ok(())
     }
@@ -175,33 +175,33 @@ impl BoxHeader {
     }
 }
 
-impl Encode2 for BoxHeader {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for BoxHeader {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
 
         let large_size = match self.box_size {
             BoxSize::U32(size) => {
-                offset += size.encode2(&mut buf[offset..])?;
+                offset += size.encode(&mut buf[offset..])?;
                 None
             }
             BoxSize::U64(size) => {
-                offset += 1u32.encode2(&mut buf[offset..])?;
+                offset += 1u32.encode(&mut buf[offset..])?;
                 Some(size)
             }
         };
 
         match self.box_type {
             BoxType::Normal(ty) => {
-                offset += ty.encode2(&mut buf[offset..])?;
+                offset += ty.encode(&mut buf[offset..])?;
             }
             BoxType::Uuid(ty) => {
-                offset += b"uuid".encode2(&mut buf[offset..])?;
-                offset += ty.encode2(&mut buf[offset..])?;
+                offset += b"uuid".encode(&mut buf[offset..])?;
+                offset += ty.encode(&mut buf[offset..])?;
             }
         }
 
         if let Some(large_size) = large_size {
-            offset += large_size.encode2(&mut buf[offset..])?;
+            offset += large_size.encode(&mut buf[offset..])?;
         }
 
         Ok(offset)
@@ -263,11 +263,11 @@ impl FullBoxHeader {
     }
 }
 
-impl Encode2 for FullBoxHeader {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for FullBoxHeader {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += self.version.encode2(&mut buf[offset..])?;
-        offset += self.flags.encode2(&mut buf[offset..])?;
+        offset += self.version.encode(&mut buf[offset..])?;
+        offset += self.flags.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -316,9 +316,9 @@ impl FullBoxFlags {
     }
 }
 
-impl Encode2 for FullBoxFlags {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        self.0.to_be_bytes()[1..].encode2(buf)
+impl Encode for FullBoxFlags {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.0.to_be_bytes()[1..].encode(buf)
     }
 }
 
@@ -479,11 +479,11 @@ impl<I, F> FixedPointNumber<I, F> {
     }
 }
 
-impl<I: Encode2, F: Encode2> Encode2 for FixedPointNumber<I, F> {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += self.integer.encode2(&mut buf[offset..])?;
-        offset += self.fraction.encode2(&mut buf[offset..])?;
+        offset += self.integer.encode(&mut buf[offset..])?;
+        offset += self.fraction.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
@@ -528,11 +528,11 @@ impl Utf8String {
     }
 }
 
-impl Encode2 for Utf8String {
-    fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
+impl Encode for Utf8String {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
-        offset += self.0.as_bytes().encode2(&mut buf[offset..])?;
-        offset += 0u8.encode2(&mut buf[offset..])?;
+        offset += self.0.as_bytes().encode(&mut buf[offset..])?;
+        offset += 0u8.encode(&mut buf[offset..])?;
         Ok(offset)
     }
 }
