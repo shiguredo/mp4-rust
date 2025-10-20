@@ -103,18 +103,15 @@ pub struct BoxHeader {
 impl BoxHeader {
     const MAX_SIZE: usize = (4 + 8) + (4 + 16);
 
-    /// TODO: doc
-    pub const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
+    pub(crate) const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
         Self { box_type, box_size }
     }
 
-    /// TODO: doc
-    pub const fn new_variable_size(box_type: BoxType) -> Self {
+    pub(crate) const fn new_variable_size(box_type: BoxType) -> Self {
         Self::new(box_type, BoxSize::VARIABLE_SIZE)
     }
 
-    /// TODO: doc
-    pub fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result2<()> {
+    pub(crate) fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result2<()> {
         if self.box_size != BoxSize::VARIABLE_SIZE {
             return Err(Error2::invalid_input(
                 "box_size must be VARIABLE_SIZE before finalization",

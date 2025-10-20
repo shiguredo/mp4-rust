@@ -20,30 +20,32 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// このライブラリ用の Result 型
 pub type Result2<T> = core::result::Result<T, Error2>;
 
-/// TODO: doc
+/// エンコード/デコード操作のエラーの種類
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErrorKind2 {
-    /// TODO: doc
+    /// 入力データの形式または構造が無効である
     InvalidInput,
-    /// TODO: doc
+
+    /// データコンテンツが無効または破損している
     InvalidData,
-    /// TODO: doc
+
+    /// 提供されたバッファがエンコード/デコード結果を保持するのに小さすぎる
     InsufficientBuffer,
 }
 
-/// TODO: doc
+/// エラー型
 pub struct Error2 {
-    /// TODO: doc
+    /// 発生したエラーの種類
     pub kind: ErrorKind2,
 
-    /// TODO: doc
+    /// エラーが発生した理由
     pub reason: String,
 
-    /// エラー発生場所
+    /// エラーが作成されたソースコードの場所
     #[cfg(feature = "std")]
     pub location: &'static Location<'static>,
 
-    /// エラーが発生したボックスの種別
+    /// エラーが発生した MP4 ボックスの種類
     pub box_type: Option<BoxType>,
 
     /// エラー発生箇所を示すバックトレース
@@ -54,13 +56,13 @@ pub struct Error2 {
 }
 
 impl Error2 {
-    /// TODO: doc
+    /// [`Error2`] インスタンスを生成します
     #[track_caller]
     pub fn new(kind: ErrorKind2) -> Self {
         Self::with_reason(kind, String::new())
     }
 
-    /// TODO: doc
+    /// エラー理由つきで [`Error2`] インスタンスを生成します
     #[track_caller]
     pub fn with_reason<T: Into<String>>(kind: ErrorKind2, reason: T) -> Self {
         Self {
@@ -74,21 +76,18 @@ impl Error2 {
         }
     }
 
-    /// TODO: doc
     #[track_caller]
-    pub fn invalid_input<T: Into<String>>(reason: T) -> Self {
+    pub(crate) fn invalid_input<T: Into<String>>(reason: T) -> Self {
         Self::with_reason(ErrorKind2::InvalidInput, reason)
     }
 
-    /// TODO: doc
     #[track_caller]
-    pub fn insufficient_buffer() -> Self {
+    pub(crate) fn insufficient_buffer() -> Self {
         Self::new(ErrorKind2::InsufficientBuffer)
     }
 
-    /// TODO: doc
     #[track_caller]
-    pub fn check_buffer_size(required_size: usize, buf: &[u8]) -> Result2<()> {
+    pub(crate) fn check_buffer_size(required_size: usize, buf: &[u8]) -> Result2<()> {
         if buf.len() < required_size {
             Err(Self::insufficient_buffer())
         } else {
@@ -261,12 +260,15 @@ impl core::fmt::Display for Error {
     }
 }
 
-/// TODO: doc
+/// バイト列に変換可能な型を表現するためのトレイト
 pub trait Encode {
-    /// TODO: doc
+    /// `self` をバイト列に変換して `buf` に書きこむ
+    ///
+    /// 返り値は、変換後のバイト列のサイズで、
+    /// もし `buf` のサイズが不足している場合には [`ErrorKind2::InsufficientBuffer`] エラーが返される
     fn encode(&self, buf: &mut [u8]) -> Result2<usize>;
 
-    /// TODO: doc
+    /// `self` をバイト列に変換して、変換後のバイト列を返す
     fn encode_to_vec(&self) -> Result2<Vec<u8>> {
         let mut buf = vec![0; 64];
         loop {
@@ -388,12 +390,6 @@ impl Encode for [u8] {
         buf[..self.len()].copy_from_slice(self);
         Ok(self.len())
     }
-}
-
-/// TODO: doc
-pub trait Decode2: Sized {
-    /// TODO: doc
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)>;
 }
 
 /// バイト列を `Self` に変換するためのトレイト
