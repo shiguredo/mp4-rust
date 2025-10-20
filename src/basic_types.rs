@@ -360,7 +360,7 @@ impl BoxSize {
         if let Ok(size) = u32::try_from(size) {
             Self::U32(size)
         } else {
-            size += 8;
+            size += 8; // もともとのサイズフィールドには 1 が設定されて、ヘッダーの末尾に 8 バイトのサイズが格納される
             Self::U64(size)
         }
     }
