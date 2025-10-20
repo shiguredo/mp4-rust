@@ -29,8 +29,7 @@ pub struct UnknownBox {
 
 impl Encode2 for UnknownBox {
     fn encode2(&self, buf: &mut [u8]) -> Result2<usize> {
-        let mut offset = 0;
-        offset += BoxHeader::from_box(self).encode2(&mut buf[offset..])?;
+        let mut offset = BoxHeader::new(self.box_type, self.box_size).encode2(buf)?;
         offset += self.payload.encode2(&mut buf[offset..])?;
         Ok(offset)
     }

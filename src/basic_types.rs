@@ -93,22 +93,25 @@ impl BoxHeader {
     const MAX_SIZE: usize = (4 + 8) + (4 + 16);
 
     /// TODO: doc
-    pub fn new_variable_size(box_type: BoxType) -> Self {
-        Self {
-            box_type,
-            box_size: BoxSize::VARIABLE_SIZE,
-        }
+    pub const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
+        Self { box_type, box_size }
     }
 
     /// TODO: doc
-    pub fn finalize_box_size(mut self, box_bytes: &[u8]) -> Result2<Self> {
+    pub const fn new_variable_size(box_type: BoxType) -> Self {
+        Self::new(box_type, BoxSize::VARIABLE_SIZE)
+    }
+
+    /// TODO: doc
+    pub fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result2<()> {
         if self.box_size != BoxSize::VARIABLE_SIZE {
             return Err(Error2::invalid_input(
                 "box_size must be VARIABLE_SIZE before finalization",
             ));
         }
 
-        self.box_size = BoxSize::with_payload_size(self.box_type, box_bytes.len() as u64);
+        let payload_size = box_bytes.len().saturating_sub(self.external_size());
+        self.box_size = BoxSize::with_payload_size(self.box_type, payload_size as u64);
         if !matches!(self.box_size, BoxSize::U32(_)) {
             // ヘッダーのサイズに変更があると box_bytes 全体のレイアウトが変わってしまうのでエラーにする
             return Err(Error2::invalid_input(
@@ -116,7 +119,10 @@ impl BoxHeader {
             ));
         }
 
-        Ok(self)
+        // 正しいサイズでヘッダー部分を上書きする
+        self.encode2(box_bytes)?;
+
+        Ok(())
     }
 
     // TODO: remove
