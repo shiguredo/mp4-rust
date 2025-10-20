@@ -79,6 +79,17 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
     }
 }
 
+impl<B: BaseBox + Encode> Encode for Mp4File<B> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.ftyp_box.encode(&mut buf[offset..])?;
+        for b in &self.boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        Ok(offset)
+    }
+}
+
 /// [`BaseBox`] に共通のヘッダー
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BoxHeader {

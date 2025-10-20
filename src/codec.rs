@@ -97,7 +97,34 @@ impl Error2 {
     }
 }
 
-// TODO: impl std::error::Error
+impl core::fmt::Debug for Error2 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl core::fmt::Display for Error2 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(ty) = self.box_type {
+            write!(f, "[{ty}] ")?;
+        }
+
+        write!(f, "{:?}: {}", self.kind, self.reason)?;
+
+        #[cfg(feature = "std")]
+        {
+            write!(f, " (at {}:{})", self.location.file(), self.location.line())?;
+            if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
+                write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for Error2 {}
 
 /// このライブラリ用のエラー型
 pub struct Error {
