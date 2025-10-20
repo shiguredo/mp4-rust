@@ -278,14 +278,14 @@ fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
 // buf の先頭にペイロードが格納されている前提
 fn encode_tag_and_payload(buf: &mut [u8], tag: u8, payload_size: usize) -> Result2<usize> {
     let mut header_buf = [0; 64];
-    let header_size = encode_tag_and_size2(&mut header_buf, tag, payload_size)?;
+    let header_size = encode_tag_and_size(&mut header_buf, tag, payload_size)?;
     Error2::check_buffer_size(header_size + payload_size, buf)?;
     buf.copy_within(..payload_size, header_size);
     buf[..header_size].copy_from_slice(&header_buf[..header_size]);
     Ok(header_size + payload_size)
 }
 
-fn encode_tag_and_size2(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
+fn encode_tag_and_size(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
     let mut offset = 0;
     offset += tag.encode(&mut buf[offset..])?;
 
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn tag_and_size() {
         let mut buf = Vec::new();
-        encode_tag_and_size2(&mut buf, 12, 123456).unwrap();
+        encode_tag_and_size(&mut buf, 12, 123456).unwrap();
 
         let (tag, size) = decode_tag_and_size(&buf[..]).unwrap();
         assert_eq!(tag, 12);
