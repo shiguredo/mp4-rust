@@ -5,7 +5,6 @@ use shiguredo_mp4::{boxes::RootBox, BaseBox, Decode, Mp4File};
 struct BoxInfo {
     #[serde(rename = "type")]
     pub ty: String,
-    pub size: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<bool>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -16,7 +15,6 @@ impl BoxInfo {
     fn new(b: &dyn BaseBox) -> Self {
         Self {
             ty: b.box_type().to_string(),
-            size: b.box_size().get(),
             unknown: b.is_unknown_box().then_some(true),
             children: b.children().map(Self::new).collect(),
         }

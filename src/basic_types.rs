@@ -7,9 +7,9 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error, Result,
+    Decode, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
-    io::{PeekReader, Read, Take, Write},
+    io::{PeekReader, Read, Take},
 };
 
 /// 全てのボックスが実装するトレイト
@@ -19,16 +19,6 @@ use crate::{
 pub trait BaseBox {
     /// ボックスの種別
     fn box_type(&self) -> BoxType;
-
-    /// ボックスのサイズ
-    ///
-    /// サイズが可変長になる可能性がある `mdat` ボックス以外はデフォルト実装のままで問題ない
-    fn box_size(&self) -> BoxSize {
-        BoxSize::with_payload_size(self.box_type(), self.box_payload_size())
-    }
-
-    /// ボックスのペイロードのバイト数
-    fn box_payload_size(&self) -> u64;
 
     /// 未知のボックスかどうか
     ///
@@ -90,13 +80,13 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox + Encode> Encode for Mp4File<B> {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.ftyp_box.encode(&mut writer)?;
-
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.ftyp_box.encode(&mut buf[offset..])?;
         for b in &self.boxes {
-            b.encode(&mut writer)?;
+            offset += b.encode(&mut buf[offset..])?;
         }
-        Ok(())
+        Ok(offset)
     }
 }
 
@@ -113,11 +103,35 @@ pub struct BoxHeader {
 impl BoxHeader {
     const MAX_SIZE: usize = (4 + 8) + (4 + 16);
 
-    /// ボックスへの参照を受け取って、対応するヘッダーを作成する
-    pub fn from_box<B: BaseBox>(b: &B) -> Self {
-        let box_type = b.box_type();
-        let box_size = b.box_size();
+    pub(crate) const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
         Self { box_type, box_size }
+    }
+
+    pub(crate) const fn new_variable_size(box_type: BoxType) -> Self {
+        Self::new(box_type, BoxSize::VARIABLE_SIZE)
+    }
+
+    pub(crate) fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result2<()> {
+        if self.box_size != BoxSize::VARIABLE_SIZE {
+            return Err(Error2::invalid_input(
+                "box_size must be VARIABLE_SIZE before finalization",
+            ));
+        }
+
+        // NOTE: もし `box_bytes.len() < self.external_size()` の場合は後続の `self.encode()` でエラーになる
+        let payload_size = box_bytes.len().saturating_sub(self.external_size());
+        self.box_size = BoxSize::with_payload_size(self.box_type, payload_size as u64);
+        if !matches!(self.box_size, BoxSize::U32(_)) {
+            // ヘッダーのサイズに変更があると box_bytes 全体のレイアウトが変わってしまうのでエラーにする
+            return Err(Error2::invalid_input(
+                "box payload too large: resulting box size exceeds U32 boundary (4GB), cannot update in-place",
+            ));
+        }
+
+        // 正しいサイズでヘッダー部分を上書きする
+        self.encode(box_bytes)?;
+
+        Ok(())
     }
 
     /// ヘッダーをエンコードした際のバイト数を返す
@@ -171,33 +185,35 @@ impl BoxHeader {
 }
 
 impl Encode for BoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+
         let large_size = match self.box_size {
             BoxSize::U32(size) => {
-                size.encode(&mut writer)?;
+                offset += size.encode(&mut buf[offset..])?;
                 None
             }
             BoxSize::U64(size) => {
-                1u32.encode(&mut writer)?;
+                offset += 1u32.encode(&mut buf[offset..])?;
                 Some(size)
             }
         };
 
         match self.box_type {
             BoxType::Normal(ty) => {
-                writer.write_all(&ty)?;
+                offset += ty.encode(&mut buf[offset..])?;
             }
             BoxType::Uuid(ty) => {
-                writer.write_all("uuid".as_bytes())?;
-                writer.write_all(&ty)?;
+                offset += b"uuid".encode(&mut buf[offset..])?;
+                offset += ty.encode(&mut buf[offset..])?;
             }
         }
 
         if let Some(large_size) = large_size {
-            large_size.encode(writer)?;
+            offset += large_size.encode(&mut buf[offset..])?;
         }
 
-        Ok(())
+        Ok(offset)
     }
 }
 
@@ -257,10 +273,11 @@ impl FullBoxHeader {
 }
 
 impl Encode for FullBoxHeader {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.version.encode(&mut writer)?;
-        self.flags.encode(writer)?;
-        Ok(())
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.version.encode(&mut buf[offset..])?;
+        offset += self.flags.encode(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -309,9 +326,8 @@ impl FullBoxFlags {
 }
 
 impl Encode for FullBoxFlags {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(&self.0.to_be_bytes()[1..])?;
-        Ok(())
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        self.0.to_be_bytes()[1..].encode(buf)
     }
 }
 
@@ -344,7 +360,7 @@ impl BoxSize {
         if let Ok(size) = u32::try_from(size) {
             Self::U32(size)
         } else {
-            size += 8;
+            size += 8; // もともとのサイズフィールドには 1 が設定されて、ヘッダーの末尾に 8 バイトのサイズが格納される
             Self::U64(size)
         }
     }
@@ -473,10 +489,11 @@ impl<I, F> FixedPointNumber<I, F> {
 }
 
 impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        self.integer.encode(&mut writer)?;
-        self.fraction.encode(writer)?;
-        Ok(())
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.integer.encode(&mut buf[offset..])?;
+        offset += self.fraction.encode(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -521,10 +538,11 @@ impl Utf8String {
 }
 
 impl Encode for Utf8String {
-    fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
-        writer.write_all(self.0.as_bytes())?;
-        writer.write_all(&[0])?;
-        Ok(())
+    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+        let mut offset = 0;
+        offset += self.0.as_bytes().encode(&mut buf[offset..])?;
+        offset += 0u8.encode(&mut buf[offset..])?;
+        Ok(offset)
     }
 }
 
@@ -565,14 +583,6 @@ impl<A: BaseBox, B: BaseBox> Either<A, B> {
 impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
     fn box_type(&self) -> BoxType {
         self.inner_box().box_type()
-    }
-
-    fn box_size(&self) -> BoxSize {
-        self.inner_box().box_size()
-    }
-
-    fn box_payload_size(&self) -> u64 {
-        self.inner_box().box_payload_size()
     }
 
     fn is_unknown_box(&self) -> bool {

@@ -24,6 +24,7 @@ jobs:
       - run: rustup update ${{ matrix.toolchain }}
       - run: cargo check
       - run: cargo check --no-default-features
+      - run: cargo check --workspace
 
   test:
     name: Test Suite

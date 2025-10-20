@@ -9,7 +9,7 @@ use shiguredo_mp4::{
         RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
         StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
-    BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
+    Decode, Either, Encode, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
 };
 
 // 出力側はマイクロ秒に決め打ち
@@ -53,7 +53,7 @@ impl OutputMp4Builder {
                 Brand::AV01,
             ],
         };
-        self.file_size += ftyp_box.box_size().get() as u32;
+        self.file_size += ftyp_box.encode_to_vec().map(|b| b.len()).expect("bug") as u32;
         ftyp_box
     }
 
@@ -62,7 +62,7 @@ impl OutputMp4Builder {
             is_variable_size: false,
             payload: Vec::new(),
         };
-        self.file_size += mdat_box.box_size().get() as u32;
+        self.file_size += mdat_box.encode_to_vec().map(|b| b.len()).expect("bug") as u32;
 
         for track in &self.tracks {
             for chunk in &track.chunks {
