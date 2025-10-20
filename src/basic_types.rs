@@ -124,7 +124,7 @@ impl BoxHeader {
         if !matches!(self.box_size, BoxSize::U32(_)) {
             // ヘッダーのサイズに変更があると box_bytes 全体のレイアウトが変わってしまうのでエラーにする
             return Err(Error2::invalid_input(
-                "box payload too large: header size would require U64, making layout inconsistent",
+                "box payload too large: resulting box size exceeds U32 boundary (4GB), cannot update in-place",
             ));
         }
 
