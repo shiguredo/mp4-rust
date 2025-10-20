@@ -118,6 +118,7 @@ impl BoxHeader {
             ));
         }
 
+        // NOTE: もし `box_bytes.len() < self.external_size()` の場合は後続の `self.encode()` でエラーになる
         let payload_size = box_bytes.len().saturating_sub(self.external_size());
         self.box_size = BoxSize::with_payload_size(self.box_type, payload_size as u64);
         if !matches!(self.box_size, BoxSize::U32(_)) {
