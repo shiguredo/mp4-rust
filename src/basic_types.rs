@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode2, Error, Result, Result2,
+    Decode, Encode2, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{PeekReader, Read, Take},
 };
@@ -101,9 +101,22 @@ impl BoxHeader {
     }
 
     /// TODO: doc
-    pub fn finalize_box_size(self, actual_box_size: usize, buf: &mut [u8]) -> Result2<()> {
-        // or update_box_header(self, old:Self,buf:&mut [u8])
-        Ok(())
+    pub fn finalize_box_size(mut self, box_bytes: &[u8]) -> Result2<Self> {
+        if self.box_size != BoxSize::VARIABLE_SIZE {
+            return Err(Error2::invalid_input(
+                "box_size must be VARIABLE_SIZE before finalization",
+            ));
+        }
+
+        self.box_size = BoxSize::with_payload_size(self.box_type, box_bytes.len() as u64);
+        if !matches!(self.box_size, BoxSize::U32(_)) {
+            // ヘッダーのサイズに変更があると box_bytes 全体のレイアウトが変わってしまうのでエラーにする
+            return Err(Error2::invalid_input(
+                "box payload too large: header size would require U64, making layout inconsistent",
+            ));
+        }
+
+        Ok(self)
     }
 
     // TODO: remove
