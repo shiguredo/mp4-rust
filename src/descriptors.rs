@@ -315,10 +315,10 @@ mod tests {
 
     #[test]
     fn tag_and_size() {
-        let mut buf = Vec::new();
-        encode_tag_and_size(&mut buf, 12, 123456).unwrap();
+        let mut buf = [0; 32];
+        let encoded_size = encode_tag_and_size(&mut buf, 12, 123456).unwrap();
 
-        let (tag, size) = decode_tag_and_size(&buf[..]).unwrap();
+        let (tag, size) = decode_tag_and_size(&buf[..encoded_size]).unwrap();
         assert_eq!(tag, 12);
         assert_eq!(size, 123456);
     }

@@ -171,6 +171,37 @@ impl Error {
     }
 }
 
+impl From<Error2> for Error {
+    fn from(value: Error2) -> Self {
+        let io_error = crate::io::Error::new(
+            match value.kind {
+                ErrorKind2::InvalidInput => ErrorKind::InvalidInput,
+                ErrorKind2::InvalidData => ErrorKind::InvalidData,
+                ErrorKind2::InsufficientBuffer => ErrorKind::InvalidData,
+            },
+            value.reason,
+        );
+
+        #[cfg(feature = "std")]
+        {
+            Self {
+                io_error,
+                location: Some(value.location),
+                box_type: value.box_type,
+                backtrace: value.backtrace,
+            }
+        }
+
+        #[cfg(not(feature = "std"))]
+        {
+            Self {
+                io_error,
+                box_type: value.box_type,
+            }
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 impl From<crate::io::Error> for Error {
     #[track_caller]
