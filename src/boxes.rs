@@ -323,19 +323,16 @@ impl Decode2 for FtypBox {
             compatible_brands.push(brand);
         }
 
-        let total_size = header.external_size() + payload.len();
         Ok((
             Self {
                 major_brand,
                 minor_version,
                 compatible_brands,
             },
-            total_size,
+            header.external_size() + payload.len(),
         ))
     }
 }
-
-// TODO: impl Decode2 for the above component
 
 impl BaseBox for FtypBox {
     fn box_type(&self) -> BoxType {
@@ -391,6 +388,18 @@ impl Decode for RootBox {
     }
 }
 
+impl Decode2 for RootBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, _header_size) = BoxHeader::decode2(buf)?;
+        match header.box_type {
+            FreeBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Free(b), n)),
+            MdatBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Mdat(b), n)),
+            MoovBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Moov(b), n)),
+            _ => Decode2::decode2(buf).map(|(b, n)| (RootBox::Unknown(b), n)),
+        }
+    }
+}
+
 impl BaseBox for RootBox {
     fn box_type(&self) -> BoxType {
         self.inner_box().box_type()
@@ -434,6 +443,20 @@ impl Decode for FreeBox {
         let mut payload = Vec::new();
         header.with_box_payload_reader(reader, |reader| Ok(reader.read_to_end(&mut payload)?))?;
         Ok(Self { payload })
+    }
+}
+
+impl Decode2 for FreeBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        Ok((
+            Self {
+                payload: payload.to_vec(),
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -486,6 +509,21 @@ impl Decode for MdatBox {
             is_variable_size: header.box_size == BoxSize::VARIABLE_SIZE,
             payload,
         })
+    }
+}
+
+impl Decode2 for MdatBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        Ok((
+            Self {
+                is_variable_size: header.box_size == BoxSize::VARIABLE_SIZE,
+                payload: payload.to_vec(),
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -563,6 +601,55 @@ impl Decode for MoovBox {
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
 }
+
+impl Decode2 for MoovBox {
+    fn decode2(_buf: &[u8]) -> Result2<(Self, usize)> {
+        todo!()
+        /*
+                let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+                header.box_type.expect2(Self::TYPE)?;
+
+                let mut offset = 0;
+                let mut mvhd_box = None;
+                let mut trak_boxes = Vec::new();
+                let mut unknown_boxes = Vec::new();
+
+                while offset < payload.len() {
+                    let (child_header, child_offset) = BoxHeader::decode2(&payload[offset..])?;
+                    match child_header.box_type {
+                        MvhdBox::TYPE if mvhd_box.is_none() => {
+                            let (box, box_size) = MvhdBox::decode2(&payload[offset..])?;
+                            mvhd_box = Some(box);
+                            offset += box_size;
+                        }
+                        TrakBox::TYPE => {
+                            let (box, box_size) = TrakBox::decode2(&payload[offset..])?;
+                            trak_boxes.push(box);
+                            offset += box_size;
+                        }
+                        _ => {
+                            let (box, box_size) = UnknownBox::decode2(&payload[offset..])?;
+                            unknown_boxes.push(box);
+                            offset += box_size;
+                        }
+                    }
+                }
+
+                let mvhd_box = mvhd_box.ok_or_else(|| Error2::invalid_input("Missing mandatory 'mvhd' box in 'moov' box"))?;
+
+                Ok((
+                    Self {
+                        mvhd_box,
+                        trak_boxes,
+                        unknown_boxes,
+                    },
+                    header.external_size() + payload.len(),
+                ))
+        */
+    }
+}
+
+// TODO: impl Decode2 for the above component
 
 impl BaseBox for MoovBox {
     fn box_type(&self) -> BoxType {

@@ -177,6 +177,7 @@ impl BoxHeader {
     /// ボックスのヘッダー部分を先読みする
     ///
     /// 返り値に含まれるリーダーには、ボックスのヘッダー部分のバイト列も含まれる
+    // TODO: remove
     pub fn peek<R: Read>(reader: R) -> Result<(Self, impl Read)> {
         let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
         let header = BoxHeader::decode(&mut reader)?;
