@@ -291,10 +291,10 @@ impl Decode for RootBox {
     fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, _header_size) = BoxHeader::decode(buf)?;
         match header.box_type {
-            FreeBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Free(b), n)),
-            MdatBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Mdat(b), n)),
-            MoovBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Moov(b), n)),
-            _ => Decode::Decode(buf).map(|(b, n)| (RootBox::Unknown(b), n)),
+            FreeBox::TYPE => FreeBox::decode(buf).map(|(b, n)| (RootBox::Free(b), n)),
+            MdatBox::TYPE => MdatBox::decode(buf).map(|(b, n)| (RootBox::Mdat(b), n)),
+            MoovBox::TYPE => MoovBox::decode(buf).map(|(b, n)| (RootBox::Moov(b), n)),
+            _ => UnknownBox::decode(buf).map(|(b, n)| (RootBox::Unknown(b), n)),
         }
     }
 }
