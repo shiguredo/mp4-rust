@@ -51,15 +51,14 @@ impl Decode for UnknownBox {
 
 impl Decode2 for UnknownBox {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (header, _) = BoxHeader::decode2(buf)?;
-        let (box_size, buf) = header.get_box_size_and_payload(buf)?;
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         Ok((
             Self {
                 box_type: header.box_type,
                 box_size: header.box_size,
-                payload: buf.to_vec(),
+                payload: payload.to_vec(),
             },
-            box_size,
+            header.external_size() + payload.len(),
         ))
     }
 }

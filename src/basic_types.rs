@@ -183,22 +183,26 @@ impl BoxHeader {
         Ok((header, reader.into_reader()))
     }
 
-    /// TODO: doc
-    pub fn get_box_size_and_payload(self, buf: &[u8]) -> Result2<(usize, &[u8])> {
-        let header_size = self.external_size();
-        Error2::check_buffer_size(header_size, buf)?;
+    /// ボックスヘッダーをデコードし、ヘッダーとペイロードスライスを返す
+    ///
+    /// バッファからボックスヘッダーを読み込み、対応するペイロード部分を抽出する。
+    /// ボックスサイズが 0 の場合は可変長ボックスとして扱う。
+    pub fn decode_header_and_payload(buf: &[u8]) -> Result2<(Self, &[u8])> {
+        let (header, header_size) = Self::decode2(buf)?;
 
-        let mut box_size = usize::try_from(self.box_size.get())
+        let mut box_size = usize::try_from(header.box_size.get())
             .map_err(|_| Error2::invalid_data("too large box size"))?;
-        if box_size == 0 {
-            box_size = buf.len();
-        }
         if box_size < header_size {
             return Err(Error2::invalid_data("box size is smaller than header size"));
         }
         Error2::check_buffer_size(box_size, buf)?;
 
-        Ok((box_size, &buf[header_size..box_size]))
+        // サイズが0の場合は、バッファ全体を使用する（ファイル末尾の可変長ボックスと想定）
+        if box_size == 0 {
+            box_size = buf.len();
+        }
+
+        Ok((header, &buf[header_size..box_size]))
     }
 }
 
