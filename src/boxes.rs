@@ -5,8 +5,9 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, Error2, FixedPointNumber,
-    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint, Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Decode2, Either, Encode, Error, Error2,
+    FixedPointNumber, FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint,
+    Utf8String,
     basic_types::as_box_object,
     descriptors::EsDescriptor,
     io::{Read, Take},
@@ -45,6 +46,21 @@ impl Decode for UnknownBox {
             box_size: header.box_size,
             payload,
         })
+    }
+}
+
+impl Decode2 for UnknownBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, _) = BoxHeader::decode2(buf)?;
+        let (box_size, buf) = header.get_box_size_and_payload(buf)?;
+        Ok((
+            Self {
+                box_type: header.box_type,
+                box_size: header.box_size,
+                payload: buf.to_vec(),
+            },
+            box_size,
+        ))
     }
 }
 

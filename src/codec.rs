@@ -82,6 +82,11 @@ impl Error2 {
     }
 
     #[track_caller]
+    pub(crate) fn invalid_data<T: Into<String>>(reason: T) -> Self {
+        Self::with_reason(ErrorKind2::InvalidData, reason)
+    }
+
+    #[track_caller]
     pub(crate) fn insufficient_buffer() -> Self {
         Self::new(ErrorKind2::InsufficientBuffer)
     }

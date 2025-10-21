@@ -182,6 +182,24 @@ impl BoxHeader {
         let header = BoxHeader::decode(&mut reader)?;
         Ok((header, reader.into_reader()))
     }
+
+    /// TODO: doc
+    pub fn get_box_size_and_payload(self, buf: &[u8]) -> Result2<(usize, &[u8])> {
+        let header_size = self.external_size();
+        Error2::check_buffer_size(header_size, buf)?;
+
+        let mut box_size = usize::try_from(self.box_size.get())
+            .map_err(|_| Error2::invalid_data("too large box size"))?;
+        if box_size == 0 {
+            box_size = buf.len();
+        }
+        if box_size < header_size {
+            return Err(Error2::invalid_data("box size is smaller than header size"));
+        }
+        Error2::check_buffer_size(box_size, buf)?;
+
+        Ok((box_size, &buf[header_size..box_size]))
+    }
 }
 
 impl Encode for BoxHeader {
