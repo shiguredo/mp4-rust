@@ -287,7 +287,7 @@ impl Decode2 for BoxHeader {
         if box_size.get() != 0
             && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
         {
-            return Err(Error2::invalid_input(&format!(
+            return Err(Error2::invalid_input(format!(
                 "Too small box size: actual={}, expected={} or more",
                 box_size.get(),
                 box_size.external_size() + box_type.external_size()
@@ -663,7 +663,7 @@ impl Decode2 for Utf8String {
         }
 
         let s = String::from_utf8(bytes).map_err(|e| {
-            Error2::invalid_input(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
+            Error2::invalid_input(format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
         })?;
 
         Ok((Self(s), offset))
