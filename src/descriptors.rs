@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode, Decode2, Encode, Error, Error2, Result, Result2, Uint, io::Read};
+use crate::{Decode2, Encode, Error, Error2, Result, Result2, Uint, io::Read};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -25,56 +25,6 @@ impl EsDescriptor {
 
     /// [`EsDescriptor::stream_priority`] で一番優先度が低くなる値
     pub const LOWEST_STREAM_PRIORITY: Uint<u8, 5> = Uint::new(0);
-}
-
-impl Decode for EsDescriptor {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let (tag, _size) = decode_tag_and_size(&mut reader)?;
-        if tag != Self::TAG {
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected={}, actual={tag}",
-                Self::TAG
-            )));
-        }
-
-        let es_id = u16::decode(&mut reader)?;
-
-        let b = u8::decode(&mut reader)?;
-        let stream_dependence_flag: Uint<u8, 1, 7> = Uint::from_bits(b);
-        let url_flag: Uint<u8, 1, 6> = Uint::from_bits(b);
-        let ocr_stream_flag: Uint<u8, 1, 5> = Uint::from_bits(b);
-        let stream_priority = Uint::from_bits(b);
-
-        let depends_on_es_id = (stream_dependence_flag.get() == 1)
-            .then(|| u16::decode(&mut reader))
-            .transpose()?;
-
-        let url_string = if url_flag.get() == 1 {
-            let len = u8::decode(&mut reader)? as u64;
-            let mut s = String::new();
-            (&mut reader).take(len).read_to_string(&mut s)?;
-            Some(s)
-        } else {
-            None
-        };
-
-        let ocr_es_id = (ocr_stream_flag.get() == 1)
-            .then(|| u16::decode(&mut reader))
-            .transpose()?;
-
-        let dec_config_descr = DecoderConfigDescriptor::decode(&mut reader)?;
-        let sl_config_descr = SlConfigDescriptor::decode(&mut reader)?;
-
-        Ok(Self {
-            es_id,
-            stream_priority,
-            depends_on_es_id,
-            url_string,
-            ocr_es_id,
-            dec_config_descr,
-            sl_config_descr,
-        })
-    }
 }
 
 impl Decode2 for EsDescriptor {
@@ -200,42 +150,6 @@ impl DecoderConfigDescriptor {
     pub const UP_STREAM_FALSE: Uint<u8, 1, 1> = Uint::new(0);
 }
 
-impl Decode for DecoderConfigDescriptor {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let (tag, _size) = decode_tag_and_size(&mut reader)?;
-        if tag != Self::TAG {
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected={}, actual={tag}",
-                Self::TAG
-            )));
-        }
-
-        let object_type_indication = u8::decode(&mut reader)?;
-
-        let b = u8::decode(&mut reader)?;
-        let stream_type = Uint::from_bits(b);
-        let up_stream = Uint::from_bits(b);
-
-        let mut buf = [0; 4];
-        reader.read_exact(&mut buf[1..])?;
-        let buffer_size_db = Uint::from_bits(u32::from_be_bytes(buf));
-
-        let max_bitrate = u32::decode(&mut reader)?;
-        let avg_bitrate = u32::decode(&mut reader)?;
-
-        let dec_specific_info = DecoderSpecificInfo::decode(&mut reader)?;
-        Ok(Self {
-            object_type_indication,
-            stream_type,
-            up_stream,
-            buffer_size_db,
-            max_bitrate,
-            avg_bitrate,
-            dec_specific_info,
-        })
-    }
-}
-
 impl Decode2 for DecoderConfigDescriptor {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
@@ -319,23 +233,6 @@ impl DecoderSpecificInfo {
     const TAG: u8 = 5; // DecSpecificInfoTag
 }
 
-impl Decode for DecoderSpecificInfo {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let (tag, size) = decode_tag_and_size(&mut reader)?;
-        if tag != Self::TAG {
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected={}, actual={tag}",
-                Self::TAG
-            )));
-        }
-
-        let mut payload = vec![0; size];
-        reader.read_exact(&mut payload)?;
-
-        Ok(Self { payload })
-    }
-}
-
 impl Decode2 for DecoderSpecificInfo {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
@@ -377,31 +274,6 @@ pub struct SlConfigDescriptor;
 
 impl SlConfigDescriptor {
     const TAG: u8 = 6; // SLConfigDescrTag
-}
-
-impl Decode for SlConfigDescriptor {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let (tag, _size) = decode_tag_and_size(&mut reader)?;
-        if tag != Self::TAG {
-            return Err(Error::invalid_data(&format!(
-                "Unexpected descriptor tag: expected={}, actual={tag}",
-                Self::TAG
-            )));
-        }
-
-        let predefined = u8::decode(&mut reader)?;
-        if predefined != 2 {
-            // MP4 では 2 が主に使われていそうなので、いったんそれ以外は未対応にしておいて、
-            // 必要に応じて随時対応を追加していく
-            return Err(Error::unsupported(&format!(
-                "Unsupported `SLConfigDescriptor.predefined` value: {predefined}"
-            )));
-        }
-
-        // predefined == 2 の場合には、追加の処理は不要
-
-        Ok(Self)
-    }
 }
 
 impl Decode2 for SlConfigDescriptor {

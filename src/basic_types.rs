@@ -7,9 +7,9 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Decode2, Encode, Error, Error2, Result, Result2,
+    Decode2, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
-    io::{PeekReader, Read, Take},
+    io::{Read, Take},
 };
 
 /// 全てのボックスが実装するトレイト
@@ -65,17 +65,18 @@ impl<B: BaseBox> Mp4File<B> {
     }
 }
 
-impl<B: BaseBox + Decode> Decode for Mp4File<B> {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let ftyp_box = FtypBox::decode(&mut reader)?;
+impl<B: BaseBox + Decode2> Decode2 for Mp4File<B> {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+
+        let ftyp_box = FtypBox::decode_at(buf, &mut offset)?;
 
         let mut boxes = Vec::new();
-        let mut buf = [0];
-        while reader.read(&mut buf)? != 0 {
-            let b = B::decode(&mut buf.chain(&mut reader))?;
-            boxes.push(b);
+        while offset < buf.len() {
+            boxes.push(B::decode_at(buf, &mut offset)?);
         }
-        Ok(Self { ftyp_box, boxes })
+
+        Ok((Self { ftyp_box, boxes }, offset))
     }
 }
 
@@ -174,16 +175,6 @@ impl BoxHeader {
         Ok(value)
     }
 
-    /// ボックスのヘッダー部分を先読みする
-    ///
-    /// 返り値に含まれるリーダーには、ボックスのヘッダー部分のバイト列も含まれる
-    // TODO: remove
-    pub fn peek<R: Read>(reader: R) -> Result<(Self, impl Read)> {
-        let mut reader = PeekReader::<_, { BoxHeader::MAX_SIZE }>::new(reader);
-        let header = BoxHeader::decode(&mut reader)?;
-        Ok((header, reader.into_reader()))
-    }
-
     /// ボックスヘッダーをデコードし、ヘッダーとペイロードスライスを返す
     ///
     /// バッファからボックスヘッダーを読み込み、対応するペイロード部分を抽出する。
@@ -237,41 +228,6 @@ impl Encode for BoxHeader {
         }
 
         Ok(offset)
-    }
-}
-
-impl Decode for BoxHeader {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let box_size = u32::decode(&mut reader)?;
-
-        let mut box_type = [0; 4];
-        reader.read_exact(&mut box_type)?;
-
-        let box_type = if box_type == [b'u', b'u', b'i', b'd'] {
-            let mut box_type = [0; 16];
-            reader.read_exact(&mut box_type)?;
-            BoxType::Uuid(box_type)
-        } else {
-            BoxType::Normal(box_type)
-        };
-
-        let box_size = if box_size == 1 {
-            BoxSize::U64(u64::decode(reader)?)
-        } else {
-            BoxSize::U32(box_size)
-        };
-        if box_size.get() != 0
-            && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
-        {
-            return Err(Error::invalid_data(&format!(
-                "Too small box size: actual={}, expected={} or more",
-                box_size.get(),
-                box_size.external_size() + box_type.external_size()
-            ))
-            .with_box_type(box_type));
-        };
-
-        Ok(Self { box_type, box_size })
     }
 }
 
@@ -348,22 +304,11 @@ impl Encode for FullBoxHeader {
     }
 }
 
-impl Decode for FullBoxHeader {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        Ok(Self {
-            version: Decode::decode(&mut reader)?,
-            flags: Decode::decode(reader)?,
-        })
-    }
-}
-
 impl Decode2 for FullBoxHeader {
-    #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let version = u8::decode_at(buf, &mut offset)?;
         let flags = FullBoxFlags::decode_at(buf, &mut offset)?;
-
         Ok((Self { version, flags }, offset))
     }
 }
@@ -409,20 +354,9 @@ impl Encode for FullBoxFlags {
     }
 }
 
-impl Decode for FullBoxFlags {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut buf = [0; 4];
-        reader.read_exact(&mut buf[1..])?;
-        Ok(Self(u32::from_be_bytes(buf)))
-    }
-}
-
 impl Decode2 for FullBoxFlags {
-    #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        if buf.len() < 3 {
-            return Err(Error2::insufficient_buffer());
-        }
+        Error2::check_buffer_size(3, buf)?;
         let mut full_buf = [0; 4];
         full_buf[1..].copy_from_slice(&buf[..3]);
         Ok((Self(u32::from_be_bytes(full_buf)), 3))
@@ -598,22 +532,12 @@ impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
     }
 }
 
-impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        Ok(Self {
-            integer: I::decode(&mut reader)?,
-            fraction: F::decode(reader)?,
-        })
-    }
-}
-
 impl<I: Decode2, F: Decode2> Decode2 for FixedPointNumber<I, F> {
     #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let integer = I::decode_at(buf, &mut offset)?;
         let fraction = F::decode_at(buf, &mut offset)?;
-
         Ok((Self { integer, fraction }, offset))
     }
 }
@@ -658,25 +582,7 @@ impl Encode for Utf8String {
     }
 }
 
-impl Decode for Utf8String {
-    fn decode<R: Read>(mut reader: R) -> Result<Self> {
-        let mut bytes = Vec::new();
-        loop {
-            let b = u8::decode(&mut reader)?;
-            if b == 0 {
-                break;
-            }
-            bytes.push(b);
-        }
-        let s = String::from_utf8(bytes).map_err(|e| {
-            Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
-        })?;
-        Ok(Self(s))
-    }
-}
-
 impl Decode2 for Utf8String {
-    #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let mut bytes = Vec::new();
