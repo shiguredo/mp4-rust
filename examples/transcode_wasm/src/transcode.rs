@@ -396,6 +396,6 @@ impl TrackTranscoder {
         header.encode(&mut data).or_fail()?;
         data.extend_from_slice(description);
 
-        T::decode(&mut &data[..]).or_fail()
+        T::decode(&data[..]).or_fail().map(|(desc, _)| desc)
     }
 }
