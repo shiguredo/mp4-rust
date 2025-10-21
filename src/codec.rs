@@ -401,6 +401,13 @@ impl Encode for [u8] {
 pub trait Decode2: Sized {
     /// TODO: doc
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)>;
+
+    /// TODO: doc
+    fn decode_at(buf: &[u8], offset: &mut usize) -> Result2<Self> {
+        let (decoded, size) = Self::decode2(&buf[*offset..])?;
+        *offset += size;
+        Ok(decoded)
+    }
 }
 
 impl Decode2 for u8 {
@@ -494,15 +501,12 @@ impl Decode2 for NonZeroU32 {
 }
 
 impl<T: Decode2 + Default + Copy, const N: usize> Decode2 for [T; N] {
-    #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut items = [T::default(); N];
         let mut offset = 0;
 
         for item in &mut items {
-            let (decoded, size) = T::decode2(&buf[offset..])?;
-            *item = decoded;
-            offset += size;
+            *item = T::decode_at(buf, &mut offset)?;
         }
 
         Ok((items, offset))

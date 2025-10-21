@@ -278,19 +278,18 @@ impl Decode for BoxHeader {
 impl Decode2 for BoxHeader {
     #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (box_size, mut offset) = u32::decode2(buf)?;
+        let mut offset = 0;
 
-        if buf.len() < offset + 4 {
-            return Err(Error2::insufficient_buffer());
-        }
+        let box_size = u32::decode_at(buf, &mut offset)?;
+        Error2::check_buffer_size(offset + 4, buf)?;
+
         let mut box_type = [0; 4];
         box_type.copy_from_slice(&buf[offset..offset + 4]);
         offset += 4;
 
         let box_type = if box_type == [b'u', b'u', b'i', b'd'] {
-            if buf.len() < offset + 16 {
-                return Err(Error2::insufficient_buffer());
-            }
+            Error2::check_buffer_size(offset + 16, buf)?;
+
             let mut uuid = [0; 16];
             uuid.copy_from_slice(&buf[offset..offset + 16]);
             offset += 16;
@@ -300,8 +299,7 @@ impl Decode2 for BoxHeader {
         };
 
         let box_size = if box_size == 1 {
-            let (size, size_offset) = u64::decode2(&buf[offset..])?;
-            offset += size_offset;
+            let size = u64::decode_at(buf, &mut offset)?;
             BoxSize::U64(size)
         } else {
             BoxSize::U32(box_size)
@@ -362,9 +360,9 @@ impl Decode for FullBoxHeader {
 impl Decode2 for FullBoxHeader {
     #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (version, mut offset) = u8::decode2(buf)?;
-        let (flags, flags_offset) = FullBoxFlags::decode2(&buf[offset..])?;
-        offset += flags_offset;
+        let mut offset = 0;
+        let version = u8::decode_at(buf, &mut offset)?;
+        let flags = FullBoxFlags::decode_at(buf, &mut offset)?;
 
         Ok((Self { version, flags }, offset))
     }
@@ -612,9 +610,9 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
 impl<I: Decode2, F: Decode2> Decode2 for FixedPointNumber<I, F> {
     #[track_caller]
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (integer, mut offset) = I::decode2(buf)?;
-        let (fraction, frac_offset) = F::decode2(&buf[offset..])?;
-        offset += frac_offset;
+        let mut offset = 0;
+        let integer = I::decode_at(buf, &mut offset)?;
+        let fraction = F::decode_at(buf, &mut offset)?;
 
         Ok((Self { integer, fraction }, offset))
     }

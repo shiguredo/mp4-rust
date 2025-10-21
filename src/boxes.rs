@@ -310,17 +310,12 @@ impl Decode2 for FtypBox {
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
-        let (major_brand, brand_offset) = Brand::decode2(&payload[offset..])?;
-        offset += brand_offset;
-
-        let (minor_version, version_offset) = u32::decode2(&payload[offset..])?;
-        offset += version_offset;
+        let major_brand = Brand::decode_at(&payload, &mut offset)?;
+        let minor_version = u32::decode_at(&payload, &mut offset)?;
 
         let mut compatible_brands = Vec::new();
         while offset < payload.len() {
-            let (brand, brand_offset) = Brand::decode2(&payload[offset..])?;
-            offset += brand_offset;
-            compatible_brands.push(brand);
+            compatible_brands.push(Brand::decode_at(&payload, &mut offset)?);
         }
 
         Ok((
@@ -616,19 +611,13 @@ impl Decode2 for MoovBox {
             let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
             match child_header.box_type {
                 MvhdBox::TYPE if mvhd_box.is_none() => {
-                    let (child_box, child_box_size) = MvhdBox::decode2(&payload[offset..])?;
-                    mvhd_box = Some(child_box);
-                    offset += child_box_size;
+                    mvhd_box = Some(MvhdBox::decode_at(&payload, &mut offset)?);
                 }
                 TrakBox::TYPE => {
-                    let (child_box, child_box_size) = TrakBox::decode2(&payload[offset..])?;
-                    trak_boxes.push(child_box);
-                    offset += child_box_size;
+                    trak_boxes.push(TrakBox::decode_at(&payload, &mut offset)?);
                 }
                 _ => {
-                    let (child_box, child_box_size) = UnknownBox::decode2(&payload[offset..])?;
-                    unknown_boxes.push(child_box);
-                    offset += child_box_size;
+                    unknown_boxes.push(UnknownBox::decode_at(&payload, &mut offset)?);
                 }
             }
         }
@@ -765,82 +754,14 @@ impl Decode for MvhdBox {
 }
 
 impl Decode2 for MvhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect2(Self::TYPE)?;
+    fn decode2(_buf: &[u8]) -> Result2<(Self, usize)> {
+        todo!()
+    }
+}
 
-        let mut offset = 0;
-        let (full_header, full_header_offset) = FullBoxHeader::decode2(&payload[offset..])?;
-        offset += full_header_offset;
-
-        let mut this = Self {
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            timescale: NonZeroU32::MIN,
-            duration: 0,
-            rate: Self::DEFAULT_RATE,
-            volume: Self::DEFAULT_VOLUME,
-            matrix: Self::DEFAULT_MATRIX,
-            next_track_id: 0,
-        };
-
-        if full_header.version == 1 {
-            let (ct, ct_offset) = u64::decode2(&payload[offset..])?;
-            offset += ct_offset;
-            this.creation_time = Mp4FileTime::from_secs(ct);
-
-            let (mt, mt_offset) = u64::decode2(&payload[offset..])?;
-            offset += mt_offset;
-            this.modification_time = Mp4FileTime::from_secs(mt);
-
-            let (ts, ts_offset) = NonZeroU32::decode2(&payload[offset..])?;
-            offset += ts_offset;
-            this.timescale = ts;
-
-            let (dur, dur_offset) = u64::decode2(&payload[offset..])?;
-            offset += dur_offset;
-            this.duration = dur;
-        } else {
-            let (ct, ct_offset) = u32::decode2(&payload[offset..])?;
-            offset += ct_offset;
-            this.creation_time = Mp4FileTime::from_secs(ct as u64);
-
-            let (mt, mt_offset) = u32::decode2(&payload[offset..])?;
-            offset += mt_offset;
-            this.modification_time = Mp4FileTime::from_secs(mt as u64);
-
-            let (ts, ts_offset) = NonZeroU32::decode2(&payload[offset..])?;
-            offset += ts_offset;
-            this.timescale = ts;
-
-            let (dur, dur_offset) = u32::decode2(&payload[offset..])?;
-            offset += dur_offset;
-            this.duration = dur as u64;
-        }
-
-        let (rate, rate_offset) = FixedPointNumber::decode2(&payload[offset..])?;
-        offset += rate_offset;
-        this.rate = rate;
-
-        let (volume, volume_offset) = FixedPointNumber::decode2(&payload[offset..])?;
-        offset += volume_offset;
-        this.volume = volume;
-
-        let (_, reserved_offset) = <[u8; 2 + 4 * 2]>::decode2(&payload[offset..])?;
-        offset += reserved_offset;
-
-        let (matrix, matrix_offset) = <[i32; 9]>::decode2(&payload[offset..])?;
-        offset += matrix_offset;
-        this.matrix = matrix;
-
-        let (_, reserved_offset) = <[u8; 4 * 6]>::decode2(&payload[offset..])?;
-        offset += reserved_offset;
-
-        let (next_track_id, next_offset) = u32::decode2(&payload[offset..])?;
-        offset += next_offset;
-        this.next_track_id = next_track_id;
-
-        Ok((this, header.external_size() + payload.len()))
+impl Decode2 for TrakBox {
+    fn decode2(_buf: &[u8]) -> Result2<(Self, usize)> {
+        todo!()
     }
 }
 
