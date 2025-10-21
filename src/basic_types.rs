@@ -511,6 +511,17 @@ impl BoxType {
             )))
         }
     }
+
+    /// 自分が `expected` と同じ種別であるかをチェックする
+    pub fn expect2(self, expected: Self) -> Result2<()> {
+        if self == expected {
+            Ok(())
+        } else {
+            Err(Error2::invalid_data(format!(
+                "Expected box type `{expected}`, but got `{self}`"
+            )))
+        }
+    }
 }
 
 impl core::fmt::Debug for BoxType {

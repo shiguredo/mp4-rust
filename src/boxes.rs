@@ -130,6 +130,20 @@ impl Decode for IgnoredBox {
     }
 }
 
+impl Decode2 for IgnoredBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        Ok((
+            Self {
+                box_type: header.box_type,
+                box_size: header.box_size,
+                box_payload_size: payload.len() as u64,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for IgnoredBox {
     fn box_type(&self) -> BoxType {
         self.box_type
@@ -234,6 +248,13 @@ impl Decode for Brand {
     }
 }
 
+impl Decode2 for Brand {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (bytes, offset) = <[u8; 4]>::decode2(buf)?;
+        Ok((Self(bytes), offset))
+    }
+}
+
 /// [ISO/IEC 14496-12] FileTypeBox class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -282,6 +303,39 @@ impl Decode for FtypBox {
         })
     }
 }
+
+impl Decode2 for FtypBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let (major_brand, brand_offset) = Brand::decode2(&payload[offset..])?;
+        offset += brand_offset;
+
+        let (minor_version, version_offset) = u32::decode2(&payload[offset..])?;
+        offset += version_offset;
+
+        let mut compatible_brands = Vec::new();
+        while offset < payload.len() {
+            let (brand, brand_offset) = Brand::decode2(&payload[offset..])?;
+            offset += brand_offset;
+            compatible_brands.push(brand);
+        }
+
+        let total_size = header.external_size() + payload.len();
+        Ok((
+            Self {
+                major_brand,
+                minor_version,
+                compatible_brands,
+            },
+            total_size,
+        ))
+    }
+}
+
+// TODO: impl Decode2 for the above component
 
 impl BaseBox for FtypBox {
     fn box_type(&self) -> BoxType {
