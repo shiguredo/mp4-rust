@@ -392,6 +392,118 @@ impl Encode for [u8] {
     }
 }
 
+/// TODO: doc
+pub trait Decode2: Sized {
+    /// TODO: doc
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)>;
+}
+
+impl Decode2 for u8 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(1, buf)?;
+        Ok((buf[0], 1))
+    }
+}
+
+impl Decode2 for u16 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(2, buf)?;
+        Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
+    }
+}
+
+impl Decode2 for u32 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(4, buf)?;
+        Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
+    }
+}
+
+impl Decode2 for u64 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(8, buf)?;
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
+        Ok((Self::from_be_bytes(bytes), 8))
+    }
+}
+
+impl Decode2 for i8 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(1, buf)?;
+        Ok((buf[0] as i8, 1))
+    }
+}
+
+impl Decode2 for i16 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(2, buf)?;
+        Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
+    }
+}
+
+impl Decode2 for i32 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(4, buf)?;
+        Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
+    }
+}
+
+impl Decode2 for i64 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        Error2::check_buffer_size(8, buf)?;
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
+        Ok((Self::from_be_bytes(bytes), 8))
+    }
+}
+
+impl Decode2 for NonZeroU16 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (v, size) = u16::decode2(buf)?;
+        NonZeroU16::new(v)
+            .map(|nz| (nz, size))
+            .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
+    }
+}
+
+impl Decode2 for NonZeroU32 {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (v, size) = u32::decode2(buf)?;
+        NonZeroU32::new(v)
+            .map(|nz| (nz, size))
+            .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
+    }
+}
+
+impl<T: Decode2 + Default + Copy, const N: usize> Decode2 for [T; N] {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut items = [T::default(); N];
+        let mut offset = 0;
+
+        for item in &mut items {
+            let (decoded, size) = T::decode2(&buf[offset..])?;
+            *item = decoded;
+            offset += size;
+        }
+
+        Ok((items, offset))
+    }
+}
+
 /// バイト列を `Self` に変換するためのトレイト
 pub trait Decode: Sized {
     /// `reader` から読み込んだバイト列から `Self` を構築する
