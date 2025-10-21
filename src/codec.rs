@@ -395,48 +395,48 @@ impl Encode for [u8] {
 }
 
 /// バイト列から `Self` に変換するためのトレイト
-pub trait Decode2: Sized {
+pub trait Decode: Sized {
     /// バイト列からこの型の値をデコードする
     ///
     /// 成功時には、デコードされた値とデコードに消費されたバイト数のタプルが、
     /// 失敗時には [`Error2`] が返される
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)>;
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)>;
 
     /// オフセット位置からバイト列をデコードし、オフセットを自動で進める
     fn decode_at(buf: &[u8], offset: &mut usize) -> Result2<Self> {
-        let (decoded, size) = Self::decode2(&buf[*offset..])?;
+        let (decoded, size) = Self::decode(&buf[*offset..])?;
         *offset += size;
         Ok(decoded)
     }
 }
 
-impl Decode2 for u8 {
+impl Decode for u8 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(1, buf)?;
         Ok((buf[0], 1))
     }
 }
 
-impl Decode2 for u16 {
+impl Decode for u16 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(2, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
     }
 }
 
-impl Decode2 for u32 {
+impl Decode for u32 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(4, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
     }
 }
 
-impl Decode2 for u64 {
+impl Decode for u64 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(8, buf)?;
         let bytes = [
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
@@ -445,33 +445,33 @@ impl Decode2 for u64 {
     }
 }
 
-impl Decode2 for i8 {
+impl Decode for i8 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(1, buf)?;
         Ok((buf[0] as i8, 1))
     }
 }
 
-impl Decode2 for i16 {
+impl Decode for i16 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(2, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
     }
 }
 
-impl Decode2 for i32 {
+impl Decode for i32 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(4, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
     }
 }
 
-impl Decode2 for i64 {
+impl Decode for i64 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(8, buf)?;
         let bytes = [
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
@@ -480,28 +480,28 @@ impl Decode2 for i64 {
     }
 }
 
-impl Decode2 for NonZeroU16 {
+impl Decode for NonZeroU16 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (v, size) = u16::decode2(buf)?;
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (v, size) = u16::decode(buf)?;
         NonZeroU16::new(v)
             .map(|nz| (nz, size))
             .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
     }
 }
 
-impl Decode2 for NonZeroU32 {
+impl Decode for NonZeroU32 {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (v, size) = u32::decode2(buf)?;
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (v, size) = u32::decode(buf)?;
         NonZeroU32::new(v)
             .map(|nz| (nz, size))
             .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
     }
 }
 
-impl<T: Decode2 + Default + Copy, const N: usize> Decode2 for [T; N] {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut items = [T::default(); N];
         let mut offset = 0;
 

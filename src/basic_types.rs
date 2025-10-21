@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode2, Encode, Error, Error2, Result, Result2,
+    Decode, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{Read, Take},
 };
@@ -65,8 +65,8 @@ impl<B: BaseBox> Mp4File<B> {
     }
 }
 
-impl<B: BaseBox + Decode2> Decode2 for Mp4File<B> {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl<B: BaseBox + Decode> Decode for Mp4File<B> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
 
         let ftyp_box = FtypBox::decode_at(buf, &mut offset)?;
@@ -178,7 +178,7 @@ impl BoxHeader {
     /// バッファからボックスヘッダーを読み込み、対応するペイロード部分を抽出する。
     /// ボックスサイズが 0 の場合は可変長ボックスとして扱う。
     pub fn decode_header_and_payload(buf: &[u8]) -> Result2<(Self, &[u8])> {
-        let (header, header_size) = Self::decode2(buf)?;
+        let (header, header_size) = Self::decode(buf)?;
 
         let mut box_size = usize::try_from(header.box_size.get())
             .map_err(|_| Error2::invalid_data("too large box size"))?;
@@ -229,9 +229,9 @@ impl Encode for BoxHeader {
     }
 }
 
-impl Decode2 for BoxHeader {
+impl Decode for BoxHeader {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
 
         let box_size = u32::decode_at(buf, &mut offset)?;
@@ -302,8 +302,8 @@ impl Encode for FullBoxHeader {
     }
 }
 
-impl Decode2 for FullBoxHeader {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for FullBoxHeader {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let version = u8::decode_at(buf, &mut offset)?;
         let flags = FullBoxFlags::decode_at(buf, &mut offset)?;
@@ -352,8 +352,8 @@ impl Encode for FullBoxFlags {
     }
 }
 
-impl Decode2 for FullBoxFlags {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for FullBoxFlags {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         Error2::check_buffer_size(3, buf)?;
         let mut full_buf = [0; 4];
         full_buf[1..].copy_from_slice(&buf[..3]);
@@ -530,9 +530,9 @@ impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
     }
 }
 
-impl<I: Decode2, F: Decode2> Decode2 for FixedPointNumber<I, F> {
+impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
     #[track_caller]
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let integer = I::decode_at(buf, &mut offset)?;
         let fraction = F::decode_at(buf, &mut offset)?;
@@ -580,8 +580,8 @@ impl Encode for Utf8String {
     }
 }
 
-impl Decode2 for Utf8String {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Utf8String {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let mut bytes = Vec::new();
 

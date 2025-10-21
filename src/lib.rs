@@ -18,7 +18,7 @@ pub use basic_types::{
     BaseBox, BoxHeader, BoxSize, BoxType, Either, FixedPointNumber, FullBox, FullBoxFlags,
     FullBoxHeader, Mp4File, Mp4FileTime, Uint, Utf8String,
 };
-pub use codec::{Decode2, Encode, Error, Error2, ErrorKind2, Result, Result2};
+pub use codec::{Decode, Encode, Error, Error2, ErrorKind2, Result, Result2};
 
 // [NOTE]
 // Windows 環境では aux.rs というファイル名が予約語で、リポジトリに含まれていると git clone に失敗するため、

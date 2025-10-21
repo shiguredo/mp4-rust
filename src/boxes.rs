@@ -5,7 +5,7 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode2, Either, Encode, Error2, FixedPointNumber,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error2, FixedPointNumber,
     FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result2, Uint, Utf8String,
     basic_types::as_box_object, descriptors::EsDescriptor,
 };
@@ -33,8 +33,8 @@ impl Encode for UnknownBox {
     }
 }
 
-impl Decode2 for UnknownBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for UnknownBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         Ok((
             Self {
@@ -75,8 +75,8 @@ pub struct IgnoredBox {
     pub box_payload_size: u64,
 }
 
-impl Decode2 for IgnoredBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for IgnoredBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         Ok((
             Self {
@@ -185,9 +185,9 @@ impl Encode for Brand {
     }
 }
 
-impl Decode2 for Brand {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (bytes, offset) = <[u8; 4]>::decode2(buf)?;
+impl Decode for Brand {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (bytes, offset) = <[u8; 4]>::decode(buf)?;
         Ok((Self(bytes), offset))
     }
 }
@@ -220,8 +220,8 @@ impl Encode for FtypBox {
     }
 }
 
-impl Decode2 for FtypBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for FtypBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -287,14 +287,14 @@ impl Encode for RootBox {
     }
 }
 
-impl Decode2 for RootBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (header, _header_size) = BoxHeader::decode2(buf)?;
+impl Decode for RootBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, _header_size) = BoxHeader::decode(buf)?;
         match header.box_type {
-            FreeBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Free(b), n)),
-            MdatBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Mdat(b), n)),
-            MoovBox::TYPE => Decode2::decode2(buf).map(|(b, n)| (RootBox::Moov(b), n)),
-            _ => Decode2::decode2(buf).map(|(b, n)| (RootBox::Unknown(b), n)),
+            FreeBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Free(b), n)),
+            MdatBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Mdat(b), n)),
+            MoovBox::TYPE => Decode::Decode(buf).map(|(b, n)| (RootBox::Moov(b), n)),
+            _ => Decode::Decode(buf).map(|(b, n)| (RootBox::Unknown(b), n)),
         }
     }
 }
@@ -334,8 +334,8 @@ impl Encode for FreeBox {
     }
 }
 
-impl Decode2 for FreeBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for FreeBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -386,8 +386,8 @@ impl Encode for MdatBox {
     }
 }
 
-impl Decode2 for MdatBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MdatBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -441,8 +441,8 @@ impl Encode for MoovBox {
     }
 }
 
-impl Decode2 for MoovBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MoovBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -452,7 +452,7 @@ impl Decode2 for MoovBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 MvhdBox::TYPE if mvhd_box.is_none() => {
                     mvhd_box = Some(MvhdBox::decode_at(payload, &mut offset)?);
@@ -550,8 +550,8 @@ impl Encode for MvhdBox {
     }
 }
 
-impl Decode2 for MvhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MvhdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -655,8 +655,8 @@ impl Encode for TrakBox {
     }
 }
 
-impl Decode2 for TrakBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for TrakBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -667,7 +667,7 @@ impl Decode2 for TrakBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 TkhdBox::TYPE if tkhd_box.is_none() => {
                     tkhd_box = Some(TkhdBox::decode_at(payload, &mut offset)?);
@@ -787,8 +787,8 @@ impl Encode for TkhdBox {
     }
 }
 
-impl Decode2 for TkhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for TkhdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -908,8 +908,8 @@ impl Encode for EdtsBox {
     }
 }
 
-impl Decode2 for EdtsBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for EdtsBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -918,7 +918,7 @@ impl Decode2 for EdtsBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 ElstBox::TYPE if elst_box.is_none() => {
                     elst_box = Some(ElstBox::decode_at(payload, &mut offset)?);
@@ -997,8 +997,8 @@ impl Encode for ElstBox {
     }
 }
 
-impl Decode2 for ElstBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for ElstBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1082,8 +1082,8 @@ impl Encode for MdiaBox {
     }
 }
 
-impl Decode2 for MdiaBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MdiaBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1094,7 +1094,7 @@ impl Decode2 for MdiaBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 MdhdBox::TYPE if mdhd_box.is_none() => {
                     mdhd_box = Some(MdhdBox::decode_at(payload, &mut offset)?);
@@ -1197,8 +1197,8 @@ impl Encode for MdhdBox {
     }
 }
 
-impl Decode2 for MdhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MdhdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1310,8 +1310,8 @@ impl Encode for HdlrBox {
     }
 }
 
-impl Decode2 for HdlrBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for HdlrBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1382,8 +1382,8 @@ impl Encode for MinfBox {
     }
 }
 
-impl Decode2 for MinfBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for MinfBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1395,7 +1395,7 @@ impl Decode2 for MinfBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 SmhdBox::TYPE if smhd_box.is_none() => {
                     smhd_box = Some(SmhdBox::decode_at(payload, &mut offset)?);
@@ -1474,8 +1474,8 @@ impl Encode for SmhdBox {
     }
 }
 
-impl Decode2 for SmhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for SmhdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1539,8 +1539,8 @@ impl Encode for VmhdBox {
     }
 }
 
-impl Decode2 for VmhdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for VmhdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1618,8 +1618,8 @@ impl Encode for DinfBox {
     }
 }
 
-impl Decode2 for DinfBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for DinfBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1628,7 +1628,7 @@ impl Decode2 for DinfBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 DrefBox::TYPE if dref_box.is_none() => {
                     dref_box = Some(DrefBox::decode_at(payload, &mut offset)?);
@@ -1700,8 +1700,8 @@ impl Encode for DrefBox {
     }
 }
 
-impl Decode2 for DrefBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for DrefBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1713,7 +1713,7 @@ impl Decode2 for DrefBox {
         let mut unknown_boxes = Vec::new();
 
         for _ in 0..entry_count {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 UrlBox::TYPE if url_box.is_none() => {
                     url_box = Some(UrlBox::decode_at(payload, &mut offset)?);
@@ -1786,8 +1786,8 @@ impl Encode for UrlBox {
     }
 }
 
-impl Decode2 for UrlBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for UrlBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1864,8 +1864,8 @@ impl Encode for StblBox {
     }
 }
 
-impl Decode2 for StblBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StblBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1880,7 +1880,7 @@ impl Decode2 for StblBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 StsdBox::TYPE if stsd_box.is_none() => {
                     stsd_box = Some(StsdBox::decode_at(payload, &mut offset)?);
@@ -1980,8 +1980,8 @@ impl Encode for StsdBox {
     }
 }
 
-impl Decode2 for StsdBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StsdBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2062,18 +2062,18 @@ impl Encode for SampleEntry {
     }
 }
 
-impl Decode2 for SampleEntry {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (header, _) = BoxHeader::decode2(buf)?;
+impl Decode for SampleEntry {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, _) = BoxHeader::decode(buf)?;
         match header.box_type {
-            Avc1Box::TYPE => Avc1Box::decode2(buf).map(|(b, n)| (Self::Avc1(b), n)),
-            Hev1Box::TYPE => Hev1Box::decode2(buf).map(|(b, n)| (Self::Hev1(b), n)),
-            Vp08Box::TYPE => Vp08Box::decode2(buf).map(|(b, n)| (Self::Vp08(b), n)),
-            Vp09Box::TYPE => Vp09Box::decode2(buf).map(|(b, n)| (Self::Vp09(b), n)),
-            Av01Box::TYPE => Av01Box::decode2(buf).map(|(b, n)| (Self::Av01(b), n)),
-            OpusBox::TYPE => OpusBox::decode2(buf).map(|(b, n)| (Self::Opus(b), n)),
-            Mp4aBox::TYPE => Mp4aBox::decode2(buf).map(|(b, n)| (Self::Mp4a(b), n)),
-            _ => UnknownBox::decode2(buf).map(|(b, n)| (Self::Unknown(b), n)),
+            Avc1Box::TYPE => Avc1Box::decode(buf).map(|(b, n)| (Self::Avc1(b), n)),
+            Hev1Box::TYPE => Hev1Box::decode(buf).map(|(b, n)| (Self::Hev1(b), n)),
+            Vp08Box::TYPE => Vp08Box::decode(buf).map(|(b, n)| (Self::Vp08(b), n)),
+            Vp09Box::TYPE => Vp09Box::decode(buf).map(|(b, n)| (Self::Vp09(b), n)),
+            Av01Box::TYPE => Av01Box::decode(buf).map(|(b, n)| (Self::Av01(b), n)),
+            OpusBox::TYPE => OpusBox::decode(buf).map(|(b, n)| (Self::Opus(b), n)),
+            Mp4aBox::TYPE => Mp4aBox::decode(buf).map(|(b, n)| (Self::Mp4a(b), n)),
+            _ => UnknownBox::decode(buf).map(|(b, n)| (Self::Unknown(b), n)),
         }
     }
 }
@@ -2145,8 +2145,8 @@ impl Encode for VisualSampleEntryFields {
     }
 }
 
-impl Decode2 for VisualSampleEntryFields {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for VisualSampleEntryFields {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
         let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
@@ -2204,8 +2204,8 @@ impl Encode for Avc1Box {
     }
 }
 
-impl Decode2 for Avc1Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Avc1Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2216,7 +2216,7 @@ impl Decode2 for Avc1Box {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 AvccBox::TYPE if avcc_box.is_none() => {
                     avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
@@ -2336,8 +2336,8 @@ impl Encode for AvccBox {
     }
 }
 
-impl Decode2 for AvccBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for AvccBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2447,8 +2447,8 @@ impl Encode for Hev1Box {
     }
 }
 
-impl Decode2 for Hev1Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Hev1Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2459,7 +2459,7 @@ impl Decode2 for Hev1Box {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 HvccBox::TYPE if hvcc_box.is_none() => {
                     hvcc_box = Some(HvccBox::decode_at(payload, &mut offset)?);
@@ -2589,8 +2589,8 @@ impl Encode for HvccBox {
     }
 }
 
-impl Decode2 for HvccBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for HvccBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2714,8 +2714,8 @@ impl Encode for Vp08Box {
     }
 }
 
-impl Decode2 for Vp08Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Vp08Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2726,7 +2726,7 @@ impl Decode2 for Vp08Box {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 VpccBox::TYPE if vpcc_box.is_none() => {
                     vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
@@ -2790,8 +2790,8 @@ impl Encode for Vp09Box {
     }
 }
 
-impl Decode2 for Vp09Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Vp09Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2802,7 +2802,7 @@ impl Decode2 for Vp09Box {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 VpccBox::TYPE if vpcc_box.is_none() => {
                     vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
@@ -2879,8 +2879,8 @@ impl Encode for VpccBox {
     }
 }
 
-impl Decode2 for VpccBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for VpccBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2971,8 +2971,8 @@ impl Encode for Av01Box {
     }
 }
 
-impl Decode2 for Av01Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Av01Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2983,7 +2983,7 @@ impl Decode2 for Av01Box {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 Av1cBox::TYPE if av1c_box.is_none() => {
                     av1c_box = Some(Av1cBox::decode_at(payload, &mut offset)?);
@@ -3070,8 +3070,8 @@ impl Encode for Av1cBox {
     }
 }
 
-impl Decode2 for Av1cBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Av1cBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3196,8 +3196,8 @@ impl Encode for SttsBox {
     }
 }
 
-impl Decode2 for SttsBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for SttsBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3274,8 +3274,8 @@ impl Encode for StscBox {
     }
 }
 
-impl Decode2 for StscBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StscBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3360,8 +3360,8 @@ impl Encode for StszBox {
     }
 }
 
-impl Decode2 for StszBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StszBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3433,8 +3433,8 @@ impl Encode for StcoBox {
     }
 }
 
-impl Decode2 for StcoBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StcoBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3500,8 +3500,8 @@ impl Encode for Co64Box {
     }
 }
 
-impl Decode2 for Co64Box {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Co64Box {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3567,8 +3567,8 @@ impl Encode for StssBox {
     }
 }
 
-impl Decode2 for StssBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for StssBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3636,8 +3636,8 @@ impl Encode for OpusBox {
     }
 }
 
-impl Decode2 for OpusBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for OpusBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3648,7 +3648,7 @@ impl Decode2 for OpusBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 DopsBox::TYPE if dops_box.is_none() => {
                     dops_box = Some(DopsBox::decode_at(payload, &mut offset)?);
@@ -3712,8 +3712,8 @@ impl Encode for Mp4aBox {
     }
 }
 
-impl Decode2 for Mp4aBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for Mp4aBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3724,7 +3724,7 @@ impl Decode2 for Mp4aBox {
         let mut unknown_boxes = Vec::new();
 
         while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 EsdsBox::TYPE if esds_box.is_none() => {
                     esds_box = Some(EsdsBox::decode_at(payload, &mut offset)?);
@@ -3793,8 +3793,8 @@ impl Encode for AudioSampleEntryFields {
     }
 }
 
-impl Decode2 for AudioSampleEntryFields {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for AudioSampleEntryFields {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let mut offset = 0;
         let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
         let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
@@ -3848,8 +3848,8 @@ impl Encode for DopsBox {
     }
 }
 
-impl Decode2 for DopsBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for DopsBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3917,8 +3917,8 @@ impl Encode for EsdsBox {
     }
 }
 
-impl Decode2 for EsdsBox {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for EsdsBox {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 

@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode2, Encode, Error2, Result2, Uint};
+use crate::{Decode, Encode, Error2, Result2, Uint};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,8 +27,8 @@ impl EsDescriptor {
     pub const LOWEST_STREAM_PRIORITY: Uint<u8, 5> = Uint::new(0);
 }
 
-impl Decode2 for EsDescriptor {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for EsDescriptor {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
@@ -139,8 +139,8 @@ impl DecoderConfigDescriptor {
     pub const UP_STREAM_FALSE: Uint<u8, 1, 1> = Uint::new(0);
 }
 
-impl Decode2 for DecoderConfigDescriptor {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for DecoderConfigDescriptor {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
@@ -211,8 +211,8 @@ impl DecoderSpecificInfo {
     const TAG: u8 = 5; // DecSpecificInfoTag
 }
 
-impl Decode2 for DecoderSpecificInfo {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for DecoderSpecificInfo {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (tag, size, mut offset) = decode_tag_and_size2(buf)?;
 
         if tag != Self::TAG {
@@ -244,8 +244,8 @@ impl SlConfigDescriptor {
     const TAG: u8 = 6; // SLConfigDescrTag
 }
 
-impl Decode2 for SlConfigDescriptor {
-    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+impl Decode for SlConfigDescriptor {
+    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
 
         if tag != Self::TAG {
