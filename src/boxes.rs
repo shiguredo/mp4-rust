@@ -2422,6 +2422,23 @@ impl Decode for UrlBox {
     }
 }
 
+impl Decode2 for UrlBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let location = if full_header.flags.is_set(0) {
+            None
+        } else {
+            Some(Utf8String::decode_at(payload, &mut offset)?)
+        };
+
+        Ok((Self { location }, header.external_size() + payload.len()))
+    }
+}
+
 impl BaseBox for UrlBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -2612,8 +2629,6 @@ impl Decode2 for StblBox {
     }
 }
 
-// TODO: impl Decode2 for the above component
-
 impl BaseBox for StblBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -2681,6 +2696,24 @@ impl Decode for StsdBox {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for StsdBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let entry_count = u32::decode_at(payload, &mut offset)?;
+
+        let mut entries = Vec::new();
+        for _ in 0..entry_count {
+            entries.push(SampleEntry::decode_at(payload, &mut offset)?);
+        }
+
+        Ok((Self { entries }, header.external_size() + payload.len()))
     }
 }
 
@@ -2760,6 +2793,22 @@ impl Decode for SampleEntry {
             OpusBox::TYPE => Decode::decode(&mut reader).map(Self::Opus),
             Mp4aBox::TYPE => Decode::decode(&mut reader).map(Self::Mp4a),
             _ => Decode::decode(&mut reader).map(Self::Unknown),
+        }
+    }
+}
+
+impl Decode2 for SampleEntry {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, _) = BoxHeader::decode2(buf)?;
+        match header.box_type {
+            Avc1Box::TYPE => Avc1Box::decode2(buf).map(|(b, n)| (Self::Avc1(b), n)),
+            Hev1Box::TYPE => Hev1Box::decode2(buf).map(|(b, n)| (Self::Hev1(b), n)),
+            Vp08Box::TYPE => Vp08Box::decode2(buf).map(|(b, n)| (Self::Vp08(b), n)),
+            Vp09Box::TYPE => Vp09Box::decode2(buf).map(|(b, n)| (Self::Vp09(b), n)),
+            Av01Box::TYPE => Av01Box::decode2(buf).map(|(b, n)| (Self::Av01(b), n)),
+            OpusBox::TYPE => OpusBox::decode2(buf).map(|(b, n)| (Self::Opus(b), n)),
+            Mp4aBox::TYPE => Mp4aBox::decode2(buf).map(|(b, n)| (Self::Mp4a(b), n)),
+            _ => UnknownBox::decode2(buf).map(|(b, n)| (Self::Unknown(b), n)),
         }
     }
 }
@@ -2858,6 +2907,37 @@ impl Decode for VisualSampleEntryFields {
     }
 }
 
+impl Decode2 for VisualSampleEntryFields {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
+        let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 2 + 2 + 4 * 3]>::decode_at(buf, &mut offset)?;
+        let width = u16::decode_at(buf, &mut offset)?;
+        let height = u16::decode_at(buf, &mut offset)?;
+        let horizresolution = FixedPointNumber::decode_at(buf, &mut offset)?;
+        let vertresolution = FixedPointNumber::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 4]>::decode_at(buf, &mut offset)?;
+        let frame_count = u16::decode_at(buf, &mut offset)?;
+        let compressorname = <[u8; 32]>::decode_at(buf, &mut offset)?;
+        let depth = u16::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 2]>::decode_at(buf, &mut offset)?;
+        Ok((
+            Self {
+                data_reference_index,
+                width,
+                height,
+                horizresolution,
+                vertresolution,
+                frame_count,
+                compressorname,
+                depth,
+            },
+            offset,
+        ))
+    }
+}
+
 /// [ISO/IEC 14496-15] AVCSampleEntry class (親: [`StsdBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -2914,6 +2994,40 @@ impl Decode for Avc1Box {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for Avc1Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut avcc_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                AvccBox::TYPE if avcc_box.is_none() => {
+                    avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                visual,
+                avcc_box: check_mandatory_box(avcc_box, "avcc", "avc1")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -3086,6 +3200,79 @@ impl Decode for AvccBox {
     }
 }
 
+impl Decode2 for AvccBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let configuration_version = u8::decode_at(payload, &mut offset)?;
+        if configuration_version != Self::CONFIGURATION_VERSION {
+            return Err(Error2::invalid_data(&format!(
+                "Unsupported avcC configuration version: {configuration_version}"
+            )));
+        }
+
+        let avc_profile_indication = u8::decode_at(payload, &mut offset)?;
+        let profile_compatibility = u8::decode_at(payload, &mut offset)?;
+        let avc_level_indication = u8::decode_at(payload, &mut offset)?;
+        let length_size_minus_one = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+
+        let sps_count =
+            Uint::<u8, 5>::from_bits(u8::decode_at(payload, &mut offset)?).get() as usize;
+        let mut sps_list = Vec::with_capacity(sps_count);
+        for _ in 0..sps_count {
+            let size = u16::decode_at(payload, &mut offset)? as usize;
+            let sps = payload[offset..offset + size].to_vec();
+            offset += size;
+            sps_list.push(sps);
+        }
+
+        let pps_count = u8::decode_at(payload, &mut offset)? as usize;
+        let mut pps_list = Vec::with_capacity(pps_count);
+        for _ in 0..pps_count {
+            let size = u16::decode_at(payload, &mut offset)? as usize;
+            let pps = payload[offset..offset + size].to_vec();
+            offset += size;
+            pps_list.push(pps);
+        }
+
+        let mut chroma_format = None;
+        let mut bit_depth_luma_minus8 = None;
+        let mut bit_depth_chroma_minus8 = None;
+        let mut sps_ext_list = Vec::new();
+        if !matches!(avc_profile_indication, 66 | 77 | 88) {
+            chroma_format = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+            bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+            bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+
+            let sps_ext_count = u8::decode_at(payload, &mut offset)? as usize;
+            for _ in 0..sps_ext_count {
+                let size = u16::decode_at(payload, &mut offset)? as usize;
+                let sps_ext = payload[offset..offset + size].to_vec();
+                offset += size;
+                sps_ext_list.push(sps_ext);
+            }
+        }
+
+        Ok((
+            Self {
+                avc_profile_indication,
+                profile_compatibility,
+                avc_level_indication,
+                length_size_minus_one,
+                sps_list,
+                pps_list,
+                chroma_format,
+                bit_depth_luma_minus8,
+                bit_depth_chroma_minus8,
+                sps_ext_list,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for AvccBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -3152,6 +3339,40 @@ impl Decode for Hev1Box {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for Hev1Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut hvcc_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                HvccBox::TYPE if hvcc_box.is_none() => {
+                    hvcc_box = Some(HvccBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                visual,
+                hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hev1")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -3347,6 +3568,105 @@ impl Decode for HvccBox {
     }
 }
 
+impl Decode2 for HvccBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let b = u8::decode_at(payload, &mut offset)?;
+        let marker = Uint::from_bits(b);
+        let version = Uint::from_bits(b);
+        if marker != Self::MARKER {
+            return Err(Error2::invalid_data("Unexpected hvcc marker"));
+        }
+        if version != Self::VERSION {
+            return Err(Error2::invalid_data(&format!(
+                "Unsupported hvcc version: {}",
+                version.get()
+            )));
+        }
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let general_profile_space = Uint::from_bits(b);
+        let general_tier_flag = Uint::from_bits(b);
+        let general_profile_idc = Uint::from_bits(b);
+
+        let general_profile_compatibility_flags = u32::decode_at(payload, &mut offset)?;
+
+        let general_constraint_indicator_flags = Uint::from_bits(u64::from_be_bytes([
+            0,
+            0,
+            payload[offset],
+            payload[offset + 1],
+            payload[offset + 2],
+            payload[offset + 3],
+            payload[offset + 4],
+            payload[offset + 5],
+        ]));
+        offset += 6;
+
+        let general_level_idc = u8::decode_at(payload, &mut offset)?;
+        let min_spatial_segmentation_idc = Uint::from_bits(u16::decode_at(payload, &mut offset)?);
+        let parallelism_type = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+        let chroma_format_idc = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+        let bit_depth_luma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+        let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+        let avg_frame_rate = u16::decode_at(payload, &mut offset)?;
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let constant_frame_rate = Uint::from_bits(b);
+        let num_temporal_layers = Uint::from_bits(b);
+        let temporal_id_nested = Uint::from_bits(b);
+        let length_size_minus_one = Uint::from_bits(b);
+
+        let num_of_arrays = u8::decode_at(payload, &mut offset)?;
+        let mut nalu_arrays = Vec::new();
+        for _ in 0..num_of_arrays {
+            let b = u8::decode_at(payload, &mut offset)?;
+            let array_completeness = Uint::from_bits(b);
+            let nal_unit_type = Uint::from_bits(b);
+
+            let num_nalus = u16::decode_at(payload, &mut offset)?;
+            let mut nalus = Vec::new();
+            for _ in 0..num_nalus {
+                let nal_unit_length = u16::decode_at(payload, &mut offset)? as usize;
+                let nal_unit = payload[offset..offset + nal_unit_length].to_vec();
+                offset += nal_unit_length;
+                nalus.push(nal_unit);
+            }
+            nalu_arrays.push(HvccNalUintArray {
+                array_completeness,
+                nal_unit_type,
+                nalus,
+            });
+        }
+
+        Ok((
+            Self {
+                general_profile_space,
+                general_tier_flag,
+                general_profile_idc,
+                general_profile_compatibility_flags,
+                general_constraint_indicator_flags,
+                general_level_idc,
+                min_spatial_segmentation_idc,
+                parallelism_type,
+                chroma_format_idc,
+                bit_depth_luma_minus8,
+                bit_depth_chroma_minus8,
+                avg_frame_rate,
+                constant_frame_rate,
+                num_temporal_layers,
+                temporal_id_nested,
+                length_size_minus_one,
+                nalu_arrays,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for HvccBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -3413,6 +3733,40 @@ impl Decode for Vp08Box {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for Vp08Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut vpcc_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                VpccBox::TYPE if vpcc_box.is_none() => {
+                    vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                visual,
+                vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp08")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -3486,6 +3840,40 @@ impl Decode for Vp09Box {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for Vp09Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut vpcc_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                VpccBox::TYPE if vpcc_box.is_none() => {
+                    vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                visual,
+                vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp09")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -3587,6 +3975,51 @@ impl Decode for VpccBox {
     }
 }
 
+impl Decode2 for VpccBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let header_obj = FullBoxHeader::decode_at(payload, &mut offset)?;
+        if header_obj.version != 1 {
+            return Err(Error2::invalid_data(&format!(
+                "Unexpected full box header version: box=vpcC, version={}",
+                header_obj.version
+            )));
+        }
+
+        let profile = u8::decode_at(payload, &mut offset)?;
+        let level = u8::decode_at(payload, &mut offset)?;
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let bit_depth = Uint::from_bits(b);
+        let chroma_subsampling = Uint::from_bits(b);
+        let video_full_range_flag = Uint::from_bits(b);
+        let colour_primaries = u8::decode_at(payload, &mut offset)?;
+        let transfer_characteristics = u8::decode_at(payload, &mut offset)?;
+        let matrix_coefficients = u8::decode_at(payload, &mut offset)?;
+        let codec_init_size = u16::decode_at(payload, &mut offset)? as usize;
+        let codec_initialization_data = payload[offset..offset + codec_init_size].to_vec();
+        offset += codec_init_size;
+
+        Ok((
+            Self {
+                profile,
+                level,
+                bit_depth,
+                chroma_subsampling,
+                video_full_range_flag,
+                colour_primaries,
+                transfer_characteristics,
+                matrix_coefficients,
+                codec_initialization_data,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for VpccBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -3663,6 +4096,40 @@ impl Decode for Av01Box {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for Av01Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut av1c_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                Av1cBox::TYPE if av1c_box.is_none() => {
+                    av1c_box = Some(Av1cBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                visual,
+                av1c_box: check_mandatory_box(av1c_box, "av1c", "av01")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -3791,6 +4258,66 @@ impl Decode for Av1cBox {
     }
 }
 
+impl Decode2 for Av1cBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let b = u8::decode_at(payload, &mut offset)?;
+        let marker = Uint::from_bits(b);
+        let version = Uint::from_bits(b);
+        if marker != Self::MARKER {
+            return Err(Error2::invalid_data("Unexpected av1C marker"));
+        }
+        if version != Self::VERSION {
+            return Err(Error2::invalid_data(&format!(
+                "Unsupported av1C version: {}",
+                version.get()
+            )));
+        }
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let seq_profile = Uint::from_bits(b);
+        let seq_level_idx_0 = Uint::from_bits(b);
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let seq_tier_0 = Uint::from_bits(b);
+        let high_bitdepth = Uint::from_bits(b);
+        let twelve_bit = Uint::from_bits(b);
+        let monochrome = Uint::from_bits(b);
+        let chroma_subsampling_x = Uint::from_bits(b);
+        let chroma_subsampling_y = Uint::from_bits(b);
+        let chroma_sample_position = Uint::from_bits(b);
+
+        let b = u8::decode_at(payload, &mut offset)?;
+        let initial_presentation_delay_minus_one = if Uint::<u8, 1, 4>::from_bits(b).get() == 1 {
+            Some(Uint::from_bits(b))
+        } else {
+            None
+        };
+
+        let config_obus = payload[offset..].to_vec();
+
+        Ok((
+            Self {
+                seq_profile,
+                seq_level_idx_0,
+                seq_tier_0,
+                high_bitdepth,
+                twelve_bit,
+                monochrome,
+                chroma_subsampling_x,
+                chroma_subsampling_y,
+                chroma_sample_position,
+                initial_presentation_delay_minus_one,
+                config_obus,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for Av1cBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -3878,6 +4405,27 @@ impl Decode for SttsBox {
     }
 }
 
+impl Decode2 for SttsBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let count = u32::decode_at(payload, &mut offset)? as usize;
+
+        let mut entries = Vec::with_capacity(count);
+        for _ in 0..count {
+            entries.push(SttsEntry {
+                sample_count: u32::decode_at(payload, &mut offset)?,
+                sample_delta: u32::decode_at(payload, &mut offset)?,
+            });
+        }
+
+        Ok((Self { entries }, header.external_size() + payload.len()))
+    }
+}
+
 impl BaseBox for SttsBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -3954,6 +4502,28 @@ impl Decode for StscBox {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for StscBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let count = u32::decode_at(payload, &mut offset)?;
+
+        let mut entries = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            entries.push(StscEntry {
+                first_chunk: NonZeroU32::decode_at(payload, &mut offset)?,
+                sample_per_chunk: u32::decode_at(payload, &mut offset)?,
+                sample_description_index: NonZeroU32::decode_at(payload, &mut offset)?,
+            });
+        }
+
+        Ok((Self { entries }, header.external_size() + payload.len()))
     }
 }
 
@@ -4047,6 +4617,33 @@ impl Decode for StszBox {
     }
 }
 
+impl Decode2 for StszBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let sample_size = u32::decode_at(payload, &mut offset)?;
+        let sample_count = u32::decode_at(payload, &mut offset)?;
+
+        let stsz_box = if let Some(sample_size) = NonZeroU32::new(sample_size) {
+            Self::Fixed {
+                sample_size,
+                sample_count,
+            }
+        } else {
+            let mut entry_sizes = Vec::with_capacity(sample_count as usize);
+            for _ in 0..sample_count {
+                entry_sizes.push(u32::decode_at(payload, &mut offset)?);
+            }
+            Self::Variable { entry_sizes }
+        };
+
+        Ok((stsz_box, header.external_size() + payload.len()))
+    }
+}
+
 impl BaseBox for StszBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -4108,6 +4705,27 @@ impl Decode for StcoBox {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for StcoBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let count = u32::decode_at(payload, &mut offset)?;
+
+        let mut chunk_offsets = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            chunk_offsets.push(u32::decode_at(payload, &mut offset)?);
+        }
+
+        Ok((
+            Self { chunk_offsets },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -4175,6 +4793,27 @@ impl Decode for Co64Box {
     }
 }
 
+impl Decode2 for Co64Box {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let count = u32::decode_at(payload, &mut offset)?;
+
+        let mut chunk_offsets = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            chunk_offsets.push(u64::decode_at(payload, &mut offset)?);
+        }
+
+        Ok((
+            Self { chunk_offsets },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for Co64Box {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -4236,6 +4875,27 @@ impl Decode for StssBox {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for StssBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let count = u32::decode_at(payload, &mut offset)?;
+
+        let mut sample_numbers = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            sample_numbers.push(NonZeroU32::decode_at(payload, &mut offset)?);
+        }
+
+        Ok((
+            Self { sample_numbers },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
@@ -4318,6 +4978,40 @@ impl Decode for OpusBox {
     }
 }
 
+impl Decode2 for OpusBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut dops_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                DopsBox::TYPE if dops_box.is_none() => {
+                    dops_box = Some(DopsBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                audio,
+                dops_box: check_mandatory_box(dops_box, "dops", "Opus")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for OpusBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -4391,6 +5085,40 @@ impl Decode for Mp4aBox {
     }
 }
 
+impl Decode2 for Mp4aBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut esds_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                EsdsBox::TYPE if esds_box.is_none() => {
+                    esds_box = Some(EsdsBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                audio,
+                esds_box: check_mandatory_box(esds_box, "esds", "mp4a")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for Mp4aBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -4454,6 +5182,29 @@ impl Decode for AudioSampleEntryFields {
             samplesize,
             samplerate,
         })
+    }
+}
+
+impl Decode2 for AudioSampleEntryFields {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
+        let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 4 * 2]>::decode_at(buf, &mut offset)?;
+        let channelcount = u16::decode_at(buf, &mut offset)?;
+        let samplesize = u16::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 2]>::decode_at(buf, &mut offset)?;
+        let _ = <[u8; 2]>::decode_at(buf, &mut offset)?;
+        let samplerate = FixedPointNumber::decode_at(buf, &mut offset)?;
+        Ok((
+            Self {
+                data_reference_index,
+                channelcount,
+                samplesize,
+                samplerate,
+            },
+            offset,
+        ))
     }
 }
 
@@ -4523,6 +5274,42 @@ impl Decode for DopsBox {
     }
 }
 
+impl Decode2 for DopsBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let version = u8::decode_at(payload, &mut offset)?;
+        if version != Self::VERSION {
+            return Err(Error2::invalid_data(&format!(
+                "Unsupported dOps version: {version}"
+            )));
+        }
+
+        let output_channel_count = u8::decode_at(payload, &mut offset)?;
+        let pre_skip = u16::decode_at(payload, &mut offset)?;
+        let input_sample_rate = u32::decode_at(payload, &mut offset)?;
+        let output_gain = i16::decode_at(payload, &mut offset)?;
+        let channel_mapping_family = u8::decode_at(payload, &mut offset)?;
+        if channel_mapping_family != 0 {
+            return Err(Error2::unsupported(
+                "`ChannelMappingFamily != 0` in 'dOps' box is not supported",
+            ));
+        }
+
+        Ok((
+            Self {
+                output_channel_count,
+                pre_skip,
+                input_sample_rate,
+                output_gain,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
 impl BaseBox for DopsBox {
     fn box_type(&self) -> BoxType {
         Self::TYPE
@@ -4567,6 +5354,19 @@ impl Decode for EsdsBox {
         let header = BoxHeader::decode(&mut reader)?;
         header.box_type.expect(Self::TYPE)?;
         header.with_box_payload_reader(reader, Self::decode_payload)
+    }
+}
+
+impl Decode2 for EsdsBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        let es = EsDescriptor::decode_at(payload, &mut offset)?;
+
+        Ok((Self { es }, header.external_size() + payload.len()))
     }
 }
 
