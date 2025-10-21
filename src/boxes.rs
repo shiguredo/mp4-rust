@@ -1660,10 +1660,7 @@ impl Decode2 for MdhdBox {
             modification_time: Mp4FileTime::default(),
             timescale: NonZeroU32::MIN,
             duration: 0,
-            rate: Self::DEFAULT_RATE,
-            volume: Self::DEFAULT_VOLUME,
-            matrix: Self::DEFAULT_MATRIX,
-            next_track_id: 0,
+            language: Self::LANGUAGE_UNDEFINED,
         };
 
         if full_header.version == 1 {
@@ -3574,16 +3571,10 @@ impl Decode2 for HvccBox {
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
-        let b = u8::decode_at(payload, &mut offset)?;
-        let marker = Uint::from_bits(b);
-        let version = Uint::from_bits(b);
-        if marker != Self::MARKER {
-            return Err(Error2::invalid_data("Unexpected hvcc marker"));
-        }
-        if version != Self::VERSION {
+        let configuration_version = u8::decode_at(payload, &mut offset)?;
+        if configuration_version != Self::CONFIGURATION_VERSION {
             return Err(Error2::invalid_data(&format!(
-                "Unsupported hvcc version: {}",
-                version.get()
+                "Unsupported hvcC version: {configuration_version}"
             )));
         }
 
@@ -3594,17 +3585,11 @@ impl Decode2 for HvccBox {
 
         let general_profile_compatibility_flags = u32::decode_at(payload, &mut offset)?;
 
-        let general_constraint_indicator_flags = Uint::from_bits(u64::from_be_bytes([
-            0,
-            0,
-            payload[offset],
-            payload[offset + 1],
-            payload[offset + 2],
-            payload[offset + 3],
-            payload[offset + 4],
-            payload[offset + 5],
-        ]));
+        let mut buf_constraint = [0; 8];
+        buf_constraint[2..].copy_from_slice(&payload[offset..offset + 6]);
         offset += 6;
+        let general_constraint_indicator_flags =
+            Uint::from_bits(u64::from_be_bytes(buf_constraint));
 
         let general_level_idc = u8::decode_at(payload, &mut offset)?;
         let min_spatial_segmentation_idc = Uint::from_bits(u16::decode_at(payload, &mut offset)?);
@@ -4001,7 +3986,6 @@ impl Decode2 for VpccBox {
         let matrix_coefficients = u8::decode_at(payload, &mut offset)?;
         let codec_init_size = u16::decode_at(payload, &mut offset)? as usize;
         let codec_initialization_data = payload[offset..offset + codec_init_size].to_vec();
-        offset += codec_init_size;
 
         Ok((
             Self {
