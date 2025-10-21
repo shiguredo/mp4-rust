@@ -622,11 +622,9 @@ impl Decode2 for MoovBox {
             }
         }
 
-        let mvhd_box = mvhd_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'mvhd' box in 'moov' box"))?;
         Ok((
             Self {
-                mvhd_box,
+                mvhd_box: check_mandatory_box(mvhd_box, "mvhd", "moov")?,
                 trak_boxes,
                 unknown_boxes,
             },
@@ -754,7 +752,7 @@ impl Decode for MvhdBox {
 }
 
 impl Decode2 for MvhdBox {
-    fn decode2(_buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -928,16 +926,11 @@ impl Decode2 for TrakBox {
             }
         }
 
-        let tkhd_box = tkhd_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'tkhd' box in 'trak' box"))?;
-        let mdia_box = mdia_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'mdia' box in 'trak' box"))?;
-
         Ok((
             Self {
-                tkhd_box,
+                tkhd_box: check_mandatory_box(tkhd_box, "tkhd", "trak")?,
                 edts_box,
-                mdia_box,
+                mdia_box: check_mandatory_box(mdia_box, "mdia", "trak")?,
                 unknown_boxes,
             },
             header.external_size() + payload.len(),
@@ -1524,18 +1517,11 @@ impl Decode2 for MdiaBox {
             }
         }
 
-        let mdhd_box = mdhd_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'mdhd' box in 'mdia' box"))?;
-        let hdlr_box = hdlr_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'hdlr' box in 'mdia' box"))?;
-        let minf_box = minf_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'minf' box in 'mdia' box"))?;
-
         Ok((
             Self {
-                mdhd_box,
-                hdlr_box,
-                minf_box,
+                mdhd_box: check_mandatory_box(mdhd_box, "mdhd", "mdia")?,
+                hdlr_box: check_mandatory_box(hdlr_box, "hdlr", "mdia")?,
+                minf_box: check_mandatory_box(minf_box, "minf", "mdia")?,
                 unknown_boxes,
             },
             header.external_size() + payload.len(),
@@ -1948,22 +1934,15 @@ impl Decode2 for MinfBox {
             }
         }
 
-        let smhd_or_vmhd_box = smhd_box
-            .map(Either::A)
-            .or(vmhd_box.map(Either::B))
-            .ok_or_else(|| {
-                Error2::invalid_data("Missing mandatory 'smhd' or 'vmhd' box in 'minf' box")
-            })?;
-        let dinf_box = dinf_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'dinf' box in 'minf' box"))?;
-        let stbl_box = stbl_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'stbl' box in 'minf' box"))?;
-
         Ok((
             Self {
-                smhd_or_vmhd_box,
-                dinf_box,
-                stbl_box,
+                smhd_or_vmhd_box: {
+                    let smhd = smhd_box.map(Either::A);
+                    let vmhd = vmhd_box.map(Either::B);
+                    check_mandatory_box(smhd.or(vmhd), "smhd' or 'vmhd", "box")?
+                },
+                dinf_box: check_mandatory_box(dinf_box, "dinf", "minf")?,
+                stbl_box: check_mandatory_box(stbl_box, "stbl", "minf")?,
                 unknown_boxes,
             },
             header.external_size() + payload.len(),
@@ -2248,12 +2227,9 @@ impl Decode2 for DinfBox {
             }
         }
 
-        let dref_box = dref_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'dref' box in 'dinf' box"))?;
-
         Ok((
             Self {
-                dref_box,
+                dref_box: check_mandatory_box(dref_box, "dref", "dinf")?,
                 unknown_boxes,
             },
             header.external_size() + payload.len(),
@@ -2617,28 +2593,17 @@ impl Decode2 for StblBox {
             }
         }
 
-        let stsd_box = stsd_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'stsd' box in 'stbl' box"))?;
-        let stts_box = stts_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'stts' box in 'stbl' box"))?;
-        let stsc_box = stsc_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'stsc' box in 'stbl' box"))?;
-        let stsz_box = stsz_box
-            .ok_or_else(|| Error2::invalid_data("Missing mandatory 'stsz' box in 'stbl' box"))?;
-        let stco_or_co64_box = stco_box
-            .map(Either::A)
-            .or(co64_box.map(Either::B))
-            .ok_or_else(|| {
-                Error2::invalid_data("Missing mandatory 'stco' or 'co64' box in 'stbl' box")
-            })?;
-
         Ok((
             Self {
-                stsd_box,
-                stts_box,
-                stsc_box,
-                stsz_box,
-                stco_or_co64_box,
+                stsd_box: check_mandatory_box(stsd_box, "stsd", "stbl")?,
+                stts_box: check_mandatory_box(stts_box, "stts", "stbl")?,
+                stsc_box: check_mandatory_box(stsc_box, "stsc", "stbl")?,
+                stsz_box: check_mandatory_box(stsz_box, "stsz", "stbl")?,
+                stco_or_co64_box: check_mandatory_box(
+                    stco_box.map(Either::A).or(co64_box.map(Either::B)),
+                    "stco' or 'co64",
+                    "stbl",
+                )?,
                 stss_box,
                 unknown_boxes,
             },
@@ -4623,4 +4588,13 @@ impl FullBox for EsdsBox {
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
     }
+}
+
+#[track_caller]
+fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result2<T> {
+    maybe_box.ok_or_else(|| {
+        Error2::invalid_data(format!(
+            "Missing mandatory '{expected}' box in '{parent}' box"
+        ))
+    })
 }
