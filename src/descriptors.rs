@@ -29,7 +29,7 @@ impl EsDescriptor {
 
 impl Decode for EsDescriptor {
     fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+        let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
@@ -141,7 +141,7 @@ impl DecoderConfigDescriptor {
 
 impl Decode for DecoderConfigDescriptor {
     fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+        let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
@@ -213,7 +213,7 @@ impl DecoderSpecificInfo {
 
 impl Decode for DecoderSpecificInfo {
     fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (tag, size, mut offset) = decode_tag_and_size2(buf)?;
+        let (tag, size, mut offset) = decode_tag_and_size(buf)?;
 
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
@@ -246,7 +246,7 @@ impl SlConfigDescriptor {
 
 impl Decode for SlConfigDescriptor {
     fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+        let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
 
         if tag != Self::TAG {
             return Err(Error2::invalid_data(format!(
@@ -274,7 +274,7 @@ impl Encode for SlConfigDescriptor {
     }
 }
 
-fn decode_tag_and_size2(buf: &[u8]) -> Result2<(u8, usize, usize)> {
+fn decode_tag_and_size(buf: &[u8]) -> Result2<(u8, usize, usize)> {
     let mut offset = 0;
     let tag = u8::decode_at(buf, &mut offset)?;
 
@@ -332,17 +332,7 @@ mod tests {
         let mut buf = [0; 32];
         let encoded_size = encode_tag_and_size(&mut buf, 12, 123456).unwrap();
 
-        let (tag, size) = decode_tag_and_size(&buf[..encoded_size]).unwrap();
-        assert_eq!(tag, 12);
-        assert_eq!(size, 123456);
-    }
-
-    #[test]
-    fn tag_and_size2() {
-        let mut buf = [0; 32];
-        let encoded_size = encode_tag_and_size(&mut buf, 12, 123456).unwrap();
-
-        let (tag, size, consumed) = decode_tag_and_size2(&buf).unwrap();
+        let (tag, size, consumed) = decode_tag_and_size(&buf).unwrap();
         assert_eq!(tag, 12);
         assert_eq!(size, 123456);
         assert_eq!(consumed, encoded_size);
