@@ -12,7 +12,7 @@ use alloc::{format, string::String, vec, vec::Vec};
 use core::num::{NonZeroU16, NonZeroU32};
 
 use crate::BoxType;
-use crate::io::{ErrorKind, Read};
+use crate::io::ErrorKind;
 
 /// このライブラリ用の Result 型
 pub type Result<T> = core::result::Result<T, Error>;
@@ -161,18 +161,6 @@ impl Error {
     #[track_caller]
     pub(crate) fn invalid_data(message: &str) -> Self {
         Self::from(crate::io::Error::new(ErrorKind::InvalidData, message))
-    }
-
-    #[track_caller]
-    pub(crate) fn missing_box(missing_box: &str, parent_box: BoxType) -> Self {
-        Self::invalid_data(&format!(
-            "Missing mandatory '{missing_box}' box in '{parent_box}' box"
-        ))
-    }
-
-    #[track_caller]
-    pub(crate) fn unsupported(message: &str) -> Self {
-        Self::from(crate::io::Error::other(message))
     }
 
     pub(crate) fn with_box_type(mut self, box_type: BoxType) -> Self {

@@ -7,7 +7,7 @@ use alloc::{boxed::Box, format, vec, vec::Vec};
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode2, Either, Encode, Error2, FixedPointNumber,
     FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result2, Uint, Utf8String,
-    basic_types::as_box_object, descriptors::EsDescriptor, io::Read,
+    basic_types::as_box_object, descriptors::EsDescriptor,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体

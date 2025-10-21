@@ -102,8 +102,6 @@ pub struct BoxHeader {
 }
 
 impl BoxHeader {
-    const MAX_SIZE: usize = (4 + 8) + (4 + 16);
-
     pub(crate) const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
         Self { box_type, box_size }
     }

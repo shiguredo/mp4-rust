@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode2, Encode, Error2, Result, Result2, Uint, io::Read};
+use crate::{Decode2, Encode, Error2, Result2, Uint};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -29,24 +29,13 @@ impl EsDescriptor {
 
 impl Decode2 for EsDescriptor {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let mut offset = 0;
-        let (_tag, _size) = {
-            let tag = u8::decode_at(buf, &mut offset)?;
-            if tag != Self::TAG {
-                return Err(Error2::invalid_data(format!(
-                    "Unexpected descriptor tag: expected={}, actual={tag}",
-                    Self::TAG
-                )));
-            }
-            let mut size = 0;
-            let mut has_next_byte = true;
-            while has_next_byte {
-                let b = u8::decode_at(buf, &mut offset)?;
-                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-            }
-            (tag, size)
-        };
+        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+        if tag != Self::TAG {
+            return Err(Error2::invalid_data(format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
 
         let es_id = u16::decode_at(buf, &mut offset)?;
 
@@ -152,24 +141,13 @@ impl DecoderConfigDescriptor {
 
 impl Decode2 for DecoderConfigDescriptor {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let mut offset = 0;
-        let (_tag, _size) = {
-            let tag = u8::decode_at(buf, &mut offset)?;
-            if tag != Self::TAG {
-                return Err(Error2::invalid_data(format!(
-                    "Unexpected descriptor tag: expected={}, actual={tag}",
-                    Self::TAG
-                )));
-            }
-            let mut size = 0;
-            let mut has_next_byte = true;
-            while has_next_byte {
-                let b = u8::decode_at(buf, &mut offset)?;
-                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-            }
-            (tag, size)
-        };
+        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+        if tag != Self::TAG {
+            return Err(Error2::invalid_data(format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
 
         let object_type_indication = u8::decode_at(buf, &mut offset)?;
 
@@ -235,24 +213,14 @@ impl DecoderSpecificInfo {
 
 impl Decode2 for DecoderSpecificInfo {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let mut offset = 0;
-        let (_tag, size) = {
-            let tag = u8::decode_at(buf, &mut offset)?;
-            if tag != Self::TAG {
-                return Err(Error2::invalid_data(format!(
-                    "Unexpected descriptor tag: expected={}, actual={tag}",
-                    Self::TAG
-                )));
-            }
-            let mut size = 0;
-            let mut has_next_byte = true;
-            while has_next_byte {
-                let b = u8::decode_at(buf, &mut offset)?;
-                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-            }
-            (tag, size)
-        };
+        let (tag, size, mut offset) = decode_tag_and_size2(buf)?;
+
+        if tag != Self::TAG {
+            return Err(Error2::invalid_data(format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
 
         let payload = buf[offset..offset + size].to_vec();
         offset += size;
@@ -278,24 +246,14 @@ impl SlConfigDescriptor {
 
 impl Decode2 for SlConfigDescriptor {
     fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
-        let mut offset = 0;
-        let (_tag, _size) = {
-            let tag = u8::decode_at(buf, &mut offset)?;
-            if tag != Self::TAG {
-                return Err(Error2::invalid_data(format!(
-                    "Unexpected descriptor tag: expected={}, actual={tag}",
-                    Self::TAG
-                )));
-            }
-            let mut size = 0;
-            let mut has_next_byte = true;
-            while has_next_byte {
-                let b = u8::decode_at(buf, &mut offset)?;
-                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
-            }
-            (tag, size)
-        };
+        let (tag, _size, mut offset) = decode_tag_and_size2(buf)?;
+
+        if tag != Self::TAG {
+            return Err(Error2::invalid_data(format!(
+                "Unexpected descriptor tag: expected={}, actual={tag}",
+                Self::TAG
+            )));
+        }
 
         let predefined = u8::decode_at(buf, &mut offset)?;
         if predefined != 2 {
@@ -316,18 +274,19 @@ impl Encode for SlConfigDescriptor {
     }
 }
 
-fn decode_tag_and_size<R: Read>(mut reader: R) -> Result<(u8, usize)> {
-    let tag = u8::decode(&mut reader)?;
+fn decode_tag_and_size2(buf: &[u8]) -> Result2<(u8, usize, usize)> {
+    let mut offset = 0;
+    let tag = u8::decode_at(buf, &mut offset)?;
 
     let mut size = 0;
     let mut has_next_byte = true;
     while has_next_byte {
-        let b = u8::decode(&mut reader)?;
+        let b = u8::decode_at(buf, &mut offset)?;
         has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
         size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
     }
 
-    Ok((tag, size))
+    Ok((tag, size, offset))
 }
 
 // buf の先頭にペイロードが格納されている前提
@@ -376,5 +335,16 @@ mod tests {
         let (tag, size) = decode_tag_and_size(&buf[..encoded_size]).unwrap();
         assert_eq!(tag, 12);
         assert_eq!(size, 123456);
+    }
+
+    #[test]
+    fn tag_and_size2() {
+        let mut buf = [0; 32];
+        let encoded_size = encode_tag_and_size(&mut buf, 12, 123456).unwrap();
+
+        let (tag, size, consumed) = decode_tag_and_size2(&buf).unwrap();
+        assert_eq!(tag, 12);
+        assert_eq!(size, 123456);
+        assert_eq!(consumed, encoded_size);
     }
 }
