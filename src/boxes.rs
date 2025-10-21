@@ -310,12 +310,12 @@ impl Decode2 for FtypBox {
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
-        let major_brand = Brand::decode_at(&payload, &mut offset)?;
-        let minor_version = u32::decode_at(&payload, &mut offset)?;
+        let major_brand = Brand::decode_at(payload, &mut offset)?;
+        let minor_version = u32::decode_at(payload, &mut offset)?;
 
         let mut compatible_brands = Vec::new();
         while offset < payload.len() {
-            compatible_brands.push(Brand::decode_at(&payload, &mut offset)?);
+            compatible_brands.push(Brand::decode_at(payload, &mut offset)?);
         }
 
         Ok((
@@ -611,13 +611,13 @@ impl Decode2 for MoovBox {
             let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
             match child_header.box_type {
                 MvhdBox::TYPE if mvhd_box.is_none() => {
-                    mvhd_box = Some(MvhdBox::decode_at(&payload, &mut offset)?);
+                    mvhd_box = Some(MvhdBox::decode_at(payload, &mut offset)?);
                 }
                 TrakBox::TYPE => {
-                    trak_boxes.push(TrakBox::decode_at(&payload, &mut offset)?);
+                    trak_boxes.push(TrakBox::decode_at(payload, &mut offset)?);
                 }
                 _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(&payload, &mut offset)?);
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
                 }
             }
         }
