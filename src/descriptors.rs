@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode, Encode, Error, Error2, Result, Result2, Uint, io::Read};
+use crate::{Decode, Decode2, Encode, Error, Error2, Result, Result2, Uint, io::Read};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -74,6 +74,75 @@ impl Decode for EsDescriptor {
             dec_config_descr,
             sl_config_descr,
         })
+    }
+}
+
+impl Decode2 for EsDescriptor {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let (_tag, _size) = {
+            let tag = u8::decode_at(buf, &mut offset)?;
+            if tag != Self::TAG {
+                return Err(Error2::invalid_data(&format!(
+                    "Unexpected descriptor tag: expected={}, actual={tag}",
+                    Self::TAG
+                )));
+            }
+            let mut size = 0;
+            let mut has_next_byte = true;
+            while has_next_byte {
+                let b = u8::decode_at(buf, &mut offset)?;
+                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+            }
+            (tag, size)
+        };
+
+        let es_id = u16::decode_at(buf, &mut offset)?;
+
+        let b = u8::decode_at(buf, &mut offset)?;
+        let stream_dependence_flag: Uint<u8, 1, 7> = Uint::from_bits(b);
+        let url_flag: Uint<u8, 1, 6> = Uint::from_bits(b);
+        let ocr_stream_flag: Uint<u8, 1, 5> = Uint::from_bits(b);
+        let stream_priority = Uint::from_bits(b);
+
+        let depends_on_es_id = if stream_dependence_flag.get() == 1 {
+            Some(u16::decode_at(buf, &mut offset)?)
+        } else {
+            None
+        };
+
+        let url_string = if url_flag.get() == 1 {
+            let len = u8::decode_at(buf, &mut offset)? as usize;
+            let s = String::from_utf8(buf[offset..offset + len].to_vec())
+                .map_err(|_| Error2::invalid_data("Invalid UTF-8 in URL string"))?;
+            offset += len;
+            Some(s)
+        } else {
+            None
+        };
+
+        let ocr_es_id = if ocr_stream_flag.get() == 1 {
+            Some(u16::decode_at(buf, &mut offset)?)
+        } else {
+            None
+        };
+
+        let dec_config_descr = DecoderConfigDescriptor::decode_at(buf, &mut offset)?;
+        let sl_config_descr = SlConfigDescriptor::decode_at(buf, &mut offset)?;
+
+        Ok((
+            Self {
+                es_id,
+                stream_priority,
+                depends_on_es_id,
+                url_string,
+                ocr_es_id,
+                dec_config_descr,
+                sl_config_descr,
+            },
+            offset,
+        ))
     }
 }
 
@@ -167,6 +236,60 @@ impl Decode for DecoderConfigDescriptor {
     }
 }
 
+impl Decode2 for DecoderConfigDescriptor {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let (_tag, _size) = {
+            let tag = u8::decode_at(buf, &mut offset)?;
+            if tag != Self::TAG {
+                return Err(Error2::invalid_data(&format!(
+                    "Unexpected descriptor tag: expected={}, actual={tag}",
+                    Self::TAG
+                )));
+            }
+            let mut size = 0;
+            let mut has_next_byte = true;
+            while has_next_byte {
+                let b = u8::decode_at(buf, &mut offset)?;
+                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+            }
+            (tag, size)
+        };
+
+        let object_type_indication = u8::decode_at(buf, &mut offset)?;
+
+        let b = u8::decode_at(buf, &mut offset)?;
+        let stream_type = Uint::from_bits(b);
+        let up_stream = Uint::from_bits(b);
+
+        let buffer_size_db = {
+            let mut temp = [0; 4];
+            temp[1..].copy_from_slice(&buf[offset..offset + 3]);
+            offset += 3;
+            Uint::from_bits(u32::from_be_bytes(temp))
+        };
+
+        let max_bitrate = u32::decode_at(buf, &mut offset)?;
+        let avg_bitrate = u32::decode_at(buf, &mut offset)?;
+
+        let dec_specific_info = DecoderSpecificInfo::decode_at(buf, &mut offset)?;
+
+        Ok((
+            Self {
+                object_type_indication,
+                stream_type,
+                up_stream,
+                buffer_size_db,
+                max_bitrate,
+                avg_bitrate,
+                dec_specific_info,
+            },
+            offset,
+        ))
+    }
+}
+
 impl Encode for DecoderConfigDescriptor {
     fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let mut offset = 0;
@@ -213,6 +336,34 @@ impl Decode for DecoderSpecificInfo {
     }
 }
 
+impl Decode2 for DecoderSpecificInfo {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let (_tag, size) = {
+            let tag = u8::decode_at(buf, &mut offset)?;
+            if tag != Self::TAG {
+                return Err(Error2::invalid_data(&format!(
+                    "Unexpected descriptor tag: expected={}, actual={tag}",
+                    Self::TAG
+                )));
+            }
+            let mut size = 0;
+            let mut has_next_byte = true;
+            while has_next_byte {
+                let b = u8::decode_at(buf, &mut offset)?;
+                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+            }
+            (tag, size)
+        };
+
+        let payload = buf[offset..offset + size].to_vec();
+        offset += size;
+
+        Ok((Self { payload }, offset))
+    }
+}
+
 impl Encode for DecoderSpecificInfo {
     fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
         let offset = self.payload.encode(buf)?;
@@ -250,6 +401,38 @@ impl Decode for SlConfigDescriptor {
         // predefined == 2 の場合には、追加の処理は不要
 
         Ok(Self)
+    }
+}
+
+impl Decode2 for SlConfigDescriptor {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let (_tag, _size) = {
+            let tag = u8::decode_at(buf, &mut offset)?;
+            if tag != Self::TAG {
+                return Err(Error2::invalid_data(&format!(
+                    "Unexpected descriptor tag: expected={}, actual={tag}",
+                    Self::TAG
+                )));
+            }
+            let mut size = 0;
+            let mut has_next_byte = true;
+            while has_next_byte {
+                let b = u8::decode_at(buf, &mut offset)?;
+                has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
+                size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+            }
+            (tag, size)
+        };
+
+        let predefined = u8::decode_at(buf, &mut offset)?;
+        if predefined != 2 {
+            return Err(Error2::unsupported(&format!(
+                "Unsupported `SLConfigDescriptor.predefined` value: {predefined}"
+            )));
+        }
+
+        Ok((Self, offset))
     }
 }
 
