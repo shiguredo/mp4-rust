@@ -83,7 +83,7 @@ impl Decode2 for EsDescriptor {
         let (_tag, _size) = {
             let tag = u8::decode_at(buf, &mut offset)?;
             if tag != Self::TAG {
-                return Err(Error2::invalid_data(&format!(
+                return Err(Error2::invalid_data(format!(
                     "Unexpected descriptor tag: expected={}, actual={tag}",
                     Self::TAG
                 )));
@@ -242,7 +242,7 @@ impl Decode2 for DecoderConfigDescriptor {
         let (_tag, _size) = {
             let tag = u8::decode_at(buf, &mut offset)?;
             if tag != Self::TAG {
-                return Err(Error2::invalid_data(&format!(
+                return Err(Error2::invalid_data(format!(
                     "Unexpected descriptor tag: expected={}, actual={tag}",
                     Self::TAG
                 )));
@@ -342,7 +342,7 @@ impl Decode2 for DecoderSpecificInfo {
         let (_tag, size) = {
             let tag = u8::decode_at(buf, &mut offset)?;
             if tag != Self::TAG {
-                return Err(Error2::invalid_data(&format!(
+                return Err(Error2::invalid_data(format!(
                     "Unexpected descriptor tag: expected={}, actual={tag}",
                     Self::TAG
                 )));
@@ -410,7 +410,7 @@ impl Decode2 for SlConfigDescriptor {
         let (_tag, _size) = {
             let tag = u8::decode_at(buf, &mut offset)?;
             if tag != Self::TAG {
-                return Err(Error2::invalid_data(&format!(
+                return Err(Error2::invalid_data(format!(
                     "Unexpected descriptor tag: expected={}, actual={tag}",
                     Self::TAG
                 )));
@@ -427,7 +427,7 @@ impl Decode2 for SlConfigDescriptor {
 
         let predefined = u8::decode_at(buf, &mut offset)?;
         if predefined != 2 {
-            return Err(Error2::unsupported(&format!(
+            return Err(Error2::unsupported(format!(
                 "Unsupported `SLConfigDescriptor.predefined` value: {predefined}"
             )));
         }

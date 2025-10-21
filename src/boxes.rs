@@ -2103,7 +2103,7 @@ impl Decode2 for VmhdBox {
         let mut offset = 0;
         let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
         if full_header.flags.get() != 1 {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unexpected FullBox header flags of 'vmhd' box: {}",
                 full_header.flags.get()
             )));
@@ -3205,7 +3205,7 @@ impl Decode2 for AvccBox {
         let mut offset = 0;
         let configuration_version = u8::decode_at(payload, &mut offset)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unsupported avcC configuration version: {configuration_version}"
             )));
         }
@@ -3573,7 +3573,7 @@ impl Decode2 for HvccBox {
         let mut offset = 0;
         let configuration_version = u8::decode_at(payload, &mut offset)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unsupported hvcC version: {configuration_version}"
             )));
         }
@@ -3968,7 +3968,7 @@ impl Decode2 for VpccBox {
         let mut offset = 0;
         let header_obj = FullBoxHeader::decode_at(payload, &mut offset)?;
         if header_obj.version != 1 {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unexpected full box header version: box=vpcC, version={}",
                 header_obj.version
             )));
@@ -4255,7 +4255,7 @@ impl Decode2 for Av1cBox {
             return Err(Error2::invalid_data("Unexpected av1C marker"));
         }
         if version != Self::VERSION {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unsupported av1C version: {}",
                 version.get()
             )));
@@ -5266,7 +5266,7 @@ impl Decode2 for DopsBox {
         let mut offset = 0;
         let version = u8::decode_at(payload, &mut offset)?;
         if version != Self::VERSION {
-            return Err(Error2::invalid_data(&format!(
+            return Err(Error2::invalid_data(format!(
                 "Unsupported dOps version: {version}"
             )));
         }
