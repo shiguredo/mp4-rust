@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error, Error2, Result, Result2,
+    Decode, Decode2, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
     io::{PeekReader, Read, Take},
 };
@@ -252,6 +252,52 @@ impl Decode for BoxHeader {
     }
 }
 
+impl Decode2 for BoxHeader {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (box_size, mut offset) = u32::decode2(buf)?;
+
+        if buf.len() < offset + 4 {
+            return Err(Error2::insufficient_buffer());
+        }
+        let mut box_type = [0; 4];
+        box_type.copy_from_slice(&buf[offset..offset + 4]);
+        offset += 4;
+
+        let box_type = if box_type == [b'u', b'u', b'i', b'd'] {
+            if buf.len() < offset + 16 {
+                return Err(Error2::insufficient_buffer());
+            }
+            let mut uuid = [0; 16];
+            uuid.copy_from_slice(&buf[offset..offset + 16]);
+            offset += 16;
+            BoxType::Uuid(uuid)
+        } else {
+            BoxType::Normal(box_type)
+        };
+
+        let box_size = if box_size == 1 {
+            let (size, size_offset) = u64::decode2(&buf[offset..])?;
+            offset += size_offset;
+            BoxSize::U64(size)
+        } else {
+            BoxSize::U32(box_size)
+        };
+
+        if box_size.get() != 0
+            && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
+        {
+            return Err(Error2::invalid_input(&format!(
+                "Too small box size: actual={}, expected={} or more",
+                box_size.get(),
+                box_size.external_size() + box_type.external_size()
+            )));
+        }
+
+        Ok((Self { box_type, box_size }, offset))
+    }
+}
+
 /// [`FullBox`] に共通のヘッダー
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FullBoxHeader {
@@ -287,6 +333,17 @@ impl Decode for FullBoxHeader {
             version: Decode::decode(&mut reader)?,
             flags: Decode::decode(reader)?,
         })
+    }
+}
+
+impl Decode2 for FullBoxHeader {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (version, mut offset) = u8::decode2(buf)?;
+        let (flags, flags_offset) = FullBoxFlags::decode2(&buf[offset..])?;
+        offset += flags_offset;
+
+        Ok((Self { version, flags }, offset))
     }
 }
 
@@ -336,6 +393,18 @@ impl Decode for FullBoxFlags {
         let mut buf = [0; 4];
         reader.read_exact(&mut buf[1..])?;
         Ok(Self(u32::from_be_bytes(buf)))
+    }
+}
+
+impl Decode2 for FullBoxFlags {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        if buf.len() < 3 {
+            return Err(Error2::insufficient_buffer());
+        }
+        let mut full_buf = [0; 4];
+        full_buf[1..].copy_from_slice(&buf[..3]);
+        Ok((Self(u32::from_be_bytes(full_buf)), 3))
     }
 }
 
@@ -506,6 +575,17 @@ impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
     }
 }
 
+impl<I: Decode2, F: Decode2> Decode2 for FixedPointNumber<I, F> {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (integer, mut offset) = I::decode2(buf)?;
+        let (fraction, frac_offset) = F::decode2(&buf[offset..])?;
+        offset += frac_offset;
+
+        Ok((Self { integer, fraction }, offset))
+    }
+}
+
 /// null 終端の UTF-8 文字列
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Utf8String(String);
@@ -560,6 +640,33 @@ impl Decode for Utf8String {
             Error::invalid_data(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
         })?;
         Ok(Self(s))
+    }
+}
+
+impl Decode2 for Utf8String {
+    #[track_caller]
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let mut offset = 0;
+        let mut bytes = Vec::new();
+
+        while offset < buf.len() {
+            if buf[offset] == 0 {
+                offset += 1;
+                break;
+            }
+            bytes.push(buf[offset]);
+            offset += 1;
+        }
+
+        if offset == 0 || (offset > 0 && buf[offset - 1] != 0) {
+            return Err(Error2::invalid_input("Null-terminated string not found"));
+        }
+
+        let s = String::from_utf8(bytes).map_err(|e| {
+            Error2::invalid_input(&format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
+        })?;
+
+        Ok((Self(s), offset))
     }
 }
 
