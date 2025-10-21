@@ -5,11 +5,9 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode2, Either, Encode, Error, Error2, FixedPointNumber,
-    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Result2, Uint, Utf8String,
-    basic_types::as_box_object,
-    descriptors::EsDescriptor,
-    io::{Read, Take},
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode2, Either, Encode, Error2, FixedPointNumber,
+    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result2, Uint, Utf8String,
+    basic_types::as_box_object, descriptors::EsDescriptor, io::Read,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -63,6 +61,7 @@ impl BaseBox for UnknownBox {
     }
 }
 
+// TODO: io モジュールみなおしのタイミングで削除を検討する
 /// [`UnknownBox`] と似ているが、ボックスのペイロードデータを保持しない点が異なる構造体
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IgnoredBox {
@@ -74,23 +73,6 @@ pub struct IgnoredBox {
 
     /// ペイロードサイズ
     pub box_payload_size: u64,
-}
-
-impl IgnoredBox {
-    /// 次のボックスがデコード対象ならデコードし、そうではない場合には無視する
-    pub fn decode_or_ignore<B, R, F>(reader: R, is_decode_target: F) -> Result<Either<B, Self>>
-    where
-        B: BaseBox + Decode,
-        R: Read,
-        F: FnOnce(BoxType) -> bool,
-    {
-        let (header, mut reader) = BoxHeader::peek(reader)?;
-        if is_decode_target(header.box_type) {
-            B::decode(&mut reader).map(Either::A)
-        } else {
-            Self::decode(&mut reader).map(Either::B)
-        }
-    }
 }
 
 impl Decode2 for IgnoredBox {

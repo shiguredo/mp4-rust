@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec, vec::Vec};
 
-use crate::{Decode2, Encode, Error, Error2, Result, Result2, Uint, io::Read};
+use crate::{Decode2, Encode, Error2, Result, Result2, Uint, io::Read};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
