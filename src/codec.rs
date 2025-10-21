@@ -31,6 +31,9 @@ pub enum ErrorKind2 {
 
     /// 提供されたバッファがエンコード/デコード結果を保持するのに小さすぎる
     InsufficientBuffer,
+
+    /// 操作またはデータ形式がサポートされていない
+    Unsupported,
 }
 
 /// エラー型
@@ -74,6 +77,11 @@ impl Error2 {
             #[cfg(feature = "std")]
             backtrace: Backtrace::capture(),
         }
+    }
+
+    #[track_caller]
+    pub(crate) fn unsupported<T: Into<String>>(reason: T) -> Self {
+        Self::with_reason(ErrorKind2::Unsupported, reason)
     }
 
     #[track_caller]
@@ -182,6 +190,7 @@ impl From<Error2> for Error {
                 ErrorKind2::InvalidInput => ErrorKind::InvalidInput,
                 ErrorKind2::InvalidData => ErrorKind::InvalidData,
                 ErrorKind2::InsufficientBuffer => ErrorKind::InvalidData,
+                ErrorKind2::Unsupported => ErrorKind::Other,
             },
             value.reason,
         );
