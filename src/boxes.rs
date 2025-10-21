@@ -603,53 +603,48 @@ impl Decode for MoovBox {
 }
 
 impl Decode2 for MoovBox {
-    fn decode2(_buf: &[u8]) -> Result2<(Self, usize)> {
-        todo!()
-        /*
-                let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-                header.box_type.expect2(Self::TYPE)?;
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
 
-                let mut offset = 0;
-                let mut mvhd_box = None;
-                let mut trak_boxes = Vec::new();
-                let mut unknown_boxes = Vec::new();
+        let mut offset = 0;
+        let mut mvhd_box = None;
+        let mut trak_boxes = Vec::new();
+        let mut unknown_boxes = Vec::new();
 
-                while offset < payload.len() {
-                    let (child_header, child_offset) = BoxHeader::decode2(&payload[offset..])?;
-                    match child_header.box_type {
-                        MvhdBox::TYPE if mvhd_box.is_none() => {
-                            let (box, box_size) = MvhdBox::decode2(&payload[offset..])?;
-                            mvhd_box = Some(box);
-                            offset += box_size;
-                        }
-                        TrakBox::TYPE => {
-                            let (box, box_size) = TrakBox::decode2(&payload[offset..])?;
-                            trak_boxes.push(box);
-                            offset += box_size;
-                        }
-                        _ => {
-                            let (box, box_size) = UnknownBox::decode2(&payload[offset..])?;
-                            unknown_boxes.push(box);
-                            offset += box_size;
-                        }
-                    }
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode2(&payload[offset..])?;
+            match child_header.box_type {
+                MvhdBox::TYPE if mvhd_box.is_none() => {
+                    let (child_box, child_box_size) = MvhdBox::decode2(&payload[offset..])?;
+                    mvhd_box = Some(child_box);
+                    offset += child_box_size;
                 }
+                TrakBox::TYPE => {
+                    let (child_box, child_box_size) = TrakBox::decode2(&payload[offset..])?;
+                    trak_boxes.push(child_box);
+                    offset += child_box_size;
+                }
+                _ => {
+                    let (child_box, child_box_size) = UnknownBox::decode2(&payload[offset..])?;
+                    unknown_boxes.push(child_box);
+                    offset += child_box_size;
+                }
+            }
+        }
 
-                let mvhd_box = mvhd_box.ok_or_else(|| Error2::invalid_input("Missing mandatory 'mvhd' box in 'moov' box"))?;
-
-                Ok((
-                    Self {
-                        mvhd_box,
-                        trak_boxes,
-                        unknown_boxes,
-                    },
-                    header.external_size() + payload.len(),
-                ))
-        */
+        let mvhd_box = mvhd_box
+            .ok_or_else(|| Error2::invalid_input("Missing mandatory 'mvhd' box in 'moov' box"))?;
+        Ok((
+            Self {
+                mvhd_box,
+                trak_boxes,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
     }
 }
-
-// TODO: impl Decode2 for the above component
 
 impl BaseBox for MoovBox {
     fn box_type(&self) -> BoxType {
@@ -768,6 +763,88 @@ impl Decode for MvhdBox {
         header.with_box_payload_reader(reader, Self::decode_payload)
     }
 }
+
+impl Decode2 for MvhdBox {
+    fn decode2(buf: &[u8]) -> Result2<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect2(Self::TYPE)?;
+
+        let mut offset = 0;
+        let (full_header, full_header_offset) = FullBoxHeader::decode2(&payload[offset..])?;
+        offset += full_header_offset;
+
+        let mut this = Self {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: NonZeroU32::MIN,
+            duration: 0,
+            rate: Self::DEFAULT_RATE,
+            volume: Self::DEFAULT_VOLUME,
+            matrix: Self::DEFAULT_MATRIX,
+            next_track_id: 0,
+        };
+
+        if full_header.version == 1 {
+            let (ct, ct_offset) = u64::decode2(&payload[offset..])?;
+            offset += ct_offset;
+            this.creation_time = Mp4FileTime::from_secs(ct);
+
+            let (mt, mt_offset) = u64::decode2(&payload[offset..])?;
+            offset += mt_offset;
+            this.modification_time = Mp4FileTime::from_secs(mt);
+
+            let (ts, ts_offset) = NonZeroU32::decode2(&payload[offset..])?;
+            offset += ts_offset;
+            this.timescale = ts;
+
+            let (dur, dur_offset) = u64::decode2(&payload[offset..])?;
+            offset += dur_offset;
+            this.duration = dur;
+        } else {
+            let (ct, ct_offset) = u32::decode2(&payload[offset..])?;
+            offset += ct_offset;
+            this.creation_time = Mp4FileTime::from_secs(ct as u64);
+
+            let (mt, mt_offset) = u32::decode2(&payload[offset..])?;
+            offset += mt_offset;
+            this.modification_time = Mp4FileTime::from_secs(mt as u64);
+
+            let (ts, ts_offset) = NonZeroU32::decode2(&payload[offset..])?;
+            offset += ts_offset;
+            this.timescale = ts;
+
+            let (dur, dur_offset) = u32::decode2(&payload[offset..])?;
+            offset += dur_offset;
+            this.duration = dur as u64;
+        }
+
+        let (rate, rate_offset) = FixedPointNumber::decode2(&payload[offset..])?;
+        offset += rate_offset;
+        this.rate = rate;
+
+        let (volume, volume_offset) = FixedPointNumber::decode2(&payload[offset..])?;
+        offset += volume_offset;
+        this.volume = volume;
+
+        let (_, reserved_offset) = <[u8; 2 + 4 * 2]>::decode2(&payload[offset..])?;
+        offset += reserved_offset;
+
+        let (matrix, matrix_offset) = <[i32; 9]>::decode2(&payload[offset..])?;
+        offset += matrix_offset;
+        this.matrix = matrix;
+
+        let (_, reserved_offset) = <[u8; 4 * 6]>::decode2(&payload[offset..])?;
+        offset += reserved_offset;
+
+        let (next_track_id, next_offset) = u32::decode2(&payload[offset..])?;
+        offset += next_offset;
+        this.next_track_id = next_track_id;
+
+        Ok((this, header.external_size() + payload.len()))
+    }
+}
+
+// TODO: impl Decode2 for the above component
 
 impl BaseBox for MvhdBox {
     fn box_type(&self) -> BoxType {
