@@ -37,7 +37,6 @@ pub struct Input<'a> {
 #[derive(Debug)]
 pub enum DemuxError {
     DecodeError(Error),
-    EndOfFile,
     NeedInput { position: u64, size: usize },
 }
 
@@ -57,16 +56,20 @@ impl Mp4FileDemuxer {
         todo!()
     }
 
-    pub fn next_sample(&mut self) -> Result<Sample, DemuxError> {
-        todo!()
-    }
-
     pub fn seek(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
         todo!()
     }
 
     /// 指定のタイムスタンプ以下で、一番タイムスタンプが大きいキーフレームにシークする
     pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
+        todo!()
+    }
+}
+
+impl Iterator for Mp4FileDemuxer {
+    type Item = Result<Sample, DemuxError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         todo!()
     }
 }
