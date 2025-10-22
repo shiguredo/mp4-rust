@@ -58,13 +58,13 @@ pub struct Error {
 }
 
 impl Error {
-    /// [`Error`] インスタンスを生成します
+    /// [`Error`] インスタンスを生成する
     #[track_caller]
     pub fn new(kind: ErrorKind) -> Self {
         Self::with_reason(kind, String::new())
     }
 
-    /// エラー理由つきで [`Error`] インスタンスを生成します
+    /// エラー理由つきで [`Error`] インスタンスを生成する
     #[track_caller]
     pub fn with_reason<T: Into<String>>(kind: ErrorKind, reason: T) -> Self {
         Self {
