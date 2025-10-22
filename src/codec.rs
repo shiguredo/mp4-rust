@@ -18,7 +18,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// エンコード/デコード操作のエラーの種類
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ErrorKind2 {
+pub enum ErrorKind {
     /// 入力データの形式または構造が無効である
     InvalidInput,
 
@@ -35,7 +35,7 @@ pub enum ErrorKind2 {
 /// エラー型
 pub struct Error {
     /// 発生したエラーの種類
-    pub kind: ErrorKind2,
+    pub kind: ErrorKind,
 
     /// エラーが発生した理由
     pub reason: String,
@@ -57,13 +57,13 @@ pub struct Error {
 impl Error {
     /// [`Error`] インスタンスを生成します
     #[track_caller]
-    pub fn new(kind: ErrorKind2) -> Self {
+    pub fn new(kind: ErrorKind) -> Self {
         Self::with_reason(kind, String::new())
     }
 
     /// エラー理由つきで [`Error`] インスタンスを生成します
     #[track_caller]
-    pub fn with_reason<T: Into<String>>(kind: ErrorKind2, reason: T) -> Self {
+    pub fn with_reason<T: Into<String>>(kind: ErrorKind, reason: T) -> Self {
         Self {
             kind,
             reason: reason.into(),
@@ -77,22 +77,22 @@ impl Error {
 
     #[track_caller]
     pub(crate) fn unsupported<T: Into<String>>(reason: T) -> Self {
-        Self::with_reason(ErrorKind2::Unsupported, reason)
+        Self::with_reason(ErrorKind::Unsupported, reason)
     }
 
     #[track_caller]
     pub(crate) fn invalid_input<T: Into<String>>(reason: T) -> Self {
-        Self::with_reason(ErrorKind2::InvalidInput, reason)
+        Self::with_reason(ErrorKind::InvalidInput, reason)
     }
 
     #[track_caller]
     pub(crate) fn invalid_data<T: Into<String>>(reason: T) -> Self {
-        Self::with_reason(ErrorKind2::InvalidData, reason)
+        Self::with_reason(ErrorKind::InvalidData, reason)
     }
 
     #[track_caller]
     pub(crate) fn insufficient_buffer() -> Self {
-        Self::new(ErrorKind2::InsufficientBuffer)
+        Self::new(ErrorKind::InsufficientBuffer)
     }
 
     #[track_caller]
@@ -139,7 +139,7 @@ pub trait Encode {
     /// `self` をバイト列に変換して `buf` に書きこむ
     ///
     /// 返り値は、変換後のバイト列のサイズで、
-    /// もし `buf` のサイズが不足している場合には [`ErrorKind2::InsufficientBuffer`] エラーが返される
+    /// もし `buf` のサイズが不足している場合には [`ErrorKind::InsufficientBuffer`] エラーが返される
     fn encode(&self, buf: &mut [u8]) -> Result<usize>;
 
     /// `self` をバイト列に変換して、変換後のバイト列を返す
@@ -151,7 +151,7 @@ pub trait Encode {
                     buf.truncate(size);
                     return Ok(buf);
                 }
-                Err(e) if e.kind == ErrorKind2::InsufficientBuffer => {
+                Err(e) if e.kind == ErrorKind::InsufficientBuffer => {
                     buf.resize(buf.len() * 2, 0);
                 }
                 Err(e) => return Err(e),
