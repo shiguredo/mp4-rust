@@ -397,8 +397,7 @@ impl BoxType {
     }
 
     /// 自分が `expected` と同じ種別であるかをチェックする
-    // TODO: rename
-    pub fn expect2(self, expected: Self) -> Result<()> {
+    pub fn expect(self, expected: Self) -> Result<()> {
         if self == expected {
             Ok(())
         } else {
