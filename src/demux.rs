@@ -51,7 +51,9 @@ pub enum DemuxError {
 
 #[derive(Debug)]
 enum Phase {
+    ReadFtypBoxHeader,
     ReadFtypBox,
+    ReadMoovBoxHeader,
     Initialized,
 }
 
@@ -64,7 +66,7 @@ pub struct Mp4FileDemuxer {
 impl Mp4FileDemuxer {
     pub fn new() -> Self {
         Self {
-            phase: Phase::ReadFtypBox,
+            phase: Phase::ReadFtypBoxHeader,
             tracks: Vec::new(),
         }
     }
@@ -93,7 +95,9 @@ impl Mp4FileDemuxer {
 
     fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
         match self.phase {
+            Phase::ReadFtypBoxHeader => todo!(),
             Phase::ReadFtypBox => todo!(),
+            Phase::ReadMoovBoxHeader => todo!(),
             Phase::Initialized => Ok(()),
         }
     }
