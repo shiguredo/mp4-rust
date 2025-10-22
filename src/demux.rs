@@ -141,12 +141,7 @@ impl Mp4FileDemuxer {
         let (header, _header_size) = BoxHeader::decode(input.data)?;
         header.box_type.expect(MoovBox::TYPE)?;
 
-        let box_size = header.box_size.get() as usize;
-        if box_size == 0 {
-            return Err(DemuxError::DecodeError(Error::invalid_data(
-                "moov box must have a fixed size and cannot be variable size",
-            )));
-        }
+        let box_size = Some(header.box_size.get() as usize).filter(|n| *n > 0);
 
         // TODO: Transition to reading the moov box content
         // For now, mark as initialized
