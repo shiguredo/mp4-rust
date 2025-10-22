@@ -29,15 +29,16 @@ pub struct Sample {
 }
 
 #[derive(Debug)]
+pub struct Input<'a> {
+    pub position: u64,
+    pub data: &'a [u8],
+}
+
+#[derive(Debug)]
 pub enum DemuxError {
     DecodeError(Error),
     EndOfFile,
-    ActionRequired(Mp4FileDemuxerAction),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Mp4FileDemuxerAction {
-    Read { size: usize, position: Option<u64> },
+    NeedInput { position: u64, size: usize },
 }
 
 #[derive(Debug, Default)]
@@ -46,6 +47,10 @@ pub struct Mp4FileDemuxer {}
 impl Mp4FileDemuxer {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn handle_input(&mut self, _input: &Input) {
+        todo!()
     }
 
     pub fn tracks(&self) -> Result<&[TrackInfo], DemuxError> {
