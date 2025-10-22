@@ -18,6 +18,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// エンコード/デコード操作のエラーの種類
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ErrorKind {
     /// 入力データの形式または構造が無効である
     InvalidInput,
@@ -30,9 +31,6 @@ pub enum ErrorKind {
 
     /// 操作またはデータ形式がサポートされていない
     Unsupported,
-
-    /// その他の予期しないエラー
-    Other,
 }
 
 /// エラー型
