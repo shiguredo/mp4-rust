@@ -276,6 +276,8 @@ pub trait Decode: Sized {
     fn decode(buf: &[u8]) -> Result<(Self, usize)>;
 
     /// オフセット位置からバイト列をデコードし、オフセットを自動で進める
+    ///
+    /// なお、デコードが失敗した場合はオフセットの更新は行われない
     fn decode_at(buf: &[u8], offset: &mut usize) -> Result<Self> {
         let (decoded, size) = Self::decode(&buf[*offset..])?;
         *offset += size;
