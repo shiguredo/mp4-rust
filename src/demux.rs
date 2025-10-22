@@ -3,9 +3,9 @@
 use core::time::Duration;
 
 use crate::{
-    Error,
+    BoxHeader, Error,
     aux::SampleTableAccessor,
-    boxes::{MoovBox, SampleEntry, StblBox},
+    boxes::{SampleEntry, StblBox},
 };
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,12 @@ pub enum DemuxError {
     NeedInput { position: u64, size: usize },
 }
 
+impl DemuxError {
+    fn need_input(position: u64, size: usize) -> Self {
+        Self::NeedInput { position, size }
+    }
+}
+
 #[derive(Debug)]
 enum Phase {
     ReadFtypBoxHeader,
@@ -71,7 +77,16 @@ impl Mp4FileDemuxer {
         }
     }
 
-    pub fn handle_input(&mut self, _input: &Input) -> Result<(), DemuxError> {
+    pub fn handle_input(&mut self, input: &Input) -> Result<(), DemuxError> {
+        match self.phase {
+            Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
+            Phase::ReadFtypBox => todo!(),
+            Phase::ReadMoovBoxHeader => todo!(),
+            Phase::Initialized => Ok(()),
+        }
+    }
+
+    pub fn read_ftyp_box_header(&mut self, input: &Input) -> Result<(), DemuxError> {
         todo!()
     }
 
@@ -95,7 +110,7 @@ impl Mp4FileDemuxer {
 
     fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
         match self.phase {
-            Phase::ReadFtypBoxHeader => todo!(),
+            Phase::ReadFtypBoxHeader => Err(DemuxError::need_input(0, BoxHeader::MIN_SIZE)),
             Phase::ReadFtypBox => todo!(),
             Phase::ReadMoovBoxHeader => todo!(),
             Phase::Initialized => Ok(()),

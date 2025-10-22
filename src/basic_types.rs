@@ -101,6 +101,11 @@ pub struct BoxHeader {
 }
 
 impl BoxHeader {
+    /// ボックスヘッダーの最小サイズ（バイト数）
+    ///
+    /// サイズフィールド（4バイト）とボックス種別フィールド（4バイト）で構成される
+    pub const MIN_SIZE: usize = 8;
+
     pub(crate) const fn new(box_type: BoxType, box_size: BoxSize) -> Self {
         Self { box_type, box_size }
     }
