@@ -30,6 +30,9 @@ pub enum ErrorKind {
 
     /// 操作またはデータ形式がサポートされていない
     Unsupported,
+
+    /// その他の予期しないエラー
+    Other,
 }
 
 /// エラー型
