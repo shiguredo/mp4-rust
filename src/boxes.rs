@@ -5,8 +5,8 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error2, FixedPointNumber,
-    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result2, Uint, Utf8String,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber,
+    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
     basic_types::as_box_object, descriptors::EsDescriptor,
 };
 
@@ -26,7 +26,7 @@ pub struct UnknownBox {
 }
 
 impl Encode for UnknownBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = BoxHeader::new(self.box_type, self.box_size).encode(buf)?;
         offset += self.payload.encode(&mut buf[offset..])?;
         Ok(offset)
@@ -34,7 +34,7 @@ impl Encode for UnknownBox {
 }
 
 impl Decode for UnknownBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         Ok((
             Self {
@@ -76,7 +76,7 @@ pub struct IgnoredBox {
 }
 
 impl Decode for IgnoredBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         Ok((
             Self {
@@ -180,13 +180,13 @@ impl core::fmt::Debug for Brand {
 }
 
 impl Encode for Brand {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         self.0.encode(buf)
     }
 }
 
 impl Decode for Brand {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (bytes, offset) = <[u8; 4]>::decode(buf)?;
         Ok((Self(bytes), offset))
     }
@@ -207,7 +207,7 @@ impl FtypBox {
 }
 
 impl Encode for FtypBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.major_brand.encode(&mut buf[offset..])?;
@@ -221,7 +221,7 @@ impl Encode for FtypBox {
 }
 
 impl Decode for FtypBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -277,7 +277,7 @@ impl RootBox {
 }
 
 impl Encode for RootBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         match self {
             RootBox::Free(b) => b.encode(buf),
             RootBox::Mdat(b) => b.encode(buf),
@@ -288,7 +288,7 @@ impl Encode for RootBox {
 }
 
 impl Decode for RootBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, _header_size) = BoxHeader::decode(buf)?;
         match header.box_type {
             FreeBox::TYPE => FreeBox::decode(buf).map(|(b, n)| (RootBox::Free(b), n)),
@@ -326,7 +326,7 @@ impl FreeBox {
 }
 
 impl Encode for FreeBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let box_size = BoxSize::with_payload_size(Self::TYPE, self.payload.len() as u64);
         let mut offset = BoxHeader::new(Self::TYPE, box_size).encode(buf)?;
         offset += self.payload.encode(&mut buf[offset..])?;
@@ -335,7 +335,7 @@ impl Encode for FreeBox {
 }
 
 impl Decode for FreeBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -374,7 +374,7 @@ impl MdatBox {
 }
 
 impl Encode for MdatBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let box_size = if self.is_variable_size {
             BoxSize::VARIABLE_SIZE
         } else {
@@ -387,7 +387,7 @@ impl Encode for MdatBox {
 }
 
 impl Decode for MdatBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -426,7 +426,7 @@ impl MoovBox {
 }
 
 impl Encode for MoovBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.mvhd_box.encode(&mut buf[offset..])?;
@@ -442,7 +442,7 @@ impl Encode for MoovBox {
 }
 
 impl Decode for MoovBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -521,7 +521,7 @@ impl MvhdBox {
 }
 
 impl Encode for MvhdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -551,7 +551,7 @@ impl Encode for MvhdBox {
 }
 
 impl Decode for MvhdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -639,7 +639,7 @@ impl TrakBox {
 }
 
 impl Encode for TrakBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.tkhd_box.encode(&mut buf[offset..])?;
@@ -656,7 +656,7 @@ impl Encode for TrakBox {
 }
 
 impl Decode for TrakBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -754,7 +754,7 @@ impl TkhdBox {
 }
 
 impl Encode for TkhdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -788,7 +788,7 @@ impl Encode for TkhdBox {
 }
 
 impl Decode for TkhdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -894,7 +894,7 @@ impl EdtsBox {
 }
 
 impl Encode for EdtsBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         if let Some(b) = &self.elst_box {
@@ -909,7 +909,7 @@ impl Encode for EdtsBox {
 }
 
 impl Decode for EdtsBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -975,7 +975,7 @@ impl ElstBox {
 }
 
 impl Encode for ElstBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -998,7 +998,7 @@ impl Encode for ElstBox {
 }
 
 impl Decode for ElstBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1068,7 +1068,7 @@ impl MdiaBox {
 }
 
 impl Encode for MdiaBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.mdhd_box.encode(&mut buf[offset..])?;
@@ -1083,7 +1083,7 @@ impl Encode for MdiaBox {
 }
 
 impl Decode for MdiaBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1161,7 +1161,7 @@ impl MdhdBox {
 }
 
 impl Encode for MdhdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1183,7 +1183,7 @@ impl Encode for MdhdBox {
         let mut language: u16 = 0;
         for l in &self.language {
             let Some(code) = l.checked_sub(0x60) else {
-                return Err(Error2::invalid_input(format!(
+                return Err(Error::invalid_input(format!(
                     "Invalid language code: {:?}",
                     self.language
                 )));
@@ -1198,7 +1198,7 @@ impl Encode for MdhdBox {
 }
 
 impl Decode for MdhdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1297,7 +1297,7 @@ impl HdlrBox {
 }
 
 impl Encode for HdlrBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1311,7 +1311,7 @@ impl Encode for HdlrBox {
 }
 
 impl Decode for HdlrBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1365,7 +1365,7 @@ impl MinfBox {
 }
 
 impl Encode for MinfBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         match &self.smhd_or_vmhd_box {
@@ -1383,7 +1383,7 @@ impl Encode for MinfBox {
 }
 
 impl Decode for MinfBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1463,7 +1463,7 @@ impl SmhdBox {
 }
 
 impl Encode for SmhdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1475,7 +1475,7 @@ impl Encode for SmhdBox {
 }
 
 impl Decode for SmhdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1528,7 +1528,7 @@ impl VmhdBox {
 }
 
 impl Encode for VmhdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1540,14 +1540,14 @@ impl Encode for VmhdBox {
 }
 
 impl Decode for VmhdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
         let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
         if full_header.flags.get() != 1 {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected FullBox header flags of 'vmhd' box: {}",
                 full_header.flags.get()
             )));
@@ -1606,7 +1606,7 @@ impl DinfBox {
 }
 
 impl Encode for DinfBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.dref_box.encode(&mut buf[offset..])?;
@@ -1619,7 +1619,7 @@ impl Encode for DinfBox {
 }
 
 impl Decode for DinfBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1683,7 +1683,7 @@ impl DrefBox {
 }
 
 impl Encode for DrefBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1701,7 +1701,7 @@ impl Encode for DrefBox {
 }
 
 impl Decode for DrefBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1774,7 +1774,7 @@ impl UrlBox {
 }
 
 impl Encode for UrlBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1787,7 +1787,7 @@ impl Encode for UrlBox {
 }
 
 impl Decode for UrlBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1842,7 +1842,7 @@ impl StblBox {
 }
 
 impl Encode for StblBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.stsd_box.encode(&mut buf[offset..])?;
@@ -1865,7 +1865,7 @@ impl Encode for StblBox {
 }
 
 impl Decode for StblBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -1966,7 +1966,7 @@ impl StsdBox {
 }
 
 impl Encode for StsdBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -1981,7 +1981,7 @@ impl Encode for StsdBox {
 }
 
 impl Decode for StsdBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2048,7 +2048,7 @@ impl SampleEntry {
 }
 
 impl Encode for SampleEntry {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         match self {
             Self::Avc1(b) => b.encode(buf),
             Self::Hev1(b) => b.encode(buf),
@@ -2063,7 +2063,7 @@ impl Encode for SampleEntry {
 }
 
 impl Decode for SampleEntry {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, _) = BoxHeader::decode(buf)?;
         match header.box_type {
             Avc1Box::TYPE => Avc1Box::decode(buf).map(|(b, n)| (Self::Avc1(b), n)),
@@ -2127,7 +2127,7 @@ impl VisualSampleEntryFields {
 }
 
 impl Encode for VisualSampleEntryFields {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += [0u8; 6].encode(&mut buf[offset..])?;
         offset += self.data_reference_index.encode(&mut buf[offset..])?;
@@ -2146,7 +2146,7 @@ impl Encode for VisualSampleEntryFields {
 }
 
 impl Decode for VisualSampleEntryFields {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
         let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
         let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
@@ -2191,7 +2191,7 @@ impl Avc1Box {
 }
 
 impl Encode for Avc1Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.visual.encode(&mut buf[offset..])?;
@@ -2205,7 +2205,7 @@ impl Encode for Avc1Box {
 }
 
 impl Decode for Avc1Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2276,7 +2276,7 @@ impl AvccBox {
 }
 
 impl Encode for AvccBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
 
@@ -2287,45 +2287,45 @@ impl Encode for AvccBox {
         offset += (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut buf[offset..])?;
 
         let sps_count = u8::try_from(self.sps_list.len())
-            .map_err(|_| Error2::invalid_input("Too many SPSs"))?;
+            .map_err(|_| Error::invalid_input("Too many SPSs"))?;
         offset += (0b1110_0000 | sps_count).encode(&mut buf[offset..])?;
         for sps in &self.sps_list {
             let size =
-                u16::try_from(sps.len()).map_err(|_| Error2::invalid_input("Too long SPS"))?;
+                u16::try_from(sps.len()).map_err(|_| Error::invalid_input("Too long SPS"))?;
             offset += size.encode(&mut buf[offset..])?;
             offset += sps.encode(&mut buf[offset..])?;
         }
 
         let pps_count = u8::try_from(self.pps_list.len())
-            .map_err(|_| Error2::invalid_input("Too many PPSs"))?;
+            .map_err(|_| Error::invalid_input("Too many PPSs"))?;
         offset += pps_count.encode(&mut buf[offset..])?;
         for pps in &self.pps_list {
             let size =
-                u16::try_from(pps.len()).map_err(|_| Error2::invalid_input("Too long PPS"))?;
+                u16::try_from(pps.len()).map_err(|_| Error::invalid_input("Too long PPS"))?;
             offset += size.encode(&mut buf[offset..])?;
             offset += pps.encode(&mut buf[offset..])?;
         }
 
         if !matches!(self.avc_profile_indication, 66 | 77 | 88) {
             let chroma_format = self.chroma_format.ok_or_else(|| {
-                Error2::invalid_input("Missing 'chroma_format' field in 'avcC' box")
+                Error::invalid_input("Missing 'chroma_format' field in 'avcC' box")
             })?;
             let bit_depth_luma_minus8 = self.bit_depth_luma_minus8.ok_or_else(|| {
-                Error2::invalid_input("Missing 'bit_depth_luma_minus8' field in 'avcC' box")
+                Error::invalid_input("Missing 'bit_depth_luma_minus8' field in 'avcC' box")
             })?;
             let bit_depth_chroma_minus8 = self.bit_depth_chroma_minus8.ok_or_else(|| {
-                Error2::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' box")
+                Error::invalid_input("Missing 'bit_depth_chroma_minus8' field in 'avcC' box")
             })?;
             offset += (0b1111_1100 | chroma_format.get()).encode(&mut buf[offset..])?;
             offset += (0b1111_1000 | bit_depth_luma_minus8.get()).encode(&mut buf[offset..])?;
             offset += (0b1111_1000 | bit_depth_chroma_minus8.get()).encode(&mut buf[offset..])?;
 
             let sps_ext_count = u8::try_from(self.sps_ext_list.len())
-                .map_err(|_| Error2::invalid_input("Too many SPS EXTs"))?;
+                .map_err(|_| Error::invalid_input("Too many SPS EXTs"))?;
             offset += sps_ext_count.encode(&mut buf[offset..])?;
             for sps_ext in &self.sps_ext_list {
                 let size = u16::try_from(sps_ext.len())
-                    .map_err(|_| Error2::invalid_input("Too long SPS EXT"))?;
+                    .map_err(|_| Error::invalid_input("Too long SPS EXT"))?;
                 offset += size.encode(&mut buf[offset..])?;
                 offset += sps_ext.encode(&mut buf[offset..])?;
             }
@@ -2337,14 +2337,14 @@ impl Encode for AvccBox {
 }
 
 impl Decode for AvccBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
         let configuration_version = u8::decode_at(payload, &mut offset)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unsupported avcC configuration version: {configuration_version}"
             )));
         }
@@ -2434,7 +2434,7 @@ impl Hev1Box {
 }
 
 impl Encode for Hev1Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.visual.encode(&mut buf[offset..])?;
@@ -2448,7 +2448,7 @@ impl Encode for Hev1Box {
 }
 
 impl Decode for Hev1Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2535,7 +2535,7 @@ impl HvccBox {
 }
 
 impl Encode for HvccBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += Self::CONFIGURATION_VERSION.encode(&mut buf[offset..])?;
@@ -2565,7 +2565,7 @@ impl Encode for HvccBox {
         .encode(&mut buf[offset..])?;
         offset += u8::try_from(self.nalu_arrays.len())
             .map_err(|_| {
-                Error2::invalid_input(format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
+                Error::invalid_input(format!("Too many NALU arrays: {}", self.nalu_arrays.len()))
             })?
             .encode(&mut buf[offset..])?;
         for nalu_array in &self.nalu_arrays {
@@ -2574,12 +2574,12 @@ impl Encode for HvccBox {
             .encode(&mut buf[offset..])?;
             offset += u16::try_from(nalu_array.nalus.len())
                 .map_err(|_| {
-                    Error2::invalid_input(format!("Too many NALUs: {}", nalu_array.nalus.len()))
+                    Error::invalid_input(format!("Too many NALUs: {}", nalu_array.nalus.len()))
                 })?
                 .encode(&mut buf[offset..])?;
             for nalu in &nalu_array.nalus {
                 offset += u16::try_from(nalu.len())
-                    .map_err(|_| Error2::invalid_input(format!("Too large NALU: {}", nalu.len())))?
+                    .map_err(|_| Error::invalid_input(format!("Too large NALU: {}", nalu.len())))?
                     .encode(&mut buf[offset..])?;
                 offset += nalu.encode(&mut buf[offset..])?;
             }
@@ -2590,14 +2590,14 @@ impl Encode for HvccBox {
 }
 
 impl Decode for HvccBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
         let configuration_version = u8::decode_at(payload, &mut offset)?;
         if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unsupported hvcC version: {configuration_version}"
             )));
         }
@@ -2701,7 +2701,7 @@ impl Vp08Box {
 }
 
 impl Encode for Vp08Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.visual.encode(&mut buf[offset..])?;
@@ -2715,7 +2715,7 @@ impl Encode for Vp08Box {
 }
 
 impl Decode for Vp08Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2777,7 +2777,7 @@ impl Vp09Box {
 }
 
 impl Encode for Vp09Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.visual.encode(&mut buf[offset..])?;
@@ -2791,7 +2791,7 @@ impl Encode for Vp09Box {
 }
 
 impl Decode for Vp09Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -2859,7 +2859,7 @@ impl VpccBox {
 }
 
 impl Encode for VpccBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -2880,14 +2880,14 @@ impl Encode for VpccBox {
 }
 
 impl Decode for VpccBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
         let header_obj = FullBoxHeader::decode_at(payload, &mut offset)?;
         if header_obj.version != 1 {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected full box header version: box=vpcC, version={}",
                 header_obj.version
             )));
@@ -2958,7 +2958,7 @@ impl Av01Box {
 }
 
 impl Encode for Av01Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.visual.encode(&mut buf[offset..])?;
@@ -2972,7 +2972,7 @@ impl Encode for Av01Box {
 }
 
 impl Decode for Av01Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3045,7 +3045,7 @@ impl Av1cBox {
 }
 
 impl Encode for Av1cBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += (Self::MARKER.to_bits() | Self::VERSION.to_bits()).encode(&mut buf[offset..])?;
@@ -3071,7 +3071,7 @@ impl Encode for Av1cBox {
 }
 
 impl Decode for Av1cBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3080,10 +3080,10 @@ impl Decode for Av1cBox {
         let marker = Uint::from_bits(b);
         let version = Uint::from_bits(b);
         if marker != Self::MARKER {
-            return Err(Error2::invalid_data("Unexpected av1C marker"));
+            return Err(Error::invalid_data("Unexpected av1C marker"));
         }
         if version != Self::VERSION {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unsupported av1C version: {}",
                 version.get()
             )));
@@ -3182,7 +3182,7 @@ impl SttsBox {
 }
 
 impl Encode for SttsBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3197,7 +3197,7 @@ impl Encode for SttsBox {
 }
 
 impl Decode for SttsBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3259,7 +3259,7 @@ impl StscBox {
 }
 
 impl Encode for StscBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3275,7 +3275,7 @@ impl Encode for StscBox {
 }
 
 impl Decode for StscBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3335,7 +3335,7 @@ impl StszBox {
 }
 
 impl Encode for StszBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3361,7 +3361,7 @@ impl Encode for StszBox {
 }
 
 impl Decode for StszBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3420,7 +3420,7 @@ impl StcoBox {
 }
 
 impl Encode for StcoBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3434,7 +3434,7 @@ impl Encode for StcoBox {
 }
 
 impl Decode for StcoBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3487,7 +3487,7 @@ impl Co64Box {
 }
 
 impl Encode for Co64Box {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3501,7 +3501,7 @@ impl Encode for Co64Box {
 }
 
 impl Decode for Co64Box {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3554,7 +3554,7 @@ impl StssBox {
 }
 
 impl Encode for StssBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3568,7 +3568,7 @@ impl Encode for StssBox {
 }
 
 impl Decode for StssBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3623,7 +3623,7 @@ impl OpusBox {
 }
 
 impl Encode for OpusBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.audio.encode(&mut buf[offset..])?;
@@ -3637,7 +3637,7 @@ impl Encode for OpusBox {
 }
 
 impl Decode for OpusBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3699,7 +3699,7 @@ impl Mp4aBox {
 }
 
 impl Encode for Mp4aBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.audio.encode(&mut buf[offset..])?;
@@ -3713,7 +3713,7 @@ impl Encode for Mp4aBox {
 }
 
 impl Decode for Mp4aBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3779,7 +3779,7 @@ impl AudioSampleEntryFields {
 }
 
 impl Encode for AudioSampleEntryFields {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += [0u8; 6].encode(&mut buf[offset..])?;
         offset += self.data_reference_index.encode(&mut buf[offset..])?;
@@ -3794,7 +3794,7 @@ impl Encode for AudioSampleEntryFields {
 }
 
 impl Decode for AudioSampleEntryFields {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
         let _ = <[u8; 6]>::decode_at(buf, &mut offset)?;
         let data_reference_index = NonZeroU16::decode_at(buf, &mut offset)?;
@@ -3834,7 +3834,7 @@ impl DopsBox {
 }
 
 impl Encode for DopsBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += Self::VERSION.encode(&mut buf[offset..])?;
@@ -3849,14 +3849,14 @@ impl Encode for DopsBox {
 }
 
 impl Decode for DopsBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
         let mut offset = 0;
         let version = u8::decode_at(payload, &mut offset)?;
         if version != Self::VERSION {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unsupported dOps version: {version}"
             )));
         }
@@ -3867,7 +3867,7 @@ impl Decode for DopsBox {
         let output_gain = i16::decode_at(payload, &mut offset)?;
         let channel_mapping_family = u8::decode_at(payload, &mut offset)?;
         if channel_mapping_family != 0 {
-            return Err(Error2::unsupported(
+            return Err(Error::unsupported(
                 "`ChannelMappingFamily != 0` in 'dOps' box is not supported",
             ));
         }
@@ -3907,7 +3907,7 @@ impl EsdsBox {
 }
 
 impl Encode for EsdsBox {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -3918,7 +3918,7 @@ impl Encode for EsdsBox {
 }
 
 impl Decode for EsdsBox {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
         header.box_type.expect2(Self::TYPE)?;
 
@@ -3951,9 +3951,9 @@ impl FullBox for EsdsBox {
 }
 
 #[track_caller]
-fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result2<T> {
+fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result<T> {
     maybe_box.ok_or_else(|| {
-        Error2::invalid_data(format!(
+        Error::invalid_data(format!(
             "Missing mandatory '{expected}' box in '{parent}' box"
         ))
     })

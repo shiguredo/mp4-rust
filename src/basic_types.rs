@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error2, Result2,
+    Decode, Encode, Error, Result,
     boxes::{FtypBox, RootBox},
 };
 
@@ -65,7 +65,7 @@ impl<B: BaseBox> Mp4File<B> {
 }
 
 impl<B: BaseBox + Decode> Decode for Mp4File<B> {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
 
         let ftyp_box = FtypBox::decode_at(buf, &mut offset)?;
@@ -80,7 +80,7 @@ impl<B: BaseBox + Decode> Decode for Mp4File<B> {
 }
 
 impl<B: BaseBox + Encode> Encode for Mp4File<B> {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += self.ftyp_box.encode(&mut buf[offset..])?;
         for b in &self.boxes {
@@ -109,9 +109,9 @@ impl BoxHeader {
         Self::new(box_type, BoxSize::VARIABLE_SIZE)
     }
 
-    pub(crate) fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result2<()> {
+    pub(crate) fn finalize_box_size(mut self, box_bytes: &mut [u8]) -> Result<()> {
         if self.box_size != BoxSize::VARIABLE_SIZE {
-            return Err(Error2::invalid_input(
+            return Err(Error::invalid_input(
                 "box_size must be VARIABLE_SIZE before finalization",
             ));
         }
@@ -121,7 +121,7 @@ impl BoxHeader {
         self.box_size = BoxSize::with_payload_size(self.box_type, payload_size as u64);
         if !matches!(self.box_size, BoxSize::U32(_)) {
             // ヘッダーのサイズに変更があると box_bytes 全体のレイアウトが変わってしまうのでエラーにする
-            return Err(Error2::invalid_input(
+            return Err(Error::invalid_input(
                 "box payload too large: resulting box size exceeds U32 boundary (4GB), cannot update in-place",
             ));
         }
@@ -141,15 +141,15 @@ impl BoxHeader {
     ///
     /// バッファからボックスヘッダーを読み込み、対応するペイロード部分を抽出する。
     /// ボックスサイズが 0 の場合は可変長ボックスとして扱う。
-    pub fn decode_header_and_payload(buf: &[u8]) -> Result2<(Self, &[u8])> {
+    pub fn decode_header_and_payload(buf: &[u8]) -> Result<(Self, &[u8])> {
         let (header, header_size) = Self::decode(buf)?;
 
         let mut box_size = usize::try_from(header.box_size.get())
-            .map_err(|_| Error2::invalid_data("too large box size"))?;
+            .map_err(|_| Error::invalid_data("too large box size"))?;
         if box_size < header_size {
-            return Err(Error2::invalid_data("box size is smaller than header size"));
+            return Err(Error::invalid_data("box size is smaller than header size"));
         }
-        Error2::check_buffer_size(box_size, buf)?;
+        Error::check_buffer_size(box_size, buf)?;
 
         // サイズが0の場合は、バッファ全体を使用する（ファイル末尾の可変長ボックスと想定）
         if box_size == 0 {
@@ -161,7 +161,7 @@ impl BoxHeader {
 }
 
 impl Encode for BoxHeader {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
 
         let large_size = match self.box_size {
@@ -195,18 +195,18 @@ impl Encode for BoxHeader {
 
 impl Decode for BoxHeader {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
 
         let box_size = u32::decode_at(buf, &mut offset)?;
-        Error2::check_buffer_size(offset + 4, buf)?;
+        Error::check_buffer_size(offset + 4, buf)?;
 
         let mut box_type = [0; 4];
         box_type.copy_from_slice(&buf[offset..offset + 4]);
         offset += 4;
 
         let box_type = if box_type == [b'u', b'u', b'i', b'd'] {
-            Error2::check_buffer_size(offset + 16, buf)?;
+            Error::check_buffer_size(offset + 16, buf)?;
 
             let mut uuid = [0; 16];
             uuid.copy_from_slice(&buf[offset..offset + 16]);
@@ -226,7 +226,7 @@ impl Decode for BoxHeader {
         if box_size.get() != 0
             && box_size.get() < (box_size.external_size() + box_type.external_size()) as u64
         {
-            return Err(Error2::invalid_input(format!(
+            return Err(Error::invalid_input(format!(
                 "Too small box size: actual={}, expected={} or more",
                 box_size.get(),
                 box_size.external_size() + box_type.external_size()
@@ -258,7 +258,7 @@ impl FullBoxHeader {
 }
 
 impl Encode for FullBoxHeader {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += self.version.encode(&mut buf[offset..])?;
         offset += self.flags.encode(&mut buf[offset..])?;
@@ -267,7 +267,7 @@ impl Encode for FullBoxHeader {
 }
 
 impl Decode for FullBoxHeader {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
         let version = u8::decode_at(buf, &mut offset)?;
         let flags = FullBoxFlags::decode_at(buf, &mut offset)?;
@@ -311,14 +311,14 @@ impl FullBoxFlags {
 }
 
 impl Encode for FullBoxFlags {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         self.0.to_be_bytes()[1..].encode(buf)
     }
 }
 
 impl Decode for FullBoxFlags {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(3, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(3, buf)?;
         let mut full_buf = [0; 4];
         full_buf[1..].copy_from_slice(&buf[..3]);
         Ok((Self(u32::from_be_bytes(full_buf)), 3))
@@ -398,11 +398,11 @@ impl BoxType {
 
     /// 自分が `expected` と同じ種別であるかをチェックする
     // TODO: rename
-    pub fn expect2(self, expected: Self) -> Result2<()> {
+    pub fn expect2(self, expected: Self) -> Result<()> {
         if self == expected {
             Ok(())
         } else {
-            Err(Error2::invalid_data(format!(
+            Err(Error::invalid_data(format!(
                 "Expected box type `{expected}`, but got `{self}`"
             )))
         }
@@ -476,7 +476,7 @@ impl<I, F> FixedPointNumber<I, F> {
 }
 
 impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += self.integer.encode(&mut buf[offset..])?;
         offset += self.fraction.encode(&mut buf[offset..])?;
@@ -486,7 +486,7 @@ impl<I: Encode, F: Encode> Encode for FixedPointNumber<I, F> {
 
 impl<I: Decode, F: Decode> Decode for FixedPointNumber<I, F> {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
         let integer = I::decode_at(buf, &mut offset)?;
         let fraction = F::decode_at(buf, &mut offset)?;
@@ -526,7 +526,7 @@ impl Utf8String {
 }
 
 impl Encode for Utf8String {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += self.0.as_bytes().encode(&mut buf[offset..])?;
         offset += 0u8.encode(&mut buf[offset..])?;
@@ -535,7 +535,7 @@ impl Encode for Utf8String {
 }
 
 impl Decode for Utf8String {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
         let mut bytes = Vec::new();
 
@@ -549,11 +549,11 @@ impl Decode for Utf8String {
         }
 
         if offset == 0 || (offset > 0 && buf[offset - 1] != 0) {
-            return Err(Error2::invalid_input("Null-terminated string not found"));
+            return Err(Error::invalid_input("Null-terminated string not found"));
         }
 
         let s = String::from_utf8(bytes).map_err(|e| {
-            Error2::invalid_input(format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
+            Error::invalid_input(format!("Invalid UTF-8 string: {:?}", e.as_bytes()))
         })?;
 
         Ok((Self(s), offset))

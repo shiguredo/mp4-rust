@@ -2,7 +2,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{format, string::String, vec::Vec};
 
-use crate::{Decode, Encode, Error2, Result2, Uint};
+use crate::{Decode, Encode, Error, Result, Uint};
 
 /// [ISO_IEC_14496-1] ES_Descriptor class
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -28,10 +28,10 @@ impl EsDescriptor {
 }
 
 impl Decode for EsDescriptor {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
         if tag != Self::TAG {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
                 Self::TAG
             )));
@@ -54,7 +54,7 @@ impl Decode for EsDescriptor {
         let url_string = if url_flag.get() == 1 {
             let len = u8::decode_at(buf, &mut offset)? as usize;
             let s = String::from_utf8(buf[offset..offset + len].to_vec())
-                .map_err(|_| Error2::invalid_data("Invalid UTF-8 in URL string"))?;
+                .map_err(|_| Error::invalid_data("Invalid UTF-8 in URL string"))?;
             offset += len;
             Some(s)
         } else {
@@ -86,7 +86,7 @@ impl Decode for EsDescriptor {
 }
 
 impl Encode for EsDescriptor {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         offset += self.es_id.encode(&mut buf[offset..])?;
         offset += (Uint::<u8, 1, 7>::new(self.depends_on_es_id.is_some() as u8).to_bits()
@@ -140,10 +140,10 @@ impl DecoderConfigDescriptor {
 }
 
 impl Decode for DecoderConfigDescriptor {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
         if tag != Self::TAG {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
                 Self::TAG
             )));
@@ -183,7 +183,7 @@ impl Decode for DecoderConfigDescriptor {
 }
 
 impl Encode for DecoderConfigDescriptor {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
 
         offset += self.object_type_indication.encode(&mut buf[offset..])?;
@@ -212,11 +212,11 @@ impl DecoderSpecificInfo {
 }
 
 impl Decode for DecoderSpecificInfo {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (tag, size, mut offset) = decode_tag_and_size(buf)?;
 
         if tag != Self::TAG {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
                 Self::TAG
             )));
@@ -230,7 +230,7 @@ impl Decode for DecoderSpecificInfo {
 }
 
 impl Encode for DecoderSpecificInfo {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let offset = self.payload.encode(buf)?;
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
@@ -245,11 +245,11 @@ impl SlConfigDescriptor {
 }
 
 impl Decode for SlConfigDescriptor {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (tag, _size, mut offset) = decode_tag_and_size(buf)?;
 
         if tag != Self::TAG {
-            return Err(Error2::invalid_data(format!(
+            return Err(Error::invalid_data(format!(
                 "Unexpected descriptor tag: expected={}, actual={tag}",
                 Self::TAG
             )));
@@ -257,7 +257,7 @@ impl Decode for SlConfigDescriptor {
 
         let predefined = u8::decode_at(buf, &mut offset)?;
         if predefined != 2 {
-            return Err(Error2::unsupported(format!(
+            return Err(Error::unsupported(format!(
                 "Unsupported `SLConfigDescriptor.predefined` value: {predefined}"
             )));
         }
@@ -267,14 +267,14 @@ impl Decode for SlConfigDescriptor {
 }
 
 impl Encode for SlConfigDescriptor {
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let predefined = 2u8;
         let offset = predefined.encode(buf)?;
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
 }
 
-fn decode_tag_and_size(buf: &[u8]) -> Result2<(u8, usize, usize)> {
+fn decode_tag_and_size(buf: &[u8]) -> Result<(u8, usize, usize)> {
     let mut offset = 0;
     let tag = u8::decode_at(buf, &mut offset)?;
 
@@ -290,16 +290,16 @@ fn decode_tag_and_size(buf: &[u8]) -> Result2<(u8, usize, usize)> {
 }
 
 // buf の先頭にペイロードが格納されている前提
-fn encode_tag_and_payload(buf: &mut [u8], tag: u8, payload_size: usize) -> Result2<usize> {
+fn encode_tag_and_payload(buf: &mut [u8], tag: u8, payload_size: usize) -> Result<usize> {
     let mut header_buf = [0; 64];
     let header_size = encode_tag_and_size(&mut header_buf, tag, payload_size)?;
-    Error2::check_buffer_size(header_size + payload_size, buf)?;
+    Error::check_buffer_size(header_size + payload_size, buf)?;
     buf.copy_within(..payload_size, header_size);
     buf[..header_size].copy_from_slice(&header_buf[..header_size]);
     Ok(header_size + payload_size)
 }
 
-fn encode_tag_and_size(buf: &mut [u8], tag: u8, mut size: usize) -> Result2<usize> {
+fn encode_tag_and_size(buf: &mut [u8], tag: u8, mut size: usize) -> Result<usize> {
     let mut offset = 0;
     offset += tag.encode(&mut buf[offset..])?;
 

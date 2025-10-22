@@ -14,7 +14,7 @@ use core::num::{NonZeroU16, NonZeroU32};
 use crate::BoxType;
 
 /// このライブラリ用の Result 型
-pub type Result2<T> = core::result::Result<T, Error2>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// エンコード/デコード操作のエラーの種類
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -33,7 +33,7 @@ pub enum ErrorKind2 {
 }
 
 /// エラー型
-pub struct Error2 {
+pub struct Error {
     /// 発生したエラーの種類
     pub kind: ErrorKind2,
 
@@ -54,14 +54,14 @@ pub struct Error2 {
     pub backtrace: Backtrace,
 }
 
-impl Error2 {
-    /// [`Error2`] インスタンスを生成します
+impl Error {
+    /// [`Error`] インスタンスを生成します
     #[track_caller]
     pub fn new(kind: ErrorKind2) -> Self {
         Self::with_reason(kind, String::new())
     }
 
-    /// エラー理由つきで [`Error2`] インスタンスを生成します
+    /// エラー理由つきで [`Error`] インスタンスを生成します
     #[track_caller]
     pub fn with_reason<T: Into<String>>(kind: ErrorKind2, reason: T) -> Self {
         Self {
@@ -96,7 +96,7 @@ impl Error2 {
     }
 
     #[track_caller]
-    pub(crate) fn check_buffer_size(required_size: usize, buf: &[u8]) -> Result2<()> {
+    pub(crate) fn check_buffer_size(required_size: usize, buf: &[u8]) -> Result<()> {
         if buf.len() < required_size {
             Err(Self::insufficient_buffer())
         } else {
@@ -105,13 +105,13 @@ impl Error2 {
     }
 }
 
-impl core::fmt::Debug for Error2 {
+impl core::fmt::Debug for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{self}")
     }
 }
 
-impl core::fmt::Display for Error2 {
+impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if let Some(ty) = self.box_type {
             write!(f, "[{ty}] ")?;
@@ -132,7 +132,7 @@ impl core::fmt::Display for Error2 {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Error2 {}
+impl std::error::Error for Error {}
 
 /// バイト列に変換可能な型を表現するためのトレイト
 pub trait Encode {
@@ -140,10 +140,10 @@ pub trait Encode {
     ///
     /// 返り値は、変換後のバイト列のサイズで、
     /// もし `buf` のサイズが不足している場合には [`ErrorKind2::InsufficientBuffer`] エラーが返される
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize>;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize>;
 
     /// `self` をバイト列に変換して、変換後のバイト列を返す
-    fn encode_to_vec(&self) -> Result2<Vec<u8>> {
+    fn encode_to_vec(&self) -> Result<Vec<u8>> {
         let mut buf = vec![0; 64];
         loop {
             match self.encode(&mut buf) {
@@ -162,8 +162,8 @@ pub trait Encode {
 
 impl Encode for u8 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(1, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(1, buf)?;
         buf[0] = *self;
         Ok(1)
     }
@@ -171,8 +171,8 @@ impl Encode for u8 {
 
 impl Encode for u16 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(2, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(2, buf)?;
         buf[..2].copy_from_slice(&self.to_be_bytes());
         Ok(2)
     }
@@ -180,8 +180,8 @@ impl Encode for u16 {
 
 impl Encode for u32 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(4, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(4, buf)?;
         buf[..4].copy_from_slice(&self.to_be_bytes());
         Ok(4)
     }
@@ -189,8 +189,8 @@ impl Encode for u32 {
 
 impl Encode for u64 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(8, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(8, buf)?;
         buf[..8].copy_from_slice(&self.to_be_bytes());
         Ok(8)
     }
@@ -198,8 +198,8 @@ impl Encode for u64 {
 
 impl Encode for i8 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(1, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(1, buf)?;
         buf[0] = *self as u8;
         Ok(1)
     }
@@ -207,8 +207,8 @@ impl Encode for i8 {
 
 impl Encode for i16 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(2, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(2, buf)?;
         buf[..2].copy_from_slice(&self.to_be_bytes());
         Ok(2)
     }
@@ -216,8 +216,8 @@ impl Encode for i16 {
 
 impl Encode for i32 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(4, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(4, buf)?;
         buf[..4].copy_from_slice(&self.to_be_bytes());
         Ok(4)
     }
@@ -225,8 +225,8 @@ impl Encode for i32 {
 
 impl Encode for i64 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(8, buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(8, buf)?;
         buf[..8].copy_from_slice(&self.to_be_bytes());
         Ok(8)
     }
@@ -234,21 +234,21 @@ impl Encode for i64 {
 
 impl Encode for NonZeroU16 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         self.get().encode(buf)
     }
 }
 
 impl Encode for NonZeroU32 {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         self.get().encode(buf)
     }
 }
 
 impl<T: Encode, const N: usize> Encode for [T; N] {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         for item in self {
             offset += item.encode(&mut buf[offset..])?;
@@ -259,8 +259,8 @@ impl<T: Encode, const N: usize> Encode for [T; N] {
 
 impl Encode for [u8] {
     #[track_caller]
-    fn encode(&self, buf: &mut [u8]) -> Result2<usize> {
-        Error2::check_buffer_size(self.len(), buf)?;
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        Error::check_buffer_size(self.len(), buf)?;
         buf[..self.len()].copy_from_slice(self);
         Ok(self.len())
     }
@@ -271,11 +271,11 @@ pub trait Decode: Sized {
     /// バイト列からこの型の値をデコードする
     ///
     /// 成功時には、デコードされた値とデコードに消費されたバイト数のタプルが、
-    /// 失敗時には [`Error2`] が返される
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)>;
+    /// 失敗時には [`Error`] が返される
+    fn decode(buf: &[u8]) -> Result<(Self, usize)>;
 
     /// オフセット位置からバイト列をデコードし、オフセットを自動で進める
-    fn decode_at(buf: &[u8], offset: &mut usize) -> Result2<Self> {
+    fn decode_at(buf: &[u8], offset: &mut usize) -> Result<Self> {
         let (decoded, size) = Self::decode(&buf[*offset..])?;
         *offset += size;
         Ok(decoded)
@@ -284,32 +284,32 @@ pub trait Decode: Sized {
 
 impl Decode for u8 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(1, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(1, buf)?;
         Ok((buf[0], 1))
     }
 }
 
 impl Decode for u16 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(2, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(2, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
     }
 }
 
 impl Decode for u32 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(4, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(4, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
     }
 }
 
 impl Decode for u64 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(8, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(8, buf)?;
         let bytes = [
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
         ];
@@ -319,32 +319,32 @@ impl Decode for u64 {
 
 impl Decode for i8 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(1, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(1, buf)?;
         Ok((buf[0] as i8, 1))
     }
 }
 
 impl Decode for i16 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(2, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(2, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1]]), 2))
     }
 }
 
 impl Decode for i32 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(4, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(4, buf)?;
         Ok((Self::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]), 4))
     }
 }
 
 impl Decode for i64 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
-        Error2::check_buffer_size(8, buf)?;
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        Error::check_buffer_size(8, buf)?;
         let bytes = [
             buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
         ];
@@ -354,26 +354,26 @@ impl Decode for i64 {
 
 impl Decode for NonZeroU16 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (v, size) = u16::decode(buf)?;
         NonZeroU16::new(v)
             .map(|nz| (nz, size))
-            .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
+            .ok_or_else(|| Error::invalid_input("Expected a non-zero integer, but got 0"))
     }
 }
 
 impl Decode for NonZeroU32 {
     #[track_caller]
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let (v, size) = u32::decode(buf)?;
         NonZeroU32::new(v)
             .map(|nz| (nz, size))
-            .ok_or_else(|| Error2::invalid_input("Expected a non-zero integer, but got 0"))
+            .ok_or_else(|| Error::invalid_input("Expected a non-zero integer, but got 0"))
     }
 }
 
 impl<T: Decode + Default + Copy, const N: usize> Decode for [T; N] {
-    fn decode(buf: &[u8]) -> Result2<(Self, usize)> {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut items = [T::default(); N];
         let mut offset = 0;
 
