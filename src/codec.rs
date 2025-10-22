@@ -6,7 +6,7 @@ use std::{
 };
 
 #[cfg(not(feature = "std"))]
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{format, string::String, vec, vec::Vec};
 
 #[cfg(not(feature = "std"))]
 use core::num::{NonZeroU16, NonZeroU32};
