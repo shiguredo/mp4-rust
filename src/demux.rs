@@ -2,7 +2,20 @@
 
 use core::time::Duration;
 
-use crate::{Result, boxes::SampleEntry};
+use crate::{Error, boxes::SampleEntry};
+
+#[derive(Debug, Clone)]
+pub enum TrackKind {
+    Audio,
+    Video,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrackInfo {
+    pub track_id: u32,
+    pub kind: TrackKind,
+    pub duration: Duration,
+}
 
 #[derive(Debug, Clone)]
 pub struct Sample {
@@ -16,8 +29,8 @@ pub struct Sample {
 }
 
 #[derive(Debug)]
-pub enum MaybeSample {
-    Sample(Sample),
+pub enum DemuxError {
+    DecodeError(Error),
     EndOfFile,
     ActionRequired(Mp4FileDemuxerAction),
 }
@@ -35,16 +48,20 @@ impl Mp4FileDemuxer {
         Self {}
     }
 
-    pub fn next_sample(&mut self) -> Result<MaybeSample> {
+    pub fn tracks(&self) -> Result<&[TrackInfo], DemuxError> {
         todo!()
     }
 
-    pub fn seek(&mut self, _timestamp: Duration) -> Result<()> {
+    pub fn next_sample(&mut self) -> Result<Sample, DemuxError> {
+        todo!()
+    }
+
+    pub fn seek(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
         todo!()
     }
 
     /// 指定のタイムスタンプ以下で、一番タイムスタンプが大きいキーフレームにシークする
-    pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<()> {
+    pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
         todo!()
     }
 }
