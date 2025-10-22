@@ -3,7 +3,8 @@ use shiguredo_mp4::{BoxType, Decode, Encode, Mp4File, Result};
 #[test]
 fn decode_encode_black_h264_video_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/black-h264-video.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
@@ -23,7 +24,8 @@ fn decode_encode_black_h264_video_mp4() -> Result<()> {
 #[test]
 fn decode_encode_black_h265_video_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/black-h265-video.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
@@ -48,7 +50,8 @@ fn decode_encode_black_h265_video_mp4() -> Result<()> {
 #[test]
 fn decode_encode_black_vp9_video_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/black-vp9-video.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
@@ -73,7 +76,8 @@ fn decode_encode_black_vp9_video_mp4() -> Result<()> {
 #[test]
 fn decode_encode_black_av1_video_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/black-av1-video.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
@@ -98,7 +102,8 @@ fn decode_encode_black_av1_video_mp4() -> Result<()> {
 #[test]
 fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/beep-opus-audio.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
@@ -118,7 +123,8 @@ fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
 #[test]
 fn decode_encode_beep_opus_audio_aac() -> Result<()> {
     let input_bytes = include_bytes!("testdata/beep-aac-audio.mp4");
-    let (file, _) = Mp4File::decode(&input_bytes[..])?;
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
 
     // デコード時に未処理のボックスがないことを確認する。
     assert_eq!(collect_unknown_box_types(&file), Vec::new());
