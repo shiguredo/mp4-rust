@@ -9,7 +9,6 @@ use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 use crate::{
     Decode, Encode, Error, Error2, Result, Result2,
     boxes::{FtypBox, RootBox},
-    io::{Read, Take},
 };
 
 /// 全てのボックスが実装するトレイト
@@ -136,41 +135,6 @@ impl BoxHeader {
     /// ヘッダーをエンコードした際のバイト数を返す
     pub fn external_size(self) -> usize {
         self.box_type.external_size() + self.box_size.external_size()
-    }
-
-    /// このヘッダーに対応するボックスのペイロード部分をデコードするためのリーダーを引数にして、指定された関数を呼び出す
-    pub fn with_box_payload_reader<T, R: Read, F>(self, reader: R, f: F) -> Result<T>
-    where
-        F: FnOnce(&mut Take<R>) -> Result<T>,
-    {
-        let mut reader = if self.box_size.get() == 0 {
-            reader.take(u64::MAX)
-        } else {
-            let payload_size = self
-                .box_size
-                .get()
-                .checked_sub(self.external_size() as u64)
-                .ok_or_else(|| {
-                    Error::invalid_data(&format!(
-                        "Too small box size: actual={}, expected={} or more",
-                        self.box_size.get(),
-                        self.external_size()
-                    ))
-                    .with_box_type(self.box_type)
-                })?;
-            reader.take(payload_size)
-        };
-
-        let value = f(&mut reader).map_err(|e| e.with_box_type(self.box_type))?;
-        if reader.limit() != 0 {
-            return Err(Error::invalid_data(&format!(
-                "Unconsumed {} bytes at the end of the box '{}'",
-                reader.limit(),
-                self.box_type
-            ))
-            .with_box_type(self.box_type));
-        }
-        Ok(value)
     }
 
     /// ボックスヘッダーをデコードし、ヘッダーとペイロードスライスを返す
