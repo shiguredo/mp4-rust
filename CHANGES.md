@@ -11,6 +11,16 @@
 
 ## develop
 
+- [CHANGE] Error 構造体の std::io::Error への依存をなくす
+  - std::io モジュールへの依存をなくしたのに伴い、独自の ErrorKind enum を定義し、使用するようにした
+  - @sile
+- [CHANGE] IgnoredBox 構造体を削除する
+  - この構造体は Decode トレイトの古い設計前提であったので、設計変更に伴い不要となった
+  - @sile
+- [CHANGE] Encode および Decode トレイトを I/O に依存しない設計に変更する
+  - std::io::{Read, Write} に対してではなく、バッファ（&[u8]）に対して操作を行うように変更した
+  - no_std / wasm / C API（将来）に対応する際に、I/O と密結合になっていると取り回しが難しいので、コア部分では I/O に依存しないようにした
+  - @sile
 - [ADD] no_std 環境のサポートを追加する
   - `default-features = false` を指定することで no_std 環境でも利用可能になった
   - no_std 環境では独自の I/O トレイトを使用し、alloc クレートに依存する
