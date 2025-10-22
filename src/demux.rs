@@ -3,9 +3,9 @@
 use core::time::Duration;
 
 use crate::{
-    BoxHeader, Error,
+    BoxHeader, Decode, Error,
     aux::SampleTableAccessor,
-    boxes::{SampleEntry, StblBox},
+    boxes::{FtypBox, SampleEntry, StblBox},
 };
 
 #[derive(Debug, Clone)]
@@ -55,10 +55,16 @@ impl DemuxError {
     }
 }
 
+impl From<Error> for DemuxError {
+    fn from(error: Error) -> Self {
+        DemuxError::DecodeError(error)
+    }
+}
+
 #[derive(Debug)]
 enum Phase {
     ReadFtypBoxHeader,
-    ReadFtypBox,
+    ReadFtypBox { box_size: usize },
     ReadMoovBoxHeader,
     Initialized,
 }
@@ -80,13 +86,43 @@ impl Mp4FileDemuxer {
     pub fn handle_input(&mut self, input: &Input) -> Result<(), DemuxError> {
         match self.phase {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
-            Phase::ReadFtypBox => todo!(),
+            Phase::ReadFtypBox { .. } => self.read_ftyp_box(input),
             Phase::ReadMoovBoxHeader => todo!(),
             Phase::Initialized => Ok(()),
         }
     }
 
-    pub fn read_ftyp_box_header(&mut self, input: &Input) -> Result<(), DemuxError> {
+    fn read_ftyp_box_header(&mut self, input: &Input) -> Result<(), DemuxError> {
+        assert!(matches!(self.phase, Phase::ReadFtypBoxHeader));
+
+        if input.position != 0 || input.data.len() < BoxHeader::MAX_SIZE {
+            return Err(DemuxError::need_input(input.position, BoxHeader::MAX_SIZE));
+        }
+
+        let (header, _header_size) = BoxHeader::decode(input.data)?;
+        header.box_type.expect(FtypBox::TYPE)?;
+
+        let box_size = header.box_size.get() as usize;
+        if box_size == 0 {
+            return Err(DemuxError::DecodeError(Error::invalid_data(
+                "ftype box must have a fixed size and cannot be variable size",
+            )));
+        }
+        self.phase = Phase::ReadFtypBox { box_size };
+        self.read_ftyp_box(input)?;
+
+        Ok(())
+    }
+
+    fn read_ftyp_box(&mut self, input: &Input) -> Result<(), DemuxError> {
+        let Phase::ReadFtypBox { box_size } = self.phase else {
+            panic!("bug");
+        };
+        if input.position != 0 || input.data.len() < box_size {
+            return Err(DemuxError::need_input(input.position, box_size));
+        }
+
+        let (ftyp_box, _ftyp_box_size) = FtypBox::decode(input.data)?;
         todo!()
     }
 
@@ -110,8 +146,8 @@ impl Mp4FileDemuxer {
 
     fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
         match self.phase {
-            Phase::ReadFtypBoxHeader => Err(DemuxError::need_input(0, BoxHeader::MIN_SIZE)),
-            Phase::ReadFtypBox => todo!(),
+            Phase::ReadFtypBoxHeader => Err(DemuxError::need_input(0, BoxHeader::MAX_SIZE)),
+            Phase::ReadFtypBox { box_size } => Err(DemuxError::need_input(0, box_size)),
             Phase::ReadMoovBoxHeader => todo!(),
             Phase::Initialized => Ok(()),
         }
