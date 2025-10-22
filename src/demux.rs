@@ -1,19 +1,23 @@
 #![allow(missing_docs)]
 
+use core::time::Duration;
+
 use crate::{Result, boxes::SampleEntry};
 
 #[derive(Debug, Clone)]
-pub struct Sample<'a> {
+pub struct Sample {
     pub track_id: u32,
-    pub sample_entry: SampleEntry,
-    pub timestamp: u64,
-    pub duration: u32,
-    pub data: &'a [u8],
+    pub sample_entry: Option<SampleEntry>,
+    pub keyframe: bool,
+    pub timestamp: Duration,
+    pub duration: Duration,
+    pub data_offset: u64,
+    pub data_size: usize,
 }
 
 #[derive(Debug)]
-pub enum MaybeSample<'a> {
-    Sample(Sample<'a>),
+pub enum MaybeSample {
+    Sample(Sample),
     EndOfFile,
     ActionRequired(Mp4FileDemuxerAction),
 }
@@ -31,7 +35,16 @@ impl Mp4FileDemuxer {
         Self {}
     }
 
-    pub fn next_sample(&mut self) -> Result<MaybeSample<'_>> {
+    pub fn next_sample(&mut self) -> Result<MaybeSample> {
+        todo!()
+    }
+
+    pub fn seek(&mut self, _timestamp: Duration) -> Result<()> {
+        todo!()
+    }
+
+    /// 指定のタイムスタンプ以下で、一番タイムスタンプが大きいキーフレームにシークする
+    pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<()> {
         todo!()
     }
 }
