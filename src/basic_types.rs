@@ -7,7 +7,7 @@ use core::{
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
-    Decode, Encode, Error, Error2, Result, Result2,
+    Decode, Encode, Error2, Result2,
     boxes::{FtypBox, RootBox},
 };
 
@@ -397,17 +397,7 @@ impl BoxType {
     }
 
     /// 自分が `expected` と同じ種別であるかをチェックする
-    pub fn expect(self, expected: Self) -> Result<()> {
-        if self == expected {
-            Ok(())
-        } else {
-            Err(Error::invalid_data(&format!(
-                "Expected box type `{expected}`, but got `{self}`"
-            )))
-        }
-    }
-
-    /// 自分が `expected` と同じ種別であるかをチェックする
+    // TODO: rename
     pub fn expect2(self, expected: Self) -> Result2<()> {
         if self == expected {
             Ok(())

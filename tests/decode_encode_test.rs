@@ -1,7 +1,7 @@
-use shiguredo_mp4::{BoxType, Decode, Encode, Mp4File, Result};
+use shiguredo_mp4::{BoxType, Decode, Encode, Mp4File, Result2};
 
 #[test]
-fn decode_encode_black_h264_video_mp4() -> Result<()> {
+fn decode_encode_black_h264_video_mp4() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/black-h264-video.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
@@ -21,7 +21,7 @@ fn decode_encode_black_h264_video_mp4() -> Result<()> {
 }
 
 #[test]
-fn decode_encode_black_h265_video_mp4() -> Result<()> {
+fn decode_encode_black_h265_video_mp4() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/black-h265-video.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
@@ -46,7 +46,7 @@ fn decode_encode_black_h265_video_mp4() -> Result<()> {
 }
 
 #[test]
-fn decode_encode_black_vp9_video_mp4() -> Result<()> {
+fn decode_encode_black_vp9_video_mp4() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/black-vp9-video.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
@@ -71,7 +71,7 @@ fn decode_encode_black_vp9_video_mp4() -> Result<()> {
 }
 
 #[test]
-fn decode_encode_black_av1_video_mp4() -> Result<()> {
+fn decode_encode_black_av1_video_mp4() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/black-av1-video.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
@@ -96,7 +96,7 @@ fn decode_encode_black_av1_video_mp4() -> Result<()> {
 }
 
 #[test]
-fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
+fn decode_encode_beep_opus_audio_mp4() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/beep-opus-audio.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
@@ -116,7 +116,7 @@ fn decode_encode_beep_opus_audio_mp4() -> Result<()> {
 }
 
 #[test]
-fn decode_encode_beep_opus_audio_aac() -> Result<()> {
+fn decode_encode_beep_opus_audio_aac() -> Result2<()> {
     let input_bytes = include_bytes!("testdata/beep-aac-audio.mp4");
     let (file, _) = Mp4File::decode(&input_bytes[..])?;
 
