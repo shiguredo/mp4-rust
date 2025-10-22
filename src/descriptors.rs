@@ -1,6 +1,6 @@
 //! ISO_IEC_14496-1 で定義されているディスクリプター群
 #[cfg(not(feature = "std"))]
-use alloc::{format, string::String, vec, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 
 use crate::{Decode, Encode, Error2, Result2, Uint};
 

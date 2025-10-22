@@ -2,7 +2,7 @@
 use core::num::{NonZeroU16, NonZeroU32};
 
 #[cfg(not(feature = "std"))]
-use alloc::{boxed::Box, format, vec, vec::Vec};
+use alloc::{boxed::Box, format, vec::Vec};
 
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error2, FixedPointNumber,

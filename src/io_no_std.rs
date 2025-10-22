@@ -166,29 +166,6 @@ impl Write for Vec<u8> {
     }
 }
 
-pub(crate) struct Cursor<const N: usize> {
-    buf: [u8; N],
-    pos: usize,
-    len: usize,
-}
-
-impl<const N: usize> Cursor<N> {
-    pub(crate) fn new(buf: [u8; N]) -> Self {
-        let len = buf.len();
-        Self { buf, pos: 0, len }
-    }
-}
-
-impl<const N: usize> Read for Cursor<N> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        let remaining = self.len.saturating_sub(self.pos);
-        let to_read = core::cmp::min(buf.len(), remaining);
-        buf[..to_read].copy_from_slice(&self.buf[self.pos..self.pos + to_read]);
-        self.pos += to_read;
-        Ok(to_read)
-    }
-}
-
 /// no_std 環境用の [`std::io::Take`] のサブセット実装
 pub struct Take<R> {
     inner: R,
