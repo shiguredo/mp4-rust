@@ -5,9 +5,9 @@ use core::num::{NonZeroU16, NonZeroU32};
 use alloc::{boxed::Box, format, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber,
-    FullBox, FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String,
-    basic_types::as_box_object, descriptors::EsDescriptor,
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Uint, Utf8String, basic_types::as_box_object,
+    descriptors::EsDescriptor,
 };
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -48,48 +48,6 @@ impl Decode for UnknownBox {
 }
 
 impl BaseBox for UnknownBox {
-    fn box_type(&self) -> BoxType {
-        self.box_type
-    }
-
-    fn is_unknown_box(&self) -> bool {
-        true
-    }
-
-    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
-        Box::new(core::iter::empty())
-    }
-}
-
-// TODO: io モジュールみなおしのタイミングで削除を検討する
-/// [`UnknownBox`] と似ているが、ボックスのペイロードデータを保持しない点が異なる構造体
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct IgnoredBox {
-    /// ボックス種別
-    pub box_type: BoxType,
-
-    /// ボックスサイズ
-    pub box_size: BoxSize,
-
-    /// ペイロードサイズ
-    pub box_payload_size: u64,
-}
-
-impl Decode for IgnoredBox {
-    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        Ok((
-            Self {
-                box_type: header.box_type,
-                box_size: header.box_size,
-                box_payload_size: payload.len() as u64,
-            },
-            header.external_size() + payload.len(),
-        ))
-    }
-}
-
-impl BaseBox for IgnoredBox {
     fn box_type(&self) -> BoxType {
         self.box_type
     }
@@ -2286,8 +2244,8 @@ impl Encode for AvccBox {
         offset += self.avc_level_indication.encode(&mut buf[offset..])?;
         offset += (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut buf[offset..])?;
 
-        let sps_count = u8::try_from(self.sps_list.len())
-            .map_err(|_| Error::invalid_input("Too many SPSs"))?;
+        let sps_count =
+            u8::try_from(self.sps_list.len()).map_err(|_| Error::invalid_input("Too many SPSs"))?;
         offset += (0b1110_0000 | sps_count).encode(&mut buf[offset..])?;
         for sps in &self.sps_list {
             let size =
@@ -2296,8 +2254,8 @@ impl Encode for AvccBox {
             offset += sps.encode(&mut buf[offset..])?;
         }
 
-        let pps_count = u8::try_from(self.pps_list.len())
-            .map_err(|_| Error::invalid_input("Too many PPSs"))?;
+        let pps_count =
+            u8::try_from(self.pps_list.len()).map_err(|_| Error::invalid_input("Too many PPSs"))?;
         offset += pps_count.encode(&mut buf[offset..])?;
         for pps in &self.pps_list {
             let size =
