@@ -2,7 +2,11 @@
 
 use core::time::Duration;
 
-use crate::{Error, boxes::SampleEntry};
+use crate::{
+    Error,
+    aux::SampleTableAccessor,
+    boxes::{MoovBox, SampleEntry, StblBox},
+};
 
 #[derive(Debug, Clone)]
 pub enum TrackKind {
@@ -35,20 +39,37 @@ pub struct Input<'a> {
 }
 
 #[derive(Debug)]
+pub struct TrackState {
+    table: SampleTableAccessor<StblBox>,
+}
+
+#[derive(Debug)]
 pub enum DemuxError {
     DecodeError(Error),
     NeedInput { position: u64, size: usize },
 }
 
-#[derive(Debug, Default)]
-pub struct Mp4FileDemuxer {}
+#[derive(Debug)]
+enum Phase {
+    ReadFtypBox,
+    Initialized,
+}
+
+#[derive(Debug)]
+pub struct Mp4FileDemuxer {
+    phase: Phase,
+    tracks: Vec<TrackState>,
+}
 
 impl Mp4FileDemuxer {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            phase: Phase::ReadFtypBox,
+            tracks: Vec::new(),
+        }
     }
 
-    pub fn handle_input(&mut self, _input: &Input) {
+    pub fn handle_input(&mut self, _input: &Input) -> Result<(), DemuxError> {
         todo!()
     }
 
@@ -64,12 +85,24 @@ impl Mp4FileDemuxer {
     pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
         todo!()
     }
+
+    fn next_sample(&mut self) -> Result<Option<Sample>, DemuxError> {
+        self.initialize_if_need()?;
+        todo!()
+    }
+
+    fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
+        match self.phase {
+            Phase::ReadFtypBox => todo!(),
+            Phase::Initialized => Ok(()),
+        }
+    }
 }
 
 impl Iterator for Mp4FileDemuxer {
     type Item = Result<Sample, DemuxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        self.next_sample().transpose()
     }
 }
