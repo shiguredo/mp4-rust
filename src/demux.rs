@@ -231,28 +231,31 @@ impl Mp4FileDemuxer {
 
         // 全トラックの中で最も早いタイムスタンプを持つサンプルを探す
         for (track_index, track) in self.tracks.iter().enumerate() {
-            if let Some(sample_accessor) = track.table.get_sample(track.next_sample_index) {
-                let timestamp =
-                    Duration::from_secs(sample_accessor.timestamp()) / track.timescale.get();
-                let duration =
-                    Duration::from_secs(sample_accessor.duration() as u64) / track.timescale.get();
-
-                let sample = Sample {
-                    track_id: track.track_id,
-                    sample_entry: Some(sample_accessor.chunk().sample_entry().clone()),
-                    keyframe: sample_accessor.is_sync_sample(),
-                    timestamp,
-                    duration,
-                    data_offset: sample_accessor.data_offset(),
-                    data_size: sample_accessor.data_size() as usize,
-                };
-
-                if earliest_sample.is_none()
-                    || timestamp < earliest_sample.as_ref().unwrap().0.timestamp
-                {
-                    earliest_sample = Some((sample, track_index));
-                }
+            let Some(sample_accessor) = track.table.get_sample(track.next_sample_index) else {
+                continue;
+            };
+            let timestamp =
+                Duration::from_secs(sample_accessor.timestamp()) / track.timescale.get();
+            if earliest_sample
+                .as_ref()
+                .is_some_and(|s| timestamp >= s.0.timestamp)
+            {
+                continue;
             }
+
+            let duration =
+                Duration::from_secs(sample_accessor.duration() as u64) / track.timescale.get();
+
+            let sample = Sample {
+                track_id: track.track_id,
+                sample_entry: Some(sample_accessor.chunk().sample_entry().clone()),
+                keyframe: sample_accessor.is_sync_sample(),
+                timestamp,
+                duration,
+                data_offset: sample_accessor.data_offset(),
+                data_size: sample_accessor.data_size() as usize,
+            };
+            earliest_sample = Some((sample, track_index));
         }
 
         // 最も早いサンプルを提供したトラックを進める
@@ -260,9 +263,9 @@ impl Mp4FileDemuxer {
             self.tracks[track_index].next_sample_index = self.tracks[track_index]
                 .next_sample_index
                 .checked_add(1)
-                .ok_or(DemuxError::DecodeError(Error::invalid_data(
-                    "sample index overflow",
-                )))?;
+                .ok_or_else(|| {
+                    DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
+                })?;
             Ok(Some(sample))
         } else {
             Ok(None)
