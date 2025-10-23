@@ -26,13 +26,13 @@
 //! println!("{}個のトラックが見つかりました", tracks.len());
 //! for track in tracks {
 //!     println!("トラックID: {}, 種類: {:?}, 尺: {:?}",
-//!              track.track_id, track.kind, track.duration);
+//!              track.track_id, track.kind, track.duration());
 //! }
 //!
 //! // 時系列順にサンプルを抽出する
 //! while let Some(sample) = demuxer.next_sample().expect("サンプル読み込み失敗") {
 //!     println!("サンプル - トラックID: {}, タイムスタンプ: {:?}, サイズ: {} バイト",
-//!              sample.track_id, sample.timestamp, sample.data_size);
+//!              sample.track_id, sample.timestamp(), sample.data_size);
 //!     // sample.data_offset の位置から sample.data_size バイトのサンプルデータにアクセス
 //!     let sample_data = &file_data[sample.data_offset as usize..
 //!                                   sample.data_offset as usize + sample.data_size];
