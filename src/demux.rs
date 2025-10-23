@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use core::time::Duration;
+use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -46,6 +46,7 @@ pub struct Input<'a> {
 pub struct TrackState {
     pub track_id: u32,
     pub table: SampleTableAccessor<StblBox>,
+    next_sample_index: NonZeroU32,
 }
 
 #[derive(Debug)]
@@ -202,7 +203,11 @@ impl Mp4FileDemuxer {
                 kind,
                 duration,
             });
-            self.tracks.push(TrackState { track_id, table })
+            self.tracks.push(TrackState {
+                track_id,
+                table,
+                next_sample_index: NonZeroU32::MIN,
+            })
         }
 
         self.phase = Phase::Initialized;
@@ -216,7 +221,45 @@ impl Mp4FileDemuxer {
 
     fn next_sample(&mut self) -> Result<Option<Sample>, DemuxError> {
         self.initialize_if_need()?;
-        todo!()
+
+        let mut earliest_sample: Option<(Sample, usize)> = None;
+
+        // 全トラックの中で最も早いタイムスタンプを持つサンプルを探す
+        for (track_index, track) in self.tracks.iter().enumerate() {
+            if let Some(sample_accessor) = track.table.get_sample(track.next_sample_index) {
+                let timestamp = Duration::from_secs(sample_accessor.timestamp());
+                let duration = Duration::from_secs(sample_accessor.duration() as u64);
+
+                let sample = Sample {
+                    track_id: track.track_id,
+                    sample_entry: Some(sample_accessor.chunk().sample_entry().clone()),
+                    keyframe: sample_accessor.is_sync_sample(),
+                    timestamp,
+                    duration,
+                    data_offset: sample_accessor.data_offset(),
+                    data_size: sample_accessor.data_size() as usize,
+                };
+
+                if earliest_sample.is_none()
+                    || timestamp < earliest_sample.as_ref().unwrap().0.timestamp
+                {
+                    earliest_sample = Some((sample, track_index));
+                }
+            }
+        }
+
+        // 最も早いサンプルを提供したトラックを進める
+        if let Some((sample, track_index)) = earliest_sample {
+            self.tracks[track_index].next_sample_index = self.tracks[track_index]
+                .next_sample_index
+                .checked_add(1)
+                .ok_or(DemuxError::DecodeError(Error::invalid_data(
+                    "sample index overflow",
+                )))?;
+            Ok(Some(sample))
+        } else {
+            Ok(None)
+        }
     }
 
     fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
