@@ -25,9 +25,9 @@ pub struct TrackInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct Sample {
+pub struct Sample<'a> {
     pub track_id: u32,
-    pub sample_entry: Option<SampleEntry>,
+    pub sample_entry: &'a SampleEntry,
     pub keyframe: bool,
     // NOTE:
     // `Duration` で表現するとタイムスケールの値によっては実際値と微妙にズレる可能性はあるが、
@@ -234,10 +234,10 @@ impl Mp4FileDemuxer {
         Ok(&self.track_infos)
     }
 
-    fn next_sample(&mut self) -> Result<Option<Sample>, DemuxError> {
+    pub fn next_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
         self.initialize_if_need()?;
 
-        let mut earliest_sample: Option<(Sample, usize)> = None;
+        let mut earliest_sample: Option<(Duration, usize)> = None;
 
         // 全トラックの中で最も早いタイムスタンプを持つサンプルを探す
         for (track_index, track) in self.tracks.iter().enumerate() {
@@ -246,36 +246,37 @@ impl Mp4FileDemuxer {
             };
             let timestamp =
                 Duration::from_secs(sample_accessor.timestamp()) / track.timescale.get();
-            if earliest_sample
-                .as_ref()
-                .is_some_and(|s| timestamp >= s.0.timestamp)
-            {
+            if earliest_sample.as_ref().is_some_and(|s| timestamp >= s.0) {
                 continue;
             }
 
-            let duration =
-                Duration::from_secs(sample_accessor.duration() as u64) / track.timescale.get();
+            earliest_sample = Some((timestamp, track_index));
+        }
 
+        // 最も早いサンプルを提供したトラックを進める
+        if let Some((timestamp, track_index)) = earliest_sample {
+            let track_id = self.tracks[track_index].track_id;
+            let sample_index = self.tracks[track_index].next_sample_index;
+            let timescale = self.tracks[track_index].timescale;
+            self.tracks[track_index].next_sample_index =
+                sample_index.checked_add(1).ok_or_else(|| {
+                    DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
+                })?;
+
+            let sample_accessor = self.tracks[track_index]
+                .table
+                .get_sample(sample_index)
+                .expect("bug");
+            let duration = Duration::from_secs(sample_accessor.duration() as u64) / timescale.get();
             let sample = Sample {
-                track_id: track.track_id,
-                sample_entry: Some(sample_accessor.chunk().sample_entry().clone()),
+                track_id,
+                sample_entry: sample_accessor.chunk().sample_entry(),
                 keyframe: sample_accessor.is_sync_sample(),
                 timestamp,
                 duration,
                 data_offset: sample_accessor.data_offset(),
                 data_size: sample_accessor.data_size() as usize,
             };
-            earliest_sample = Some((sample, track_index));
-        }
-
-        // 最も早いサンプルを提供したトラックを進める
-        if let Some((sample, track_index)) = earliest_sample {
-            self.tracks[track_index].next_sample_index = self.tracks[track_index]
-                .next_sample_index
-                .checked_add(1)
-                .ok_or_else(|| {
-                    DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
-                })?;
             Ok(Some(sample))
         } else {
             Ok(None)
@@ -297,19 +298,11 @@ impl Mp4FileDemuxer {
     }
 }
 
-impl Iterator for Mp4FileDemuxer {
-    type Item = Result<Sample, DemuxError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_sample().transpose()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn read_samples_from_file_data(file_data: &[u8]) -> (Vec<TrackInfo>, Vec<Sample>) {
+    fn read_tracks_from_file_data(file_data: &[u8]) -> Vec<TrackInfo> {
         let input = Input {
             position: 0,
             data: &file_data,
@@ -319,75 +312,73 @@ mod tests {
 
         let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
 
-        let samples: Vec<Sample> = demuxer
-            .collect::<Result<Vec<_>, _>>()
-            .expect("failed to read samples");
-
-        (tracks, samples)
-    }
-
-    #[test]
-    fn test_read_aac_audio_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/beep-aac-audio.mp4"));
-
-        assert!(!tracks.is_empty());
-        assert!(matches!(tracks[0].kind, TrackKind::Audio));
-        assert!(!samples.is_empty());
-
-        for sample in &samples {
+        let mut sample_count = 0;
+        let mut keyframe_count = 0;
+        while let Some(sample) = demuxer.next_sample().expect("failed to read samples") {
             assert!(sample.data_size > 0);
             assert!(sample.duration > Duration::ZERO);
+            sample_count += 1;
+            if sample.keyframe {
+                keyframe_count += 1;
+            }
         }
+        assert_ne!(sample_count, 0);
+        assert_ne!(keyframe_count, 0);
+
+        tracks
     }
 
     #[test]
-    fn test_read_opus_audio_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/beep-opus-audio.mp4"));
+    fn test_read_aac_audio() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/beep-aac-audio.mp4"));
 
-        assert!(!tracks.is_empty());
+        assert_eq!(tracks.len(), 1);
         assert!(matches!(tracks[0].kind, TrackKind::Audio));
-        assert!(!samples.is_empty());
     }
 
     #[test]
-    fn test_read_h264_video_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/black-h264-video.mp4"));
+    fn test_read_opus_audio() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/beep-opus-audio.mp4"));
 
-        assert!(!tracks.is_empty());
+        assert_eq!(tracks.len(), 1);
+        assert!(matches!(tracks[0].kind, TrackKind::Audio));
+    }
+
+    #[test]
+    fn test_read_h264_video() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/black-h264-video.mp4"));
+
+        assert_eq!(tracks.len(), 1);
         assert!(matches!(tracks[0].kind, TrackKind::Video));
-
-        let keyframe_count = samples.iter().filter(|s| s.keyframe).count();
-        assert!(keyframe_count > 0);
     }
 
     #[test]
-    fn test_read_h265_video_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/black-h265-video.mp4"));
+    fn test_read_h265_video() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/black-h265-video.mp4"));
 
-        assert!(!tracks.is_empty());
+        assert_eq!(tracks.len(), 1);
         assert!(matches!(tracks[0].kind, TrackKind::Video));
-        assert!(!samples.is_empty());
     }
 
     #[test]
-    fn test_read_vp9_video_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/black-vp9-video.mp4"));
+    fn test_read_vp9_video() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/black-vp9-video.mp4"));
 
-        assert!(!tracks.is_empty());
-        assert!(!samples.is_empty());
+        assert_eq!(tracks.len(), 1);
+        assert!(matches!(tracks[0].kind, TrackKind::Video));
     }
 
     #[test]
-    fn test_read_av1_video_samples() {
-        let (tracks, samples) =
-            read_samples_from_file_data(include_bytes!("../tests/testdata/black-av1-video.mp4"));
+    fn test_read_av1_video() {
+        let tracks =
+            read_tracks_from_file_data(include_bytes!("../tests/testdata/black-av1-video.mp4"));
 
-        assert!(!tracks.is_empty());
-        assert!(!samples.is_empty());
+        assert_eq!(tracks.len(), 1);
+        assert!(matches!(tracks[0].kind, TrackKind::Video));
     }
 }
