@@ -1991,6 +1991,59 @@ pub enum SampleEntry {
 }
 
 impl SampleEntry {
+    /// チャンネル数を取得する
+    ///
+    /// 音声の場合はチャンネル数、映像の場合は None を返す
+    pub fn audio_channel_count(&self) -> Option<u8> {
+        match self {
+            Self::Opus(b) => Some(b.audio.channelcount as u8),
+            Self::Mp4a(b) => Some(b.audio.channelcount as u8),
+            _ => None,
+        }
+    }
+
+    /// サンプリングレートを取得する
+    ///
+    /// 音声の場合はサンプリングレート、映像の場合は None を返す
+    ///
+    /// # NOTE
+    ///
+    /// このメソッドはサンプリングレートの整数部分のみを返し、小数部分は切り捨てられる。
+    /// ただし通常は、MP4 ファイルでは音声のサンプリングレートは常に整数値（例: 44100 Hz, 48000 Hz）であり、
+    /// 小数部分が 0 以外の値を持つことはないため、問題ないと想定している。
+    pub fn audio_sample_rate(&self) -> Option<u16> {
+        match self {
+            Self::Opus(b) => Some(b.audio.samplerate.integer),
+            Self::Mp4a(b) => Some(b.audio.samplerate.integer),
+            _ => None,
+        }
+    }
+
+    /// サンプルサイズ（ビット深度）を取得する
+    ///
+    /// 音声の場合はサンプルサイズ、映像の場合は None を返す
+    pub fn audio_sample_size(&self) -> Option<u16> {
+        match self {
+            Self::Opus(b) => Some(b.audio.samplesize),
+            Self::Mp4a(b) => Some(b.audio.samplesize),
+            _ => None,
+        }
+    }
+
+    /// 解像度を取得する
+    ///
+    /// 映像の場合は (幅, 高さ)、音声の場合は None を返す
+    pub fn video_resolution(&self) -> Option<(u32, u32)> {
+        match self {
+            Self::Avc1(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            Self::Hev1(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            Self::Vp08(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            Self::Vp09(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            Self::Av01(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            _ => None,
+        }
+    }
+
     fn inner_box(&self) -> &dyn BaseBox {
         match self {
             Self::Avc1(b) => b,
