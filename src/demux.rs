@@ -44,6 +44,21 @@ pub struct Input<'a> {
     pub data: &'a [u8],
 }
 
+impl<'a> Input<'a> {
+    fn slice_range(self, position: u64, size: Option<usize>) -> Option<&'a [u8]> {
+        let offset = position.checked_sub(self.position)? as usize;
+        if offset > self.data.len() {
+            return None;
+        }
+
+        if let Some(size) = size {
+            self.data.get(offset..offset + size)
+        } else {
+            Some(&self.data[offset..])
+        }
+    }
+}
+
 // TODO: private
 #[derive(Debug)]
 pub struct TrackState {
@@ -121,14 +136,11 @@ impl Mp4FileDemuxer {
     fn read_ftyp_box_header(&mut self, input: Input) -> Result<(), DemuxError> {
         assert!(matches!(self.phase, Phase::ReadFtypBoxHeader));
 
-        if input.position != 0 || input.data.len() < BoxHeader::MAX_SIZE {
-            return Err(DemuxError::need_input(
-                input.position,
-                Some(BoxHeader::MAX_SIZE),
-            ));
-        }
-
-        let (header, _header_size) = BoxHeader::decode(input.data)?;
+        let data_size = Some(BoxHeader::MAX_SIZE);
+        let Some(data) = input.slice_range(0, data_size) else {
+            return Err(DemuxError::need_input(0, data_size));
+        };
+        let (header, _header_size) = BoxHeader::decode(data)?;
         header.box_type.expect(FtypBox::TYPE)?;
 
         let box_size = Some(header.box_size.get() as usize).filter(|n| *n > 0);
@@ -140,11 +152,10 @@ impl Mp4FileDemuxer {
         let Phase::ReadFtypBox { box_size } = self.phase else {
             panic!("bug");
         };
-        if input.position != 0 || box_size.is_some_and(|n| input.data.len() < n) {
-            return Err(DemuxError::need_input(input.position, box_size));
-        }
-
-        let (_ftyp_box, ftyp_box_size) = FtypBox::decode(input.data)?;
+        let Some(data) = input.slice_range(0, box_size) else {
+            return Err(DemuxError::need_input(0, box_size));
+        };
+        let (_ftyp_box, ftyp_box_size) = FtypBox::decode(data)?;
         self.phase = Phase::ReadMoovBoxHeader {
             offset: ftyp_box_size as u64,
         };
@@ -156,11 +167,12 @@ impl Mp4FileDemuxer {
             panic!("bug");
         };
 
-        if input.position != offset || input.data.len() < BoxHeader::MAX_SIZE {
-            return Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)));
-        }
+        let data_size = Some(BoxHeader::MAX_SIZE);
+        let Some(data) = input.slice_range(offset, data_size) else {
+            return Err(DemuxError::need_input(offset, data_size));
+        };
 
-        let (header, _header_size) = BoxHeader::decode(input.data)?;
+        let (header, _header_size) = BoxHeader::decode(data)?;
         let box_size = Some(header.box_size.get()).filter(|n| *n > 0);
 
         if header.box_type != MoovBox::TYPE {
@@ -184,11 +196,10 @@ impl Mp4FileDemuxer {
             panic!("bug");
         };
 
-        if input.position != offset || box_size.is_some_and(|n| input.data.len() < n) {
+        let Some(data) = input.slice_range(offset, box_size) else {
             return Err(DemuxError::need_input(offset, box_size));
-        }
-
-        let (moov_box, _moov_box_size) = MoovBox::decode(input.data)?;
+        };
+        let (moov_box, _moov_box_size) = MoovBox::decode(data)?;
 
         for trak_box in moov_box.trak_boxes {
             let track_id = trak_box.tkhd_box.track_id;
