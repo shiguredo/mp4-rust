@@ -69,26 +69,24 @@ pub struct TrackInfo {
     /// トラックの種類
     pub kind: TrackKind,
 
-    /// トラックの尺
-    pub duration: Duration,
+    /// トラックの尺（タイムスケール単位）
+    pub timescaled_duration: u64,
+
+    /// トラックで使用されているタイムスケール
+    pub timescale: NonZeroU32,
+}
+
+impl TrackInfo {
+    /// トラックの尺を [`Duration`] 形式で返す
+    pub fn duration(&self) -> Duration {
+        Duration::from_secs(self.timescaled_duration) / self.timescale.get()
+    }
 }
 
 /// MP4 ファイルから抽出されたメディアサンプルを表す構造体
 ///
 /// この構造体は MP4 ファイル内の各サンプル（フレーム単位の音声または映像データ）の
 /// メタデータとデータ位置情報を保持する
-///
-/// # NOTE
-///
-/// サンプルのタイムスタンプと尺は、MP4 ファイル内ではトラックのタイムスケールに基づいた整数単位で格納されているが、
-/// このフィールドでは [`Duration`] で表現されている。
-///
-/// [`Duration`] の時間単位は固定的なものであるため、タイムスケールの値によっては
-/// 変換時に若干の誤差が生じる可能性がある。
-/// しかし実用上、通常はこの誤差は無視できる程度のものであるため、API の利便性を優先してこの設計としている。
-///
-/// もし誤差が許容できないユースケースの場合は、[`Mp4FileDemuxer`] は使用せずに、
-/// 直接ボックスを操作して、生のサンプルデータを取得することを推奨する。
 #[derive(Debug, Clone)]
 pub struct Sample<'a> {
     /// サンプルが属するトラックの ID
@@ -100,17 +98,32 @@ pub struct Sample<'a> {
     /// キーフレームであるかの判定
     pub keyframe: bool,
 
-    /// サンプルのタイムスタンプ
-    pub timestamp: Duration,
+    /// サンプルのタイムスケール
+    pub timescale: NonZeroU32,
 
-    /// サンプルの尺
-    pub duration: Duration,
+    /// サンプルのタイムスタンプ（タイムスケール単位）
+    pub timescaled_timestamp: u64,
+
+    /// サンプルの尺（タイムスケール単位）
+    pub timescaled_duration: u32,
 
     /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
 
     /// サンプルデータのサイズ（バイト単位）
     pub data_size: usize,
+}
+
+impl Sample<'_> {
+    /// サンプルのタイムスタンプを [`Duration`] 形式で返す
+    pub fn timestamp(&self) -> Duration {
+        Duration::from_secs(self.timescaled_timestamp) / self.timescale.get()
+    }
+
+    /// サンプルの尺を [`Duration`] 形式で返す
+    pub fn duration(&self) -> Duration {
+        Duration::from_secs(self.timescaled_duration as u64) / self.timescale.get()
+    }
 }
 
 /// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
@@ -362,19 +375,19 @@ impl Mp4FileDemuxer {
                 HdlrBox::HANDLER_TYPE_SOUN => TrackKind::Audio,
                 _ => continue,
             };
-            let timescale = trak_box.mdia_box.mdhd_box.timescale.get();
-            let duration = Duration::from_secs(trak_box.mdia_box.mdhd_box.duration) / timescale;
+            let timescale = trak_box.mdia_box.mdhd_box.timescale;
             let table = SampleTableAccessor::new(trak_box.mdia_box.minf_box.stbl_box)?;
             self.track_infos.push(TrackInfo {
                 track_id,
                 kind,
-                duration,
+                timescaled_duration: trak_box.mdia_box.mdhd_box.duration,
+                timescale,
             });
             self.tracks.push(TrackState {
                 track_id,
                 table,
                 next_sample_index: NonZeroU32::MIN,
-                timescale: trak_box.mdia_box.mdhd_box.timescale,
+                timescale,
             })
         }
 
@@ -421,7 +434,7 @@ impl Mp4FileDemuxer {
         }
 
         // 最も早いサンプルを提供したトラックを進める
-        if let Some((timestamp, track_index)) = earliest_sample {
+        if let Some((_timestamp, track_index)) = earliest_sample {
             let track_id = self.tracks[track_index].track_id;
             let sample_index = self.tracks[track_index].next_sample_index;
             let timescale = self.tracks[track_index].timescale;
@@ -434,13 +447,13 @@ impl Mp4FileDemuxer {
                 .table
                 .get_sample(sample_index)
                 .expect("bug");
-            let duration = Duration::from_secs(sample_accessor.duration() as u64) / timescale.get();
             let sample = Sample {
                 track_id,
                 sample_entry: sample_accessor.chunk().sample_entry(),
                 keyframe: sample_accessor.is_sync_sample(),
-                timestamp,
-                duration,
+                timescale,
+                timescaled_timestamp: sample_accessor.timestamp(),
+                timescaled_duration: sample_accessor.duration(),
                 data_offset: sample_accessor.data_offset(),
                 data_size: sample_accessor.data_size() as usize,
             };
