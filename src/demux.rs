@@ -38,7 +38,7 @@ pub struct Sample {
     pub data_size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Input<'a> {
     pub position: u64,
     pub data: &'a [u8],
@@ -108,7 +108,7 @@ impl Mp4FileDemuxer {
         }
     }
 
-    pub fn handle_input(&mut self, input: &Input) -> Result<(), DemuxError> {
+    pub fn handle_input(&mut self, input: Input) -> Result<(), DemuxError> {
         match self.phase {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
             Phase::ReadFtypBox { .. } => self.read_ftyp_box(input),
@@ -118,7 +118,7 @@ impl Mp4FileDemuxer {
         }
     }
 
-    fn read_ftyp_box_header(&mut self, input: &Input) -> Result<(), DemuxError> {
+    fn read_ftyp_box_header(&mut self, input: Input) -> Result<(), DemuxError> {
         assert!(matches!(self.phase, Phase::ReadFtypBoxHeader));
 
         if input.position != 0 || input.data.len() < BoxHeader::MAX_SIZE {
@@ -136,7 +136,7 @@ impl Mp4FileDemuxer {
         self.handle_input(input)
     }
 
-    fn read_ftyp_box(&mut self, input: &Input) -> Result<(), DemuxError> {
+    fn read_ftyp_box(&mut self, input: Input) -> Result<(), DemuxError> {
         let Phase::ReadFtypBox { box_size } = self.phase else {
             panic!("bug");
         };
@@ -151,7 +151,7 @@ impl Mp4FileDemuxer {
         self.handle_input(input)
     }
 
-    fn read_moov_box_header(&mut self, input: &Input) -> Result<(), DemuxError> {
+    fn read_moov_box_header(&mut self, input: Input) -> Result<(), DemuxError> {
         let Phase::ReadMoovBoxHeader { offset } = self.phase else {
             panic!("bug");
         };
@@ -179,7 +179,7 @@ impl Mp4FileDemuxer {
         self.handle_input(input)
     }
 
-    fn read_moov_box(&mut self, input: &Input) -> Result<(), DemuxError> {
+    fn read_moov_box(&mut self, input: Input) -> Result<(), DemuxError> {
         let Phase::ReadMoovBox { offset, box_size } = self.phase else {
             panic!("bug");
         };
@@ -311,9 +311,7 @@ mod tests {
             position: 0,
             data: &data,
         };
-        demuxer
-            .handle_input(&input)
-            .expect("failed to handle input");
+        demuxer.handle_input(input).expect("failed to handle input");
 
         let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
 
