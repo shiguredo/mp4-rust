@@ -214,17 +214,6 @@ impl Mp4FileDemuxer {
         Ok(&self.track_infos)
     }
 
-    pub fn seek(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
-        self.initialize_if_need()?;
-        todo!()
-    }
-
-    /// 指定のタイムスタンプ以下で、一番タイムスタンプが大きいキーフレームにシークする
-    pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
-        self.initialize_if_need()?;
-        todo!()
-    }
-
     fn next_sample(&mut self) -> Result<Option<Sample>, DemuxError> {
         self.initialize_if_need()?;
         todo!()
