@@ -41,9 +41,10 @@ pub struct Input<'a> {
     pub data: &'a [u8],
 }
 
+// TODO: private
 #[derive(Debug)]
 pub struct TrackState {
-    pub info: TrackInfo,
+    pub track_id: u32,
     pub table: SampleTableAccessor<StblBox>,
 }
 
@@ -88,6 +89,7 @@ enum Phase {
 #[derive(Debug)]
 pub struct Mp4FileDemuxer {
     phase: Phase,
+    track_infos: Vec<TrackInfo>,
     tracks: Vec<TrackState>,
 }
 
@@ -95,6 +97,7 @@ impl Mp4FileDemuxer {
     pub fn new() -> Self {
         Self {
             phase: Phase::ReadFtypBoxHeader,
+            track_infos: Vec::new(),
             tracks: Vec::new(),
         }
     }
@@ -181,34 +184,26 @@ impl Mp4FileDemuxer {
 
         let (moov_box, _moov_box_size) = MoovBox::decode(input.data)?;
 
-        self.tracks = moov_box
-            .trak_boxes
-            .into_iter()
-            .filter_map(|trak| {
-                let track_id = trak.tkhd_box.track_id;
-                let handler_type = trak.mdia_box.hdlr_box.handler_type;
-                let kind = match handler_type {
-                    HdlrBox::HANDLER_TYPE_VIDE => TrackKind::Video,
-                    HdlrBox::HANDLER_TYPE_SOUN => TrackKind::Audio,
-                    _ => return None,
-                };
-                let timescale = trak.mdia_box.mdhd_box.timescale.get();
-                let duration =
-                    Duration::from_secs(trak.mdia_box.mdhd_box.duration as u64) / timescale;
-
-                let table =
-                    SampleTableAccessor::new(trak.mdia_box.minf_box.stbl_box.clone()).ok()?;
-
-                Some(TrackState {
-                    info: TrackInfo {
-                        track_id,
-                        kind,
-                        duration,
-                    },
-                    table,
-                })
-            })
-            .collect();
+        for trak_box in moov_box.trak_boxes {
+            let track_id = trak_box.tkhd_box.track_id;
+            let kind = match trak_box.mdia_box.hdlr_box.handler_type {
+                HdlrBox::HANDLER_TYPE_VIDE => TrackKind::Video,
+                HdlrBox::HANDLER_TYPE_SOUN => TrackKind::Audio,
+                _ => continue,
+            };
+            let timescale = trak_box.mdia_box.mdhd_box.timescale.get();
+            let duration =
+                Duration::from_secs(trak_box.mdia_box.mdhd_box.duration as u64) / timescale;
+            let Ok(table) = SampleTableAccessor::new(trak_box.mdia_box.minf_box.stbl_box) else {
+                continue;
+            };
+            self.track_infos.push(TrackInfo {
+                track_id,
+                kind,
+                duration,
+            });
+            self.tracks.push(TrackState { track_id, table })
+        }
 
         self.phase = Phase::Initialized;
         Ok(())
@@ -216,7 +211,7 @@ impl Mp4FileDemuxer {
 
     pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
         self.initialize_if_need()?;
-        todo!()
+        Ok(&self.track_infos)
     }
 
     pub fn seek(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
