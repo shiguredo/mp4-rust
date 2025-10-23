@@ -496,7 +496,7 @@ mod tests {
         let mut keyframe_count = 0;
         while let Some(sample) = demuxer.next_sample().expect("failed to read samples") {
             assert!(sample.data_size > 0);
-            assert!(sample.duration > Duration::ZERO);
+            assert!(sample.duration() > Duration::ZERO);
             sample_count += 1;
             if sample.keyframe {
                 keyframe_count += 1;
