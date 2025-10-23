@@ -5,7 +5,7 @@ use core::time::Duration;
 use crate::{
     BoxHeader, Decode, Error,
     aux::SampleTableAccessor,
-    boxes::{FtypBox, MoovBox, SampleEntry, StblBox},
+    boxes::{FtypBox, HdlrBox, MoovBox, SampleEntry, StblBox},
 };
 
 #[derive(Debug, Clone)]
@@ -40,7 +40,8 @@ pub struct Input<'a> {
 
 #[derive(Debug)]
 pub struct TrackState {
-    table: SampleTableAccessor<StblBox>,
+    pub info: TrackInfo,
+    pub table: SampleTableAccessor<StblBox>,
 }
 
 #[derive(Debug)]
@@ -175,9 +176,36 @@ impl Mp4FileDemuxer {
             return Err(DemuxError::need_input(offset, box_size));
         }
 
-        let (_moov_box, _moov_box_size) = MoovBox::decode(input.data)?;
+        let (moov_box, _moov_box_size) = MoovBox::decode(input.data)?;
 
-        // TODO:
+        self.tracks = moov_box
+            .trak_boxes
+            .into_iter()
+            .filter_map(|trak| {
+                let track_id = trak.tkhd_box.track_id;
+                let handler_type = trak.mdia_box.hdlr_box.handler_type;
+                let kind = match handler_type {
+                    HdlrBox::HANDLER_TYPE_VIDE => TrackKind::Video,
+                    HdlrBox::HANDLER_TYPE_SOUN => TrackKind::Audio,
+                    _ => return None,
+                };
+                let timescale = trak.mdia_box.mdhd_box.timescale.get();
+                let duration =
+                    Duration::from_secs(trak.mdia_box.mdhd_box.duration as u64) / timescale;
+
+                let table =
+                    SampleTableAccessor::new(trak.mdia_box.minf_box.stbl_box.clone()).ok()?;
+
+                Some(TrackState {
+                    info: TrackInfo {
+                        track_id,
+                        kind,
+                        duration,
+                    },
+                    table,
+                })
+            })
+            .collect();
 
         self.phase = Phase::Initialized;
         Ok(())
