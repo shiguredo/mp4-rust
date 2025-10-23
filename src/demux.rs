@@ -46,7 +46,7 @@ use alloc::vec::Vec;
 
 use crate::{
     BoxHeader, Decode, Error,
-    aux::SampleTableAccessor,
+    aux::{SampleTableAccessor, SampleTableAccessorError},
     boxes::{FtypBox, HdlrBox, MoovBox, SampleEntry, StblBox},
 };
 
@@ -155,6 +155,9 @@ pub enum DemuxError {
     /// MP4 ボックスのデコード処理中に発生したエラー
     DecodeError(Error),
 
+    /// サンプルテーブル処理中に発生したエラー
+    SampleTableError(SampleTableAccessorError),
+
     /// ファイルデータの読み込みが必要なことを示すエラー
     ///
     /// このエラーが返された場合、呼び出し元は指定された位置とサイズのファイルデータを
@@ -185,6 +188,12 @@ impl From<Error> for DemuxError {
     }
 }
 
+impl From<SampleTableAccessorError> for DemuxError {
+    fn from(error: SampleTableAccessorError) -> Self {
+        DemuxError::SampleTableError(error)
+    }
+}
+
 impl core::fmt::Debug for DemuxError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{self}")
@@ -196,6 +205,9 @@ impl core::fmt::Display for DemuxError {
         match self {
             DemuxError::DecodeError(error) => {
                 write!(f, "Failed to decode MP4 box: {error}")
+            }
+            DemuxError::SampleTableError(error) => {
+                write!(f, "Sample table error: {error}")
             }
             DemuxError::NeedInput { position, size } => match size {
                 Some(s) => write!(f, "Need input data: {s} bytes at position {position}"),
@@ -211,10 +223,10 @@ impl core::fmt::Display for DemuxError {
 #[cfg(feature = "std")]
 impl std::error::Error for DemuxError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let DemuxError::DecodeError(error) = self {
-            Some(error)
-        } else {
-            None
+        match self {
+            DemuxError::DecodeError(error) => Some(error),
+            DemuxError::SampleTableError(error) => Some(error),
+            _ => None,
         }
     }
 }
@@ -234,7 +246,6 @@ enum Phase {
     },
     Initialized,
 }
-
 /// MP4 ファイルをデマルチプレックスして、メディアサンプルを取得するための構造体
 ///
 /// この構造体は段階的にファイルデータを処理し、複数のメディアトラックから
@@ -353,9 +364,7 @@ impl Mp4FileDemuxer {
             };
             let timescale = trak_box.mdia_box.mdhd_box.timescale.get();
             let duration = Duration::from_secs(trak_box.mdia_box.mdhd_box.duration) / timescale;
-            let Ok(table) = SampleTableAccessor::new(trak_box.mdia_box.minf_box.stbl_box) else {
-                continue;
-            };
+            let table = SampleTableAccessor::new(trak_box.mdia_box.minf_box.stbl_box)?;
             self.track_infos.push(TrackInfo {
                 track_id,
                 kind,
