@@ -2,6 +2,43 @@
 //!
 //! このモジュールは、MP4ファイルに含まれる複数のメディアトラック（音声・映像）から
 //! 時系列順にサンプルを抽出するための機能を提供する。
+//!
+//! # Examples
+//!
+//! MP4 ファイル全体をメモリに読み込んでデマルチプレックスする例：
+//!
+//! ```no_run
+//! use shiguredo_mp4::demux::{Mp4FileDemuxer, Input};
+//!
+//! // MP4 ファイル全体をメモリに読み込む
+//! let file_data = std::fs::read("sample.mp4").expect("ファイル読み込み失敗");
+//!
+//! // デマルチプレックス処理を初期化し、ファイルデータ全体を提供する
+//! let mut demuxer = Mp4FileDemuxer::new();
+//! let input = Input {
+//!     position: 0,
+//!     data: &file_data,
+//! };
+//! demuxer.handle_input(input).expect("ファイル処理失敗");
+//!
+//! // トラック情報を取得する
+//! let tracks = demuxer.tracks().expect("トラック取得失敗");
+//! println!("{}個のトラックが見つかりました", tracks.len());
+//! for track in tracks {
+//!     println!("トラックID: {}, 種類: {:?}, 尺: {:?}",
+//!              track.track_id, track.kind, track.duration);
+//! }
+//!
+//! // 時系列順にサンプルを抽出する
+//! while let Some(sample) = demuxer.next_sample().expect("サンプル読み込み失敗") {
+//!     println!("サンプル - トラックID: {}, タイムスタンプ: {:?}, サイズ: {} バイト",
+//!              sample.track_id, sample.timestamp, sample.data_size);
+//!     // sample.data_offset の位置から sample.data_size バイトのサンプルデータにアクセス
+//!     let sample_data = &file_data[sample.data_offset as usize..
+//!                                   sample.data_offset as usize + sample.data_size];
+//!     // sample_data を処理...
+//! }
+//! ```
 use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
