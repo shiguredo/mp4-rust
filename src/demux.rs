@@ -100,7 +100,7 @@ impl Mp4FileDemuxer {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
             Phase::ReadFtypBox { .. } => self.read_ftyp_box(input),
             Phase::ReadMoovBoxHeader { .. } => self.read_moov_box_header(input),
-            Phase::ReadMoovBox { .. } => todo!(),
+            Phase::ReadMoovBox { .. } => self.read_moov_box(input),
             Phase::Initialized => Ok(()),
         }
     }
@@ -166,16 +166,36 @@ impl Mp4FileDemuxer {
         self.handle_input(input)
     }
 
-    pub fn tracks(&self) -> Result<&[TrackInfo], DemuxError> {
+    fn read_moov_box(&mut self, input: &Input) -> Result<(), DemuxError> {
+        let Phase::ReadMoovBox { offset, box_size } = self.phase else {
+            panic!("bug");
+        };
+
+        if input.position != offset || box_size.is_some_and(|n| input.data.len() < n) {
+            return Err(DemuxError::need_input(offset, box_size));
+        }
+
+        let (_moov_box, _moov_box_size) = MoovBox::decode(input.data)?;
+
+        // TODO:
+
+        self.phase = Phase::Initialized;
+        Ok(())
+    }
+
+    pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
+        self.initialize_if_need()?;
         todo!()
     }
 
     pub fn seek(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
+        self.initialize_if_need()?;
         todo!()
     }
 
     /// 指定のタイムスタンプ以下で、一番タイムスタンプが大きいキーフレームにシークする
     pub fn seek_to_keyframe(&mut self, _timestamp: Duration) -> Result<(), DemuxError> {
+        self.initialize_if_need()?;
         todo!()
     }
 
@@ -191,7 +211,9 @@ impl Mp4FileDemuxer {
             Phase::ReadMoovBoxHeader { offset } => {
                 Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)))
             }
-            Phase::ReadMoovBox { .. } => todo!(),
+            Phase::ReadMoovBox { offset, box_size } => {
+                Err(DemuxError::need_input(offset, box_size))
+            }
             Phase::Initialized => Ok(()),
         }
     }
