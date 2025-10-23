@@ -10,8 +10,8 @@ mod basic_types;
 pub mod boxes;
 mod codec;
 pub mod demux;
-pub mod mux;
 pub mod descriptors;
+pub mod mux;
 
 pub use basic_types::{
     BaseBox, BoxHeader, BoxSize, BoxType, Either, FixedPointNumber, FullBox, FullBoxFlags,
