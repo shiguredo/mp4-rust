@@ -68,8 +68,16 @@ impl From<Error> for DemuxError {
 #[derive(Debug, Clone, Copy)]
 enum Phase {
     ReadFtypBoxHeader,
-    ReadFtypBox { box_size: Option<usize> },
-    ReadMoovBoxHeader { offset: u64 },
+    ReadFtypBox {
+        box_size: Option<usize>,
+    },
+    ReadMoovBoxHeader {
+        offset: u64,
+    },
+    ReadMoovBox {
+        offset: u64,
+        box_size: Option<usize>,
+    },
     Initialized,
 }
 
@@ -92,6 +100,7 @@ impl Mp4FileDemuxer {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
             Phase::ReadFtypBox { .. } => self.read_ftyp_box(input),
             Phase::ReadMoovBoxHeader { .. } => self.read_moov_box_header(input),
+            Phase::ReadMoovBox { .. } => todo!(),
             Phase::Initialized => Ok(()),
         }
     }
@@ -139,9 +148,16 @@ impl Mp4FileDemuxer {
         }
 
         let (header, _header_size) = BoxHeader::decode(input.data)?;
-        header.box_type.expect(MoovBox::TYPE)?;
+        let box_size = Some(header.box_size.get()).filter(|n| *n > 0);
 
-        let box_size = Some(header.box_size.get() as usize).filter(|n| *n > 0);
+        if header.box_type != MoovBox::TYPE {
+            let Some(box_size) = box_size else {
+                todo!("return not found error");
+            };
+            let offset = offset + box_size;
+            self.phase = Phase::ReadMoovBoxHeader { offset };
+            return Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)));
+        }
 
         // TODO: Transition to reading the moov box content
         // For now, mark as initialized
@@ -174,6 +190,7 @@ impl Mp4FileDemuxer {
             Phase::ReadMoovBoxHeader { offset } => {
                 Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)))
             }
+            Phase::ReadMoovBox { .. } => todo!(),
             Phase::Initialized => Ok(()),
         }
     }
