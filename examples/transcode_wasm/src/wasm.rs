@@ -71,12 +71,12 @@ impl WebCodec {
     pub fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
 
-        let mut description = Vec::new();
-        config
+        let mut description = [0; 1024]; // 十分なサイズのバッファを用意しておく
+        let encoded_size = config
             .avcc_box
             .encode(&mut description)
             .expect("unreachable");
-        description.drain(..8); // ボックスヘッダ部分を取り除く
+        let description = description[8..encoded_size].to_vec(); // ボックスヘッダ部分は取り除いて Vec にする
 
         let config = VideoDecoderConfig {
             codec: format!(
