@@ -29,6 +29,9 @@ pub struct Sample {
     pub track_id: u32,
     pub sample_entry: Option<SampleEntry>,
     pub keyframe: bool,
+    // NOTE:
+    // `Duration` で表現するとタイムスケールの値によっては実際値と微妙にズレる可能性はあるが、
+    // 実用上はまず問題がないはずなので、利便性を考慮して今の実装にしている
     pub timestamp: Duration,
     pub duration: Duration,
     pub data_offset: u64,
@@ -47,6 +50,7 @@ pub struct TrackState {
     pub track_id: u32,
     pub table: SampleTableAccessor<StblBox>,
     next_sample_index: NonZeroU32,
+    timescale: NonZeroU32,
 }
 
 #[derive(Debug)]
@@ -207,6 +211,7 @@ impl Mp4FileDemuxer {
                 track_id,
                 table,
                 next_sample_index: NonZeroU32::MIN,
+                timescale: trak_box.mdia_box.mdhd_box.timescale,
             })
         }
 
@@ -227,8 +232,10 @@ impl Mp4FileDemuxer {
         // 全トラックの中で最も早いタイムスタンプを持つサンプルを探す
         for (track_index, track) in self.tracks.iter().enumerate() {
             if let Some(sample_accessor) = track.table.get_sample(track.next_sample_index) {
-                let timestamp = Duration::from_secs(sample_accessor.timestamp());
-                let duration = Duration::from_secs(sample_accessor.duration() as u64);
+                let timestamp =
+                    Duration::from_secs(sample_accessor.timestamp()) / track.timescale.get();
+                let duration =
+                    Duration::from_secs(sample_accessor.duration() as u64) / track.timescale.get();
 
                 let sample = Sample {
                     track_id: track.track_id,
