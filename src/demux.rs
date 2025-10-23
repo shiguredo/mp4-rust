@@ -87,6 +87,7 @@ enum Phase {
 }
 
 #[derive(Debug)]
+#[expect(clippy::new_without_default)]
 pub struct Mp4FileDemuxer {
     phase: Phase,
     track_infos: Vec<TrackInfo>,
@@ -192,8 +193,7 @@ impl Mp4FileDemuxer {
                 _ => continue,
             };
             let timescale = trak_box.mdia_box.mdhd_box.timescale.get();
-            let duration =
-                Duration::from_secs(trak_box.mdia_box.mdhd_box.duration as u64) / timescale;
+            let duration = Duration::from_secs(trak_box.mdia_box.mdhd_box.duration) / timescale;
             let Ok(table) = SampleTableAccessor::new(trak_box.mdia_box.minf_box.stbl_box) else {
                 continue;
             };
