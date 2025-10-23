@@ -2,6 +2,9 @@
 
 use core::time::Duration;
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::{
     BoxHeader, Decode, Error,
     aux::SampleTableAccessor,
