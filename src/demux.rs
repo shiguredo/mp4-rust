@@ -183,11 +183,10 @@ impl Mp4FileDemuxer {
             };
             let offset = offset + box_size;
             self.phase = Phase::ReadMoovBoxHeader { offset };
-            return Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)));
+        } else {
+            let box_size = box_size.map(|n| n as usize);
+            self.phase = Phase::ReadMoovBox { offset, box_size };
         }
-
-        let box_size = box_size.map(|n| n as usize);
-        self.phase = Phase::ReadMoovBox { offset, box_size };
         self.handle_input(input)
     }
 
