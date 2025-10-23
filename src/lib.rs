@@ -10,6 +10,7 @@ mod basic_types;
 pub mod boxes;
 mod codec;
 pub mod demux;
+pub mod mux;
 pub mod descriptors;
 
 pub use basic_types::{
