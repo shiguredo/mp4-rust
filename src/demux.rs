@@ -152,17 +152,18 @@ impl Mp4FileDemuxer {
 
         if header.box_type != MoovBox::TYPE {
             let Some(box_size) = box_size else {
-                todo!("return not found error");
+                return Err(DemuxError::DecodeError(Error::invalid_data(
+                    "moov box not found",
+                )));
             };
             let offset = offset + box_size;
             self.phase = Phase::ReadMoovBoxHeader { offset };
             return Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)));
         }
 
-        // TODO: Transition to reading the moov box content
-        // For now, mark as initialized
-        self.phase = Phase::Initialized;
-        Ok(())
+        let box_size = box_size.map(|n| n as usize);
+        self.phase = Phase::ReadMoovBox { offset, box_size };
+        self.handle_input(input)
     }
 
     pub fn tracks(&self) -> Result<&[TrackInfo], DemuxError> {
