@@ -144,17 +144,8 @@ pub trait Encode {
     fn encode(&self, buf: &mut [u8]) -> Result<usize>;
 
     /// `self` をバイト列に変換して、変換後のバイト列を返す
-    ///
-    /// # NOTE
-    ///
-    /// エンコード後のサイズが 256 MB を超える場合には、このメソッドはエラーを返すので、
-    /// そのような場合は、自前でバッファ管理を行なった上で [`Encode::encode()`] を使用すること
     fn encode_to_vec(&self) -> Result<Vec<u8>> {
-        const INITIAL_CAPACITY: usize = 256;
-        const MAX_SIZE: usize = 256 * 1024 * 1024; // 256 MB
-
-        let mut buf = vec![0; INITIAL_CAPACITY];
-
+        let mut buf = vec![0; 256];
         loop {
             match self.encode(&mut buf) {
                 Ok(size) => {
@@ -162,15 +153,7 @@ pub trait Encode {
                     return Ok(buf);
                 }
                 Err(e) if e.kind == ErrorKind::InsufficientBuffer => {
-                    let new_size = buf.len().saturating_mul(2);
-
-                    // 最大サイズチェック：無限ループと過度なメモリ使用を防止
-                    if new_size > MAX_SIZE {
-                        return Err(Error::invalid_data(format!(
-                            "Encoded data size exceeds maximum limit of {MAX_SIZE} bytes"
-                        )));
-                    }
-
+                    let new_size = buf.len().checked_mul(2).ok_or(e)?;
                     buf.resize(new_size, 0);
                 }
                 Err(e) => return Err(e),

@@ -195,8 +195,7 @@ impl Transcoder {
     pub fn build_output_mp4_file(&mut self) -> orfail::Result<()> {
         let builder = OutputMp4Builder::new(std::mem::take(&mut self.output_tracks));
         let mp4 = builder.build().or_fail()?;
-        self.output_mp4.clear();
-        mp4.encode(&mut self.output_mp4).or_fail()?;
+        self.output_mp4 = mp4.encode_to_vec().or_fail()?;
         Ok(())
     }
 
