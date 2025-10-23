@@ -59,11 +59,10 @@ impl<'a> Input<'a> {
     }
 }
 
-// TODO: private
 #[derive(Debug)]
-pub struct TrackState {
-    pub track_id: u32,
-    pub table: SampleTableAccessor<StblBox>,
+struct TrackState {
+    track_id: u32,
+    table: SampleTableAccessor<StblBox>,
     next_sample_index: NonZeroU32,
     timescale: NonZeroU32,
 }
