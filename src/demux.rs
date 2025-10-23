@@ -87,7 +87,6 @@ enum Phase {
 }
 
 #[derive(Debug)]
-#[expect(clippy::new_without_default)]
 pub struct Mp4FileDemuxer {
     phase: Phase,
     track_infos: Vec<TrackInfo>,
@@ -95,6 +94,7 @@ pub struct Mp4FileDemuxer {
 }
 
 impl Mp4FileDemuxer {
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             phase: Phase::ReadFtypBoxHeader,
