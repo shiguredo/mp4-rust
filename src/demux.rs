@@ -1,3 +1,7 @@
+//! MP4 ファイルのデマルチプレックス（分離）機能を提供するモジュール
+//!
+//! このモジュールは、MP4ファイルに含まれる複数のメディアトラック（音声・映像）から
+//! 時系列順にサンプルを抽出するための機能を提供する。
 #![allow(missing_docs)]
 
 use core::{num::NonZeroU32, time::Duration};
@@ -11,30 +15,66 @@ use crate::{
     boxes::{FtypBox, HdlrBox, MoovBox, SampleEntry, StblBox},
 };
 
-#[derive(Debug, Clone)]
+/// メディアトラックの種類を表す列挙型
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TrackKind {
+    /// 音声トラック
     Audio,
+
+    /// 映像トラック
     Video,
 }
 
-#[derive(Debug, Clone)]
+/// メディアトラックの情報を表す構造体
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TrackInfo {
+    /// トラックID
     pub track_id: u32,
+
+    /// トラックの種類
     pub kind: TrackKind,
+
+    /// トラックの尺
     pub duration: Duration,
 }
 
+/// MP4 ファイルから抽出されたメディアサンプルを表す構造体
+///
+/// この構造体は MP4 ファイル内の各サンプル（フレーム単位の音声または映像データ）の
+/// メタデータとデータ位置情報を保持する
+///
+/// # NOTE
+///
+/// サンプルのタイムスタンプと尺は、MP4 ファイル内ではトラックのタイムスケールに基づいた整数単位で格納されているが、
+/// このフィールドでは [`Duration`] で表現されている。
+///
+/// [`Duration`] の時間単位は固定的なものであるため、タイムスケールの値によっては
+/// 変換時に若干の誤差が生じる可能性がある。
+/// しかし実用上、通常はこの誤差は無視できる程度のものであるため、API の利便性を優先してこの設計としている。
+///
+/// もし誤差が許容できないユースケースの場合は、[`Mp4FileDemuxer`] は使用せずに、
+/// 直接ボックスを操作して、生のサンプルデータを取得することを推奨する。
 #[derive(Debug, Clone)]
 pub struct Sample<'a> {
+    /// サンプルが属するトラックの ID
     pub track_id: u32,
+
+    /// サンプルの詳細情報
     pub sample_entry: &'a SampleEntry,
+
+    /// キーフレームであるかの判定
     pub keyframe: bool,
-    // NOTE:
-    // `Duration` で表現するとタイムスケールの値によっては実際値と微妙にズレる可能性はあるが、
-    // 実用上はまず問題がないはずなので、利便性を考慮して今の実装にしている
+
+    /// サンプルのタイムスタンプ
     pub timestamp: Duration,
+
+    /// サンプルの尺
     pub duration: Duration,
+
+    /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
+
+    /// サンプルデータのサイズ（バイト単位）
     pub data_size: usize,
 }
 
