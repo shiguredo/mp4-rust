@@ -3,13 +3,13 @@ use std::{num::NonZeroU32, time::Duration};
 use orfail::OrFail;
 use serde::Serialize;
 use shiguredo_mp4::{
+    Decode, Either, Encode, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
     aux::SampleTableAccessor,
     boxes::{
         Brand, DinfBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox, MvhdBox,
         RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
         StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
-    Decode, Either, Encode, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
 };
 
 // 出力側はマイクロ秒に決め打ち

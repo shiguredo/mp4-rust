@@ -1,8 +1,8 @@
 use std::{
     collections::VecDeque,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -14,11 +14,11 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Encode, Uint,
     boxes::{
         Av01Box, Av1cBox, Avc1Box, AvccBox, Hev1Box, HvccBox, SampleEntry, VisualSampleEntryFields,
         Vp08Box, Vp09Box, VpccBox,
     },
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Encode, Uint,
 };
 
 use crate::{

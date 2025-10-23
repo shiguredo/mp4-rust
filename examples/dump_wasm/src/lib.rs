@@ -1,5 +1,5 @@
 use serde::Serialize;
-use shiguredo_mp4::{boxes::RootBox, BaseBox, Decode, Mp4File};
+use shiguredo_mp4::{BaseBox, Decode, Mp4File, boxes::RootBox};
 
 #[derive(Debug, Serialize)]
 struct BoxInfo {
