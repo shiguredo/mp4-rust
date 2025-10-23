@@ -294,3 +294,92 @@ impl Iterator for Mp4FileDemuxer {
         self.next_sample().transpose()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load_test_file(path: &str) -> Vec<u8> {
+        std::fs::read(path).expect("failed to read test file")
+    }
+
+    fn read_samples_from_file(path: &str) -> (Vec<TrackInfo>, Vec<Sample>) {
+        let data = load_test_file(path);
+        let mut demuxer = Mp4FileDemuxer::new();
+
+        let input = Input {
+            position: 0,
+            data: &data,
+        };
+        demuxer
+            .handle_input(&input)
+            .expect("failed to handle input");
+
+        let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
+
+        let samples: Vec<Sample> = demuxer
+            .collect::<Result<Vec<_>, _>>()
+            .expect("failed to read samples");
+
+        (tracks, samples)
+    }
+
+    #[test]
+    fn test_read_aac_audio_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/beep-aac-audio.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(matches!(tracks[0].kind, TrackKind::Audio));
+        assert!(!samples.is_empty());
+
+        for sample in &samples {
+            assert!(sample.data_size > 0);
+            assert!(sample.duration > Duration::ZERO);
+        }
+    }
+
+    #[test]
+    fn test_read_opus_audio_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/beep-opus-audio.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(matches!(tracks[0].kind, TrackKind::Audio));
+        assert!(!samples.is_empty());
+    }
+
+    #[test]
+    fn test_read_h264_video_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/black-h264-video.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(matches!(tracks[0].kind, TrackKind::Video));
+
+        let keyframe_count = samples.iter().filter(|s| s.keyframe).count();
+        assert!(keyframe_count > 0);
+    }
+
+    #[test]
+    fn test_read_h265_video_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/black-h265-video.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(matches!(tracks[0].kind, TrackKind::Video));
+        assert!(!samples.is_empty());
+    }
+
+    #[test]
+    fn test_read_vp9_video_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/black-vp9-video.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(!samples.is_empty());
+    }
+
+    #[test]
+    fn test_read_av1_video_samples() {
+        let (tracks, samples) = read_samples_from_file("tests/testdata/black-av1-video.mp4");
+
+        assert!(!tracks.is_empty());
+        assert!(!samples.is_empty());
+    }
+}
