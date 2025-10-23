@@ -2,8 +2,6 @@
 //!
 //! このモジュールは、MP4ファイルに含まれる複数のメディアトラック（音声・映像）から
 //! 時系列順にサンプルを抽出するための機能を提供する。
-#![allow(missing_docs)]
-
 use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
@@ -78,9 +76,17 @@ pub struct Sample<'a> {
     pub data_size: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+/// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
+///
+/// [`Mp4FileDemuxer`] 自体は I/O 操作を行わず、各メソッドで I/O 操作が必要になった場合には、
+/// [`DemuxError::NeedInput`] を通して呼び出し元への要求が発行される。
+/// この構造体は、その要求をうけた呼び出し元が I/O 操作の結果を [`Mp4FileDemuxer`] に伝えるために使用される。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Input<'a> {
+    /// バッファ内のデータがファイル内で始まる位置（バイト単位）
     pub position: u64,
+
+    /// ファイルデータのバッファ
     pub data: &'a [u8],
 }
 
@@ -107,12 +113,25 @@ struct TrackState {
     timescale: NonZeroU32,
 }
 
-#[derive(Debug)]
+/// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
 pub enum DemuxError {
+    /// MP4 ボックスのデコード処理中に発生したエラー
     DecodeError(Error),
+
+    /// ファイルデータの読み込みが必要なことを示すエラー
+    ///
+    /// このエラーが返された場合、呼び出し元は指定された位置とサイズのファイルデータを
+    /// 読み込み、[`Mp4FileDemuxer::handle_input()`] に渡す必要がある。
     NeedInput {
+        /// 必要なデータの開始位置（バイト単位）
         position: u64,
-        // None はファイルの末尾までを意味する
+
+        /// 必要なデータのサイズ（バイト単位）
+        ///
+        /// `None` はファイルの末尾までを意味する
+        ///
+        /// なお、ここで指定されたサイズよりも大きいデータを
+        /// [`Mp4FileDemuxer::handle_input()`] に渡しても問題はない
         size: Option<usize>,
     },
 }
@@ -126,6 +145,40 @@ impl DemuxError {
 impl From<Error> for DemuxError {
     fn from(error: Error) -> Self {
         DemuxError::DecodeError(error)
+    }
+}
+
+impl core::fmt::Debug for DemuxError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl core::fmt::Display for DemuxError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DemuxError::DecodeError(error) => {
+                write!(f, "Failed to decode MP4 box: {error}")
+            }
+            DemuxError::NeedInput { position, size } => match size {
+                Some(s) => write!(f, "Need input data: {s} bytes at position {position}"),
+                None => write!(
+                    f,
+                    "Need input data: from position {position} to end of file",
+                ),
+            },
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for DemuxError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        if let DemuxError::DecodeError(error) = self {
+            Some(error)
+        } else {
+            None
+        }
     }
 }
 
@@ -145,6 +198,13 @@ enum Phase {
     Initialized,
 }
 
+/// MP4 ファイルをデマルチプレックスして、メディアサンプルを取得するための構造体
+///
+/// この構造体は段階的にファイルデータを処理し、複数のメディアトラックから
+/// 時系列順にサンプルを抽出する機能を提供する。
+///
+/// なお、この構造体自体は I/O 操作は行わないため、
+/// ファイル読み込みなどを必要に応じて行うのは利用側の責務となっている。
 #[derive(Debug)]
 pub struct Mp4FileDemuxer {
     phase: Phase,
@@ -153,6 +213,7 @@ pub struct Mp4FileDemuxer {
 }
 
 impl Mp4FileDemuxer {
+    /// 新しい [`Mp4FileDemuxer`] インスタンスを生成する
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -162,6 +223,11 @@ impl Mp4FileDemuxer {
         }
     }
 
+    /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
+    ///
+    /// さらなるデータの読み込みが必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
+    /// 再度このメソッドを呼び出す必要がある。
     pub fn handle_input(&mut self, input: Input) -> Result<(), DemuxError> {
         match self.phase {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
@@ -268,11 +334,25 @@ impl Mp4FileDemuxer {
         Ok(())
     }
 
+    /// MP4 ファイル内のすべてのメディアトラック情報を取得する
+    ///
+    /// なお、トラック情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
+    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
         self.initialize_if_need()?;
         Ok(&self.track_infos)
     }
 
+    /// 時系列順に次のサンプルを取得する
+    ///
+    /// すべてのトラックから、まだ取得していないものの中で、
+    /// 最も早いタイムスタンプを持つサンプルを返す。
+    /// サンプルが存在しない場合は `None` が返される。
+    ///
+    /// なお、次のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
+    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn next_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
         self.initialize_if_need()?;
 
