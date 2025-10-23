@@ -78,6 +78,11 @@ pub struct TrackInfo {
 
 impl TrackInfo {
     /// トラックの尺を [`Duration`] 形式で返す
+    ///
+    /// # NOTE
+    ///
+    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
+    /// もしそれが問題となる場合は `timescaled_duration` および `timescale` フィールドを直接参照すること
     pub fn duration(&self) -> Duration {
         Duration::from_secs(self.timescaled_duration) / self.timescale.get()
     }
@@ -99,6 +104,8 @@ pub struct Sample<'a> {
     pub keyframe: bool,
 
     /// サンプルのタイムスケール
+    ///
+    /// これは対応するトラックの [`TrackInfo::timescale`] と同じ値となる
     pub timescale: NonZeroU32,
 
     /// サンプルのタイムスタンプ（タイムスケール単位）
@@ -116,11 +123,21 @@ pub struct Sample<'a> {
 
 impl Sample<'_> {
     /// サンプルのタイムスタンプを [`Duration`] 形式で返す
+    ///
+    /// # NOTE
+    ///
+    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
+    /// もしそれが問題となる場合は `timescaled_timestamp` および `timescale` フィールドを直接参照すること
     pub fn timestamp(&self) -> Duration {
         Duration::from_secs(self.timescaled_timestamp) / self.timescale.get()
     }
 
     /// サンプルの尺を [`Duration`] 形式で返す
+    ///
+    /// # NOTE
+    ///
+    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
+    /// もしそれが問題となる場合は `timescaled_duration` および `timescale` フィールドを直接参照すること
     pub fn duration(&self) -> Duration {
         Duration::from_secs(self.timescaled_duration as u64) / self.timescale.get()
     }
