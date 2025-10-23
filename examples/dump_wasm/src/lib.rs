@@ -21,7 +21,7 @@ impl BoxInfo {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn dump(bytes: *const u8, bytes_len: i32) -> *mut Vec<u8> {
     let bytes = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
@@ -37,24 +37,24 @@ pub fn dump(bytes: *const u8, bytes_len: i32) -> *mut Vec<u8> {
     Box::into_raw(Box::new(json.into_bytes()))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn vec_offset(v: *mut Vec<u8>) -> *mut u8 {
     unsafe { &mut *v }.as_mut_ptr()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn vec_len(v: *mut Vec<u8>) -> i32 {
     unsafe { &*v }.len() as i32
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn allocate_vec(len: i32) -> *mut Vec<u8> {
     Box::into_raw(Box::new(vec![0; len as usize]))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::not_unsafe_ptr_arg_deref)]
 pub fn free_vec(v: *mut Vec<u8>) {
     let _ = unsafe { Box::from_raw(v) };
