@@ -8,19 +8,24 @@
 //! 基本的なワークフロー例：
 //!
 //! ```no_run
+//! use std::fs::File;
+//! use std::io::{Write, Seek, SeekFrom};
 //! use std::time::Duration;
 //!
-//! use shiguredo_mp4::mux::{Mp4FileMuxer, Mp4FileMuxerOptions, Sample};
-//! use shiguredo_mp4::{TrackKind, boxes::Avc1Box};
+//! use shiguredo_mp4::mux::{Mp4FileMuxer, Sample};
+//! use shiguredo_mp4::TrackKind;
 //!
-//! # fn main() -> Result<(), shiguredo_mp4::mux::MuxError> {
-//! let mut muxer = Mp4FileMuxer::new().expect("マルチプレックス初期化失敗");
+//! # fn main() -> Result<(), Box<dyn 'static + std::error::Error>> {
+//! let mut muxer = Mp4FileMuxer::new()?;
 //!
 //! // 初期ボックスバイトを出力に書きこむ
 //! let initial_bytes = muxer.initial_boxes_bytes();
-//! // ファイルに initial_bytes を書きこむ
+//! let mut file = File::create("output.mp4")?;
+//! file.write_all(initial_bytes)?;
 //!
 //! // サンプルを追加
+//! let sample_data = vec![0; 1024];
+//! file.write_all(&sample_data)?;
 //! let sample_entry = todo!("使用するコーデックに合わせたサンプルエントリーを構築する");
 //! let sample = Sample {
 //!     track_kind: TrackKind::Video,
@@ -28,14 +33,18 @@
 //!     keyframe: true,
 //!     duration: Duration::from_millis(33),
 //!     data_offset: initial_bytes.len() as u64,
-//!     data_size: 1024,
+//!     data_size: sample_data.len(),
 //! };
-//! muxer.append_sample(&sample).expect("サンプル追加失敗");
+//! muxer.append_sample(&sample)?;
 //!
 //! // マルチプレックス処理を完了
-//! let finalized = muxer.finalize().expect("ファイナライズ失敗");
-//! // finalized.moov_box_offset と finalized.moov_box_bytes を使用して
-//! // ファイルに moov ボックスを書きこむ
+//! let finalized = muxer.finalize()?;
+//!
+//! // ファイナライズ後のボックス情報を書きこむ
+//! for (offset, bytes) in finalized.offset_and_bytes_pairs() {
+//!     file.seek(SeekFrom::Start(offset))?;
+//!     file.write_all(bytes)?;
+//! }
 //! # Ok(())
 //! # }
 //! ```
