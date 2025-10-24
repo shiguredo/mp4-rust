@@ -1,11 +1,13 @@
 #![expect(missing_docs, dead_code)]
 
-use core::num::NonZeroU32;
+use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-use crate::Error;
+use crate::{Error, boxes::SampleEntry};
+
+pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
 
 /// メディアトラックの種類を表す列挙型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -17,20 +19,10 @@ pub enum TrackKind {
     Video,
 }
 
-/// メディアトラックの情報を表す構造体
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TrackInfo {
-    /// トラックの種類
-    pub kind: TrackKind,
-
-    /// トラックで使用されているタイムスケール
-    pub timescale: NonZeroU32,
-}
-
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {
-    pub audio_track: bool, // TODO: Option<TrackInfo>,
-    pub video_track: bool, // TODO: Option<TrackInfo>,
+    pub audio_track: bool, // TODO: remove
+    pub video_track: bool, // TODO: remove
     pub reserved_moov_box_size: usize,
 }
 
@@ -46,6 +38,10 @@ impl Default for Mp4FileMuxerOptions {
 
 #[derive(Debug, Clone)]
 pub struct Sample {
+    pub track_kind: TrackKind,
+    pub sample_entry: Option<SampleEntry>,
+    pub keyfframe: bool,
+    pub duration: Duration,
     pub data_offset: u64,
     pub data_size: usize,
 }
