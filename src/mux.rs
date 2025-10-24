@@ -108,32 +108,22 @@ impl Default for Mp4FileMuxerOptions {
     }
 }
 
-/// ファイナライズ後の MP4 ボックス情報
+/// [`Mp4FileMuxer::finalize()`] の結果として得られる、MP4 ファイル構築の完了に必要なボックス情報
 #[derive(Debug)]
 pub struct FinalizedBoxes {
-    /// moov ボックスの書き込み位置（バイト単位）
-    pub moov_box_offset: u64,
-
-    /// moov ボックスのバイト列
-    pub moov_box_bytes: Vec<u8>,
-
-    /// mdat ボックスの開始位置（バイト単位）
-    pub mdat_box_offset: u64,
-
-    /// mdat ボックスのヘッダーバイト列
-    pub mdat_box_header_bytes: Vec<u8>,
+    moov_box_offset: u64,
+    moov_box_bytes: Vec<u8>,
+    mdat_box_offset: u64,
+    mdat_box_header_bytes: Vec<u8>,
 }
 
 impl FinalizedBoxes {
-    /// faststart が有効になっているかを判定
-    ///
-    /// faststart が有効な場合、moov ボックスが mdat ボックスより前に配置され、
-    /// 動画プレイヤーの再生開始までに掛かる時間が短縮される
+    /// 構築された MP4 ファイルで faststart が有効になっているかどうかを返す
     pub fn is_faststart_enabled(&self) -> bool {
         self.moov_box_offset < self.mdat_box_offset
     }
 
-    /// ファイルに書きこむべきボックスのオフセットとバイト列のペアを反復
+    /// MP4 ファイルの構築を完了するために、ファイルに書きこむべきボックスのオフセットとバイト列の組を返す
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
         [
             (self.moov_box_offset, self.moov_box_bytes.as_slice()),
@@ -155,7 +145,7 @@ pub struct Sample {
     /// 省略した場合は前のサンプルと同じ sample_entry が使用される
     pub sample_entry: Option<SampleEntry>,
 
-    /// キーフレームであるかの判定
+    /// キーフレームかどうか
     pub keyframe: bool,
 
     /// サンプルの尺
@@ -177,6 +167,7 @@ pub enum MuxError {
     PositionMismatch {
         /// 期待されたポジション
         expected: u64,
+
         /// 実際のポジション
         actual: u64,
     },
