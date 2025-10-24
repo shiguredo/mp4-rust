@@ -40,7 +40,8 @@ pub struct Sample {
 pub enum MuxError {
     EncodeError(Error),
     PositionMismatch { expected: u64, actual: u64 },
-    MissingSampleEntry { track_kind: TrackKind }, // Add this variant
+    MissingSampleEntry { track_kind: TrackKind },
+    AlreadyFinalized,
 }
 
 impl From<Error> for MuxError {
@@ -72,6 +73,9 @@ impl core::fmt::Display for MuxError {
                     f,
                     "Missing sample entry for first sample of {track_kind:?} track",
                 )
+            }
+            MuxError::AlreadyFinalized => {
+                write!(f, "Muxer has already been finalized")
             }
         }
     }
@@ -108,6 +112,7 @@ pub struct Mp4FileMuxer {
     header_bytes: Vec<u8>,
     next_position: u64,
     last_sample_kind: Option<TrackKind>,
+    is_finalized: bool,
     audio_chunks: Vec<Chunk>,
     video_chunks: Vec<Chunk>,
 }
@@ -123,6 +128,7 @@ impl Mp4FileMuxer {
             header_bytes: Vec::new(),
             next_position: 0,
             last_sample_kind: None,
+            is_finalized: false,
             audio_chunks: Vec::new(),
             video_chunks: Vec::new(),
         };
@@ -184,6 +190,9 @@ impl Mp4FileMuxer {
     }
 
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
+        if self.is_finalized {
+            return Err(MuxError::AlreadyFinalized);
+        }
         if self.next_position != sample.data_offset {
             return Err(MuxError::PositionMismatch {
                 expected: self.next_position,
@@ -209,7 +218,7 @@ impl Mp4FileMuxer {
                 .sample_entry
                 .clone()
                 .or_else(|| chunks.last().map(|c| c.sample_entry.clone()))
-                .ok_or_else(|| MuxError::MissingSampleEntry {
+                .ok_or(MuxError::MissingSampleEntry {
                     track_kind: sample.track_kind,
                 })?;
 
@@ -246,7 +255,13 @@ impl Mp4FileMuxer {
             .is_none_or(|c| c.sample_entry != *sample_entry)
     }
 
-    pub fn finalize(&mut self) {
+    pub fn finalize(&mut self) -> Result<(), MuxError> {
+        if self.is_finalized {
+            return Err(MuxError::AlreadyFinalized);
+        }
+        self.is_finalized = true;
+
         // TODO: Build and write moov box with collected sample metadata
+        todo!()
     }
 }
