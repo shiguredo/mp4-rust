@@ -412,6 +412,14 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
+        let (max_width, max_height) = self
+            .video_chunks
+            .iter()
+            .filter_map(|c| c.sample_entry.video_resolution())
+            .fold((0u32, 0u32), |(max_w, max_h), (w, h)| {
+                (max_w.max(w), max_h.max(h))
+            });
+
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let tkhd_box = TkhdBox {
             flag_track_enabled: true,
@@ -426,8 +434,8 @@ impl Mp4FileMuxer {
             alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
             volume: TkhdBox::DEFAULT_VIDEO_VOLUME,
             matrix: TkhdBox::DEFAULT_MATRIX,
-            width: FixedPointNumber::default(),
-            height: FixedPointNumber::default(),
+            width: FixedPointNumber::new(max_width as i16, 0),
+            height: FixedPointNumber::new(max_height as i16, 0),
         };
 
         Ok(TrakBox {
