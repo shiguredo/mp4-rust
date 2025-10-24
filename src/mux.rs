@@ -8,10 +8,12 @@
 //! 基本的なワークフロー例：
 //!
 //! ```no_run
-//! use shiguredo_mp4::mux::{Mp4FileMuxer, Mp4FileMuxerOptions, Sample};
-//! use shiguredo_mp4::{TrackKind, boxes::Avc1Box};
 //! use std::time::Duration;
 //!
+//! use shiguredo_mp4::mux::{Mp4FileMuxer, Mp4FileMuxerOptions, Sample};
+//! use shiguredo_mp4::{TrackKind, boxes::Avc1Box};
+//!
+//! # fn main() -> Result<(), shiguredo_mp4::mux::MuxError> {
 //! let mut muxer = Mp4FileMuxer::new().expect("マルチプレックス初期化失敗");
 //!
 //! // 初期ボックスバイトを出力に書きこむ
@@ -19,9 +21,10 @@
 //! // ファイルに initial_bytes を書きこむ
 //!
 //! // サンプルを追加
+//! let sample_entry = todo!("使用するコーデックに合わせたサンプルエントリーを構築する");
 //! let sample = Sample {
 //!     track_kind: TrackKind::Video,
-//!     sample_entry: Some(/* SampleEntry */),
+//!     sample_entry: Some(sample_entry),
 //!     keyframe: true,
 //!     duration: Duration::from_millis(33),
 //!     data_offset: initial_bytes.len() as u64,
@@ -33,8 +36,9 @@
 //! let finalized = muxer.finalize().expect("ファイナライズ失敗");
 //! // finalized.moov_box_offset と finalized.moov_box_bytes を使用して
 //! // ファイルに moov ボックスを書きこむ
+//! # Ok(())
+//! # }
 //! ```
-
 use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
@@ -342,12 +346,6 @@ impl Mp4FileMuxer {
     /// サンプルはファイルポジション順に追加する必要があり、
     /// [`sample.data_offset`](Sample::data_offset) は前のサンプルの終了位置と
     /// 一致していなければならない。
-    ///
-    /// # Errors
-    ///
-    /// - [`MuxError::AlreadyFinalized`]: [`finalize()`](Self::finalize) を呼び出した後の追加
-    /// - [`MuxError::PositionMismatch`]: ファイルポジションが不連続
-    /// - [`MuxError::MissingSampleEntry`]: 最初のサンプルで sample_entry が指定されていない
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
