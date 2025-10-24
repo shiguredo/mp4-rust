@@ -37,15 +37,21 @@ pub struct Sample {
     pub data_size: usize,
 }
 
-#[derive(Debug)]
 pub enum MuxError {
     EncodeError(Error),
     PositionMismatch { expected: u64, actual: u64 },
+    MissingSampleEntry { track_kind: TrackKind }, // Add this variant
 }
 
 impl From<Error> for MuxError {
     fn from(error: Error) -> Self {
         MuxError::EncodeError(error)
+    }
+}
+
+impl core::fmt::Debug for MuxError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
     }
 }
 
@@ -59,6 +65,12 @@ impl core::fmt::Display for MuxError {
                 write!(
                     f,
                     "Position mismatch: expected {expected}, but got {actual}"
+                )
+            }
+            MuxError::MissingSampleEntry { track_kind } => {
+                write!(
+                    f,
+                    "Missing sample entry for first sample of {track_kind:?} track",
                 )
             }
         }
@@ -83,15 +95,21 @@ struct SampleMetadata {
     size: u32,
 }
 
+#[derive(Debug, Clone)]
+struct Chunk {
+    offset: u64,
+    sample_entry: SampleEntry,
+    samples: Vec<SampleMetadata>,
+}
+
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
     header_bytes: Vec<u8>,
     next_position: u64,
-    audio_samples: Vec<SampleMetadata>,
-    video_samples: Vec<SampleMetadata>,
-    audio_sample_entry: Option<SampleEntry>,
-    video_sample_entry: Option<SampleEntry>,
+    last_sample_kind: Option<TrackKind>,
+    audio_chunks: Vec<Chunk>,
+    video_chunks: Vec<Chunk>,
 }
 
 impl Mp4FileMuxer {
@@ -104,10 +122,9 @@ impl Mp4FileMuxer {
             options,
             header_bytes: Vec::new(),
             next_position: 0,
-            audio_samples: Vec::new(),
-            video_samples: Vec::new(),
-            audio_sample_entry: None,
-            video_sample_entry: None,
+            last_sample_kind: None,
+            audio_chunks: Vec::new(),
+            video_chunks: Vec::new(),
         };
         this.build_header()?;
         Ok(this)
@@ -180,23 +197,53 @@ impl Mp4FileMuxer {
             size: sample.data_size as u32,
         };
 
-        match sample.track_kind {
-            TrackKind::Audio => {
-                if sample.sample_entry.is_some() {
-                    self.audio_sample_entry = sample.sample_entry.clone();
-                }
-                self.audio_samples.push(metadata);
-            }
-            TrackKind::Video => {
-                if sample.sample_entry.is_some() {
-                    self.video_sample_entry = sample.sample_entry.clone();
-                }
-                self.video_samples.push(metadata);
-            }
+        let is_new_chunk_needed = self.is_new_chunk_needed(sample);
+
+        let chunks = match sample.track_kind {
+            TrackKind::Audio => &mut self.audio_chunks,
+            TrackKind::Video => &mut self.video_chunks,
+        };
+
+        if is_new_chunk_needed {
+            let sample_entry = sample
+                .sample_entry
+                .clone()
+                .or_else(|| chunks.last().map(|c| c.sample_entry.clone()))
+                .ok_or_else(|| MuxError::MissingSampleEntry {
+                    track_kind: sample.track_kind,
+                })?;
+
+            chunks.push(Chunk {
+                offset: sample.data_offset,
+                sample_entry,
+                samples: Vec::new(),
+            });
         }
 
+        chunks.last_mut().expect("bug").samples.push(metadata);
+
         self.next_position += sample.data_size as u64;
+        self.last_sample_kind = Some(sample.track_kind);
         Ok(())
+    }
+
+    fn is_new_chunk_needed(&self, sample: &Sample) -> bool {
+        if self.last_sample_kind != Some(sample.track_kind) {
+            return true;
+        }
+
+        let chunks = match sample.track_kind {
+            TrackKind::Audio => &self.audio_chunks,
+            TrackKind::Video => &self.video_chunks,
+        };
+
+        let Some(sample_entry) = &sample.sample_entry else {
+            return false;
+        };
+
+        chunks
+            .last()
+            .is_none_or(|c| c.sample_entry != *sample_entry)
     }
 
     pub fn finalize(&mut self) {
