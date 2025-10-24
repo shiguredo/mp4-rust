@@ -15,7 +15,7 @@
 //! use shiguredo_mp4::mux::{Mp4FileMuxer, Sample};
 //! use shiguredo_mp4::TrackKind;
 //!
-//! # fn main() -> Result<(), Box<dyn 'static + std::error::Error>> {
+//! # fn main() -> Result<(), Box<dyn 'static + core::fmt::Debug>> {
 //! let mut muxer = Mp4FileMuxer::new()?;
 //!
 //! // 初期ボックス情報を出力ファイルに書きこむ
