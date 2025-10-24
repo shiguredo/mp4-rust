@@ -1,6 +1,31 @@
 #![expect(missing_docs, dead_code)]
 
+use core::num::NonZeroU32;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use crate::Error;
+
+/// メディアトラックの種類を表す列挙型
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrackKind {
+    /// 音声トラック
+    Audio,
+
+    /// 映像トラック
+    Video,
+}
+
+/// メディアトラックの情報を表す構造体
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TrackInfo {
+    /// トラックの種類
+    pub kind: TrackKind,
+
+    /// トラックで使用されているタイムスケール
+    pub timescale: NonZeroU32,
+}
 
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {
@@ -62,6 +87,10 @@ impl Mp4FileMuxer {
         &self.header_bytes
     }
 
+    pub fn finalized_bytes_list(&self) -> &[(u64, &[u8])] {
+        todo!()
+    }
+
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
         if self.next_position != sample.data_offset {
             return Err(MuxError::PositionMismatch {
@@ -73,5 +102,5 @@ impl Mp4FileMuxer {
         todo!()
     }
 
-    pub fn finalize(self) {}
+    pub fn finalize(&mut self) {}
 }
