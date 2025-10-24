@@ -18,14 +18,16 @@
 //! # fn main() -> Result<(), Box<dyn 'static + std::error::Error>> {
 //! let mut muxer = Mp4FileMuxer::new()?;
 //!
-//! // 初期ボックスバイトを出力に書きこむ
+//! // 初期ボックス情報を出力ファイルに書きこむ
 //! let initial_bytes = muxer.initial_boxes_bytes();
 //! let mut file = File::create("output.mp4")?;
 //! file.write_all(initial_bytes)?;
 //!
 //! // サンプルを追加
+//! // => データをファイルに追記してから、それをマルチプレクサーに伝える
 //! let sample_data = vec![0; 1024];
 //! file.write_all(&sample_data)?;
+//!
 //! let sample_entry = todo!("使用するコーデックに合わせたサンプルエントリーを構築する");
 //! let sample = Sample {
 //!     track_kind: TrackKind::Video,
@@ -40,7 +42,7 @@
 //! // マルチプレックス処理を完了
 //! let finalized = muxer.finalize()?;
 //!
-//! // ファイナライズ後のボックス情報を書きこむ
+//! // ファイナライズ後のボックス情報をファイルに書きこむ
 //! for (offset, bytes) in finalized.offset_and_bytes_pairs() {
 //!     file.seek(SeekFrom::Start(offset))?;
 //!     file.write_all(bytes)?;
