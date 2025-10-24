@@ -20,16 +20,22 @@ impl Default for Mp4FileMuxerOptions {
 }
 
 #[derive(Debug, Clone)]
-pub struct Sample {}
+pub struct Sample {
+    pub data_offset: u64,
+    pub data_size: usize,
+}
 
 #[derive(Debug)]
 pub enum MuxError {
     EncodeError(Error),
+    PositionMismatch { expected: u64, actual: u64 },
 }
 
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
+    header_bytes: Vec<u8>,
+    next_position: u64,
 }
 
 impl Mp4FileMuxer {
@@ -39,14 +45,31 @@ impl Mp4FileMuxer {
     }
 
     pub fn with_options(options: Mp4FileMuxerOptions) -> Self {
-        Self { options }
+        let mut this = Self {
+            options,
+            header_bytes: Vec::new(),
+            next_position: 0,
+        };
+        this.build_header_bytes();
+        this
+    }
+
+    fn build_header_bytes(&mut self) {
+        // TODO: build ftyp / initial mdat box, then update header_bytes and next_position
     }
 
     pub fn header_bytes(&self) -> &[u8] {
-        todo!()
+        &self.header_bytes
     }
 
-    pub fn append_sample(&mut self, _sample: &Sample) -> Result<(), MuxError> {
+    pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
+        if self.next_position != sample.data_offset {
+            return Err(MuxError::PositionMismatch {
+                expected: self.next_position,
+                actual: sample.data_offset,
+            });
+        }
+        self.next_position += sample.data_size as u64;
         todo!()
     }
 
