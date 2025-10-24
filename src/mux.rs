@@ -135,7 +135,7 @@ struct Chunk {
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
-    header_bytes: Vec<u8>,
+    initial_boxes_bytes: Vec<u8>,
     free_box_offset: u64,
     mdat_box_offset: u64,
     next_position: u64,
@@ -153,7 +153,7 @@ impl Mp4FileMuxer {
     pub fn with_options(options: Mp4FileMuxerOptions) -> Result<Self, MuxError> {
         let mut this = Self {
             options,
-            header_bytes: Vec::new(),
+            initial_boxes_bytes: Vec::new(),
             free_box_offset: 0,
             mdat_box_offset: 0,
             next_position: 0,
@@ -162,11 +162,11 @@ impl Mp4FileMuxer {
             audio_chunks: Vec::new(),
             video_chunks: Vec::new(),
         };
-        this.build_header()?;
+        this.build_initial_boxes()?;
         Ok(this)
     }
 
-    fn build_header(&mut self) -> Result<(), MuxError> {
+    fn build_initial_boxes(&mut self) -> Result<(), MuxError> {
         // ftyp ボックスを構築
         let ftyp_box = FtypBox {
             major_brand: Brand::ISOM,
@@ -181,8 +181,8 @@ impl Mp4FileMuxer {
         };
 
         // ftyp ボックスをヘッダーバイト列に追加
-        self.header_bytes = ftyp_box.encode_to_vec()?;
-        self.free_box_offset = self.header_bytes.len() as u64;
+        self.initial_boxes_bytes = ftyp_box.encode_to_vec()?;
+        self.free_box_offset = self.initial_boxes_bytes.len() as u64;
 
         // faststart 用の moov ボックス用の領域を free ボックスで事前に確保する
         // （先頭付近に moov ボックスを配置することで、動画プレイヤーの再生開始までに掛かる時間を短縮できる）
@@ -190,24 +190,24 @@ impl Mp4FileMuxer {
             let free_box = FreeBox {
                 payload: vec![0; self.options.reserved_moov_box_size],
             };
-            self.header_bytes
+            self.initial_boxes_bytes
                 .extend_from_slice(&free_box.encode_to_vec()?);
         }
-        self.mdat_box_offset = self.header_bytes.len() as u64;
+        self.mdat_box_offset = self.initial_boxes_bytes.len() as u64;
 
         // 可変長の mdat ボックスのヘッダーを書きこむ
         let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::LARGE_VARIABLE_SIZE);
-        self.header_bytes
+        self.initial_boxes_bytes
             .extend_from_slice(&mdat_box_header.encode_to_vec()?);
 
         // サンプルのデータが mdat ボックスに追記されていくように、ポジションを更新
-        self.next_position = self.header_bytes.len() as u64;
+        self.next_position = self.initial_boxes_bytes.len() as u64;
 
         Ok(())
     }
 
     pub fn initial_boxes_bytes(&self) -> &[u8] {
-        &self.header_bytes
+        &self.initial_boxes_bytes
     }
 
     pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
