@@ -289,7 +289,7 @@ impl Mp4FileMuxer {
             .is_none_or(|c| c.sample_entry != *sample_entry)
     }
 
-    pub fn finalize(&mut self) -> Result<(), MuxError> {
+    pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
         }
@@ -328,7 +328,8 @@ impl Mp4FileMuxer {
             mdat_box_offset: self.mdat_box_offset,
             mdat_box_header_bytes,
         });
-        Ok(())
+
+        Ok(self.finalized_boxes.as_ref().expect("infallible"))
     }
 
     fn build_moov_box(&self) -> Result<MoovBox, MuxError> {
@@ -607,7 +608,6 @@ impl Mp4FileMuxer {
 }
 
 #[cfg(test)]
-#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
@@ -649,7 +649,6 @@ mod tests {
             data_offset: initial_size,
             data_size: 1024,
         };
-
         muxer
             .append_sample(&sample)
             .expect("failed to append sample");
@@ -663,16 +662,12 @@ mod tests {
             data_offset: initial_size + 1024,
             data_size: 512,
         };
-
         muxer
             .append_sample(&sample2)
             .expect("failed to append sample");
 
         // マルチプレクサーをファイナライズ
-        muxer.finalize().expect("failed to finalize");
-        assert!(muxer.finalized_boxes().is_some());
-
-        let finalized = muxer.finalized_boxes().unwrap();
+        let finalized = muxer.finalize().expect("failed to finalize");
         assert!(finalized.moov_box_bytes.len() > 0);
         assert!(finalized.mdat_box_header_bytes.len() > 0);
     }
@@ -793,8 +788,8 @@ mod tests {
             .append_sample(&audio_sample)
             .expect("failed to append audio sample");
 
-        muxer.finalize().expect("failed to finalize");
-        assert!(muxer.finalized_boxes().is_some());
+        let finalized = muxer.finalize().expect("failed to finalize");
+        assert!(finalized.moov_box_bytes.len() > 0);
     }
 
     #[test]
@@ -820,9 +815,8 @@ mod tests {
         muxer
             .append_sample(&sample)
             .expect("failed to append sample");
-        muxer.finalize().expect("failed to finalize");
 
-        let finalized = muxer.finalized_boxes().unwrap();
+        let finalized = muxer.finalize().expect("failed to finalize");
         assert!(finalized.is_faststart_enabled());
     }
 
@@ -850,8 +844,8 @@ mod tests {
                 .expect("failed to append sample");
         }
 
-        muxer.finalize().expect("failed to finalize");
-        assert!(muxer.finalized_boxes().is_some());
+        let finalized = muxer.finalize().expect("failed to finalize");
+        assert!(finalized.moov_box_bytes.len() > 0);
     }
 
     fn create_avc1_sample_entry() -> SampleEntry {
