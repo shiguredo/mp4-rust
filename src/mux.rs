@@ -8,9 +8,9 @@ use alloc::{vec, vec::Vec};
 use crate::{
     BoxHeader, BoxSize, Either, Encode, Error, FixedPointNumber, Mp4FileTime, Utf8String,
     boxes::{
-        Brand, DinfBox, FreeBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox,
-        MvhdBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
-        StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
+        Brand, Co64Box, DinfBox, FreeBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox,
+        MoovBox, MvhdBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox,
+        StssBox, StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
 };
 
@@ -453,13 +453,11 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let sample_entry = self
-            .audio_chunks
-            .first()
-            .map(|c| c.sample_entry.clone())
-            .ok_or(MuxError::MissingSampleEntry {
+        let sample_entry = self.audio_chunks.first().map(|c| &c.sample_entry).ok_or(
+            MuxError::MissingSampleEntry {
                 track_kind: TrackKind::Audio,
-            })?;
+            },
+        )?;
 
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
@@ -478,7 +476,7 @@ impl Mp4FileMuxer {
         let minf_box = MinfBox {
             smhd_or_vmhd_box: Either::A(SmhdBox::default()),
             dinf_box: DinfBox::LOCAL_FILE,
-            stbl_box: self.build_stbl_box(&sample_entry, &self.audio_chunks),
+            stbl_box: self.build_stbl_box(sample_entry, &self.audio_chunks),
             unknown_boxes: Vec::new(),
         };
 
@@ -497,13 +495,11 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let sample_entry = self
-            .video_chunks
-            .first()
-            .map(|c| c.sample_entry.clone())
-            .ok_or(MuxError::MissingSampleEntry {
+        let sample_entry = self.video_chunks.first().map(|c| &c.sample_entry).ok_or(
+            MuxError::MissingSampleEntry {
                 track_kind: TrackKind::Video,
-            })?;
+            },
+        )?;
 
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
@@ -522,7 +518,7 @@ impl Mp4FileMuxer {
         let minf_box = MinfBox {
             smhd_or_vmhd_box: Either::B(VmhdBox::default()),
             dinf_box: DinfBox::LOCAL_FILE,
-            stbl_box: self.build_stbl_box(&sample_entry, &self.video_chunks),
+            stbl_box: self.build_stbl_box(sample_entry, &self.video_chunks),
             unknown_boxes: Vec::new(),
         };
 
@@ -564,8 +560,14 @@ impl Mp4FileMuxer {
                 .collect(),
         };
 
-        let stco_box = StcoBox {
-            chunk_offsets: chunks.iter().map(|c| c.offset as u32).collect(),
+        let stco_or_co64_box = if self.next_position > u32::MAX as u64 {
+            Either::B(Co64Box {
+                chunk_offsets: chunks.iter().map(|c| c.offset).collect(),
+            })
+        } else {
+            Either::A(StcoBox {
+                chunk_offsets: chunks.iter().map(|c| c.offset as u32).collect(),
+            })
         };
 
         let is_all_keyframe = chunks.iter().all(|c| c.samples.iter().all(|s| s.keyframe));
@@ -590,7 +592,7 @@ impl Mp4FileMuxer {
             stts_box,
             stsc_box,
             stsz_box,
-            stco_or_co64_box: Either::A(stco_box),
+            stco_or_co64_box,
             stss_box,
             unknown_boxes: Vec::new(),
         }
