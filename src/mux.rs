@@ -5,6 +5,7 @@ pub struct Mp4FileMuxerOptions {
     pub reserved_moov_box_size: usize,
 }
 
+#[expect(clippy::derivable_impls)]
 impl Default for Mp4FileMuxerOptions {
     fn default() -> Self {
         Self {
@@ -19,6 +20,7 @@ pub struct Mp4FileMuxer {
 }
 
 impl Mp4FileMuxer {
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self::with_options(Mp4FileMuxerOptions::default())
     }
