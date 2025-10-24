@@ -1,4 +1,39 @@
-#![expect(missing_docs)]
+//! MP4 ファイルのマルチプレックス（統合）機能を提供するモジュール
+//!
+//! このモジュールは、複数のメディアトラック（音声・映像）からのサンプルを
+//! 時系列順に統合して、MP4 ファイルを生成するための機能を提供する。
+//!
+//! # Examples
+//!
+//! 基本的なワークフロー例：
+//!
+//! ```no_run
+//! use shiguredo_mp4::mux::{Mp4FileMuxer, Mp4FileMuxerOptions, Sample};
+//! use shiguredo_mp4::{TrackKind, boxes::Avc1Box};
+//! use std::time::Duration;
+//!
+//! let mut muxer = Mp4FileMuxer::new().expect("マルチプレックス初期化失敗");
+//!
+//! // 初期ボックスバイトを出力に書きこむ
+//! let initial_bytes = muxer.initial_boxes_bytes();
+//! // ファイルに initial_bytes を書きこむ
+//!
+//! // サンプルを追加
+//! let sample = Sample {
+//!     track_kind: TrackKind::Video,
+//!     sample_entry: Some(/* SampleEntry */),
+//!     keyframe: true,
+//!     duration: Duration::from_millis(33),
+//!     data_offset: initial_bytes.len() as u64,
+//!     data_size: 1024,
+//! };
+//! muxer.append_sample(&sample).expect("サンプル追加失敗");
+//!
+//! // マルチプレックス処理を完了
+//! let finalized = muxer.finalize().expect("ファイナライズ失敗");
+//! // finalized.moov_box_offset と finalized.moov_box_bytes を使用して
+//! // ファイルに moov ボックスを書きこむ
+//! ```
 
 use core::{num::NonZeroU32, time::Duration};
 
@@ -15,9 +50,15 @@ use crate::{
     },
 };
 
+/// MP4 ファイルマルチプレックスの設定オプション
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {
+    /// faststart 機能用に事前確保する moov ボックスのサイズ（バイト単位）
+    ///
+    /// 0 を指定した場合、faststart は無効となり、moov ボックスはファイル末尾に配置される
     pub reserved_moov_box_size: usize,
+
+    /// ファイル作成時刻
     pub creation_timestamp: Duration,
 }
 
@@ -38,19 +79,32 @@ impl Default for Mp4FileMuxerOptions {
     }
 }
 
+/// ファイナライズ後の MP4 ボックス情報
 #[derive(Debug)]
 pub struct FinalizedBoxes {
-    moov_box_offset: u64,
-    moov_box_bytes: Vec<u8>,
-    mdat_box_offset: u64,
-    mdat_box_header_bytes: Vec<u8>,
+    /// moov ボックスの書き込み位置（バイト単位）
+    pub moov_box_offset: u64,
+
+    /// moov ボックスのバイト列
+    pub moov_box_bytes: Vec<u8>,
+
+    /// mdat ボックスの開始位置（バイト単位）
+    pub mdat_box_offset: u64,
+
+    /// mdat ボックスのヘッダーバイト列
+    pub mdat_box_header_bytes: Vec<u8>,
 }
 
 impl FinalizedBoxes {
+    /// faststart が有効になっているかを判定
+    ///
+    /// faststart が有効な場合、moov ボックスが mdat ボックスより前に配置され、
+    /// 動画プレイヤーの再生開始までに掛かる時間が短縮される
     pub fn is_faststart_enabled(&self) -> bool {
         self.moov_box_offset < self.mdat_box_offset
     }
 
+    /// ファイルに書きこむべきボックスのオフセットとバイト列のペアを反復
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
         [
             (self.moov_box_offset, self.moov_box_bytes.as_slice()),
@@ -60,20 +114,51 @@ impl FinalizedBoxes {
     }
 }
 
+/// MP4 ファイルに追加するメディアサンプル
 #[derive(Debug, Clone)]
 pub struct Sample {
+    /// サンプルのトラック種別
     pub track_kind: TrackKind,
+
+    /// サンプルの詳細情報（コーデック種別など）
+    ///
+    /// 最初のサンプルでは必須。以降は省略可能で、
+    /// 省略した場合は前のサンプルと同じ sample_entry が使用される
     pub sample_entry: Option<SampleEntry>,
+
+    /// キーフレームであるかの判定
     pub keyframe: bool,
+
+    /// サンプルの尺
     pub duration: Duration,
+
+    /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
+
+    /// サンプルデータのサイズ（バイト単位）
     pub data_size: usize,
 }
 
+/// マルチプレックス処理中に発生するエラー
 pub enum MuxError {
+    /// MP4 ボックスのエンコード処理中に発生したエラー
     EncodeError(Error),
-    PositionMismatch { expected: u64, actual: u64 },
-    MissingSampleEntry { track_kind: TrackKind },
+
+    /// ファイルポジションの不一致
+    PositionMismatch {
+        /// 期待されたポジション
+        expected: u64,
+        /// 実際のポジション
+        actual: u64,
+    },
+
+    /// 必須の sample_entry が欠落している
+    MissingSampleEntry {
+        /// サンプルエントリーが不在であるトラック種別
+        track_kind: TrackKind,
+    },
+
+    /// マルチプレックスが既にファイナライズ済み
     AlreadyFinalized,
 }
 
@@ -139,6 +224,16 @@ struct Chunk {
     samples: Vec<SampleMetadata>,
 }
 
+/// MP4 ファイルを生成するマルチプレックス処理を行うメインの構造体
+///
+/// この構造体は、複数のメディアトラック（音声・映像）からのサンプルを
+/// 時系列順に統合して、MP4 ファイルを生成するための主要な処理を行う。
+///
+/// 基本的な使用フロー：
+/// 1. [`new()`](Self::new) または [`with_options()`](Self::with_options) でインスタンスを作成
+/// 2. [`initial_boxes_bytes()`](Self::initial_boxes_bytes) で得られたバイト列をファイルに書きこむ
+/// 3. [`append_sample()`](Self::append_sample) でサンプルを追加
+/// 4. [`finalize()`](Self::finalize) でマルチプレックス処理を完了し、moov ボックスを取得
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
@@ -153,12 +248,23 @@ pub struct Mp4FileMuxer {
 }
 
 impl Mp4FileMuxer {
+    /// MP4 ファイル内で使用されるタイムスケール
     pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
 
+    /// デフォルト設定で新しいマルチプレックス処理を初期化
+    ///
+    /// # Errors
+    ///
+    /// MP4 ボックスのエンコードに失敗した場合、[`MuxError`] が返される
     pub fn new() -> Result<Self, MuxError> {
         Self::with_options(Mp4FileMuxerOptions::default())
     }
 
+    /// 指定した設定で新しいマルチプレックス処理を初期化
+    ///
+    /// # Errors
+    ///
+    /// MP4 ボックスのエンコードに失敗した場合、[`MuxError`] が返される
     pub fn with_options(options: Mp4FileMuxerOptions) -> Result<Self, MuxError> {
         let mut this = Self {
             options,
@@ -215,14 +321,33 @@ impl Mp4FileMuxer {
         Ok(())
     }
 
+    /// 初期 MP4 ボックスのバイト列を取得
+    ///
+    /// このメソッドが返すバイト列には、ftyp ボックスと、
+    /// faststart 用に予約された領域（free ボックス）、および mdat ボックスのヘッダーが含まれる。
+    /// この内容をファイルの先頭に書きこむ必要がある。
     pub fn initial_boxes_bytes(&self) -> &[u8] {
         &self.initial_boxes_bytes
     }
 
+    /// ファイナライズされたボックス情報を取得
+    ///
+    /// [`finalize()`](Self::finalize) を呼び出す前は `None` が返される
     pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
         self.finalized_boxes.as_ref()
     }
 
+    /// サンプルをマルチプレックスに追加
+    ///
+    /// サンプルはファイルポジション順に追加する必要があり、
+    /// [`sample.data_offset`](Sample::data_offset) は前のサンプルの終了位置と
+    /// 一致していなければならない。
+    ///
+    /// # Errors
+    ///
+    /// - [`MuxError::AlreadyFinalized`]: [`finalize()`](Self::finalize) を呼び出した後の追加
+    /// - [`MuxError::PositionMismatch`]: ファイルポジションが不連続
+    /// - [`MuxError::MissingSampleEntry`]: 最初のサンプルで sample_entry が指定されていない
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
@@ -289,6 +414,15 @@ impl Mp4FileMuxer {
             .is_none_or(|c| c.sample_entry != *sample_entry)
     }
 
+    /// MP4 マルチプレックス処理を完了し、moov ボックスを生成
+    ///
+    /// このメソッドを呼び出した後、返された [`FinalizedBoxes`] の情報を使用して、
+    /// moov ボックスとファイル全体を最終化する。
+    ///
+    /// # Errors
+    ///
+    /// - [`MuxError::AlreadyFinalized`]: 既に [`finalize()`](Self::finalize) を呼び出した場合
+    /// - [`MuxError::EncodeError`]: MP4 ボックスのエンコードに失敗
     pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
