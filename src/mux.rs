@@ -6,7 +6,7 @@ use core::{num::NonZeroU32, time::Duration};
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    BoxHeader, Encode, Error,
+    BoxHeader, BoxSize, Encode, Error,
     boxes::{Brand, FreeBox, FtypBox, MdatBox, SampleEntry},
 };
 
@@ -190,12 +190,9 @@ impl Mp4FileMuxer {
         }
 
         // 可変長の mdat ボックスのヘッダーを書きこむ
-        let mdat_box = MdatBox {
-            is_variable_size: true,
-            payload: Vec::new(),
-        };
+        let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::LARGE_VARIABLE_SIZE);
         self.header_bytes
-            .extend_from_slice(&mdat_box.encode_to_vec()?);
+            .extend_from_slice(&mdat_box_header.encode_to_vec()?);
 
         // サンプルのデータが mdat ボックスに追記されていくように、ポジションを更新
         self.next_position = self.header_bytes.len() as u64;

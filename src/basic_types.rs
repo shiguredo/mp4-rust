@@ -360,6 +360,11 @@ impl BoxSize {
     /// ファイル末尾に位置する可変長のボックスを表すための特別な値
     pub const VARIABLE_SIZE: Self = Self::U32(0);
 
+    /// ファイル末尾に位置する可変長のボックスを表すための特別な値
+    ///
+    /// 基本的には [`BoxSize::VARIABLE_SIZE`] と同じだが、4GB を超えるボックスに備えて、こちらは 64 ビットサイズエンコーディングを使用する
+    pub const LARGE_VARIABLE_SIZE: Self = Self::U64(0);
+
     /// ボックス種別とペイロードサイズを受け取って、対応する [`BoxSize`] インスタンスを作成する
     pub fn with_payload_size(box_type: BoxType, payload_size: u64) -> Self {
         let mut size = 4 + box_type.external_size() as u64 + payload_size;
