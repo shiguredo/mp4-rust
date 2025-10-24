@@ -27,6 +27,28 @@ pub struct Mp4FileMuxerOptions {
     pub reserved_moov_box_size: usize,
 }
 
+#[derive(Debug)]
+pub struct FinalizedBoxes<'a> {
+    moov_box_offset: u64,
+    moov_box_bytes: &'a [u8],
+    mdat_box_header_offset: u64,
+    mdat_box_header_bytes: &'a [u8],
+}
+
+impl<'a> FinalizedBoxes<'a> {
+    pub fn is_faststart_enabled(&self) -> bool {
+        self.moov_box_offset < self.mdat_box_header_offset
+    }
+
+    pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &'a [u8])> {
+        [
+            (self.moov_box_offset, self.moov_box_bytes),
+            (self.mdat_box_header_offset, self.mdat_box_header_bytes),
+        ]
+        .into_iter()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Sample {
     pub track_kind: TrackKind,
@@ -181,11 +203,11 @@ impl Mp4FileMuxer {
         Ok(())
     }
 
-    pub fn header_bytes(&self) -> &[u8] {
+    pub fn initial_boxes_bytes(&self) -> &[u8] {
         &self.header_bytes
     }
 
-    pub fn finalized_bytes_list(&self) -> &[(u64, &[u8])] {
+    pub fn finalized_boxes(&self) -> Option<FinalizedBoxes<'_>> {
         todo!()
     }
 
