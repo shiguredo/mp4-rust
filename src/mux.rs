@@ -607,6 +607,7 @@ impl Mp4FileMuxer {
 }
 
 #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
@@ -618,15 +619,12 @@ mod tests {
 
     #[test]
     fn test_muxer_creation() {
-        // マルチプレクサーの基本的な生成テスト
+        // オプションなし
         let muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         assert!(muxer.initial_boxes_bytes().len() > 0);
         assert!(muxer.finalized_boxes().is_none());
-    }
 
-    #[test]
-    fn test_muxer_with_options() {
-        // カスタムオプション付きのマルチプレクサー生成テスト
+        // オプションあり
         let options = Mp4FileMuxerOptions {
             reserved_moov_box_size: 4096,
             creation_timestamp: Duration::from_secs(0),
@@ -636,40 +634,16 @@ mod tests {
         assert!(muxer.initial_boxes_bytes().len() > 0);
     }
 
+    /// サンプル追加とファイナライズの基本的なワークフローテスト
     #[test]
     fn test_append_sample_and_finalize() {
-        // サンプル追加とファイナライズの基本的なワークフローテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
         // H.264 ビデオサンプルを作成
         let sample = Sample {
             track_kind: TrackKind::Video,
-            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    width: 1920,
-                    height: 1080,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                avcc_box: AvccBox {
-                    avc_profile_indication: 66,
-                    profile_compatibility: 0,
-                    avc_level_indication: 30,
-                    length_size_minus_one: Uint::new(3),
-                    sps_list: vec![],
-                    pps_list: vec![],
-                    chroma_format: None,
-                    bit_depth_luma_minus8: None,
-                    bit_depth_chroma_minus8: None,
-                    sps_ext_list: vec![],
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_avc1_sample_entry()),
             keyfframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
@@ -711,31 +685,7 @@ mod tests {
 
         let sample = Sample {
             track_kind: TrackKind::Video,
-            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    width: 1920,
-                    height: 1080,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                avcc_box: AvccBox {
-                    avc_profile_indication: 66,
-                    profile_compatibility: 0,
-                    avc_level_indication: 30,
-                    length_size_minus_one: Uint::new(3),
-                    sps_list: vec![],
-                    pps_list: vec![],
-                    chroma_format: None,
-                    bit_depth_luma_minus8: None,
-                    bit_depth_chroma_minus8: None,
-                    sps_ext_list: vec![],
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_avc1_sample_entry()),
             keyfframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size + 100, // 誤ったオフセット
@@ -783,31 +733,7 @@ mod tests {
 
         let sample = Sample {
             track_kind: TrackKind::Video,
-            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    width: 1920,
-                    height: 1080,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                avcc_box: AvccBox {
-                    avc_profile_indication: 66,
-                    profile_compatibility: 0,
-                    avc_level_indication: 30,
-                    length_size_minus_one: Uint::new(3),
-                    sps_list: vec![],
-                    pps_list: vec![],
-                    chroma_format: None,
-                    bit_depth_luma_minus8: None,
-                    bit_depth_chroma_minus8: None,
-                    sps_ext_list: vec![],
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_avc1_sample_entry()),
             keyfframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
@@ -844,31 +770,7 @@ mod tests {
         // ビデオサンプルを追加
         let video_sample = Sample {
             track_kind: TrackKind::Video,
-            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    width: 1920,
-                    height: 1080,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                avcc_box: AvccBox {
-                    avc_profile_indication: 66,
-                    profile_compatibility: 0,
-                    avc_level_indication: 30,
-                    length_size_minus_one: Uint::new(3),
-                    sps_list: vec![],
-                    pps_list: vec![],
-                    chroma_format: None,
-                    bit_depth_luma_minus8: None,
-                    bit_depth_chroma_minus8: None,
-                    sps_ext_list: vec![],
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_avc1_sample_entry()),
             keyfframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
@@ -881,21 +783,7 @@ mod tests {
         // オーディオサンプルを追加
         let audio_sample = Sample {
             track_kind: TrackKind::Audio,
-            sample_entry: Some(SampleEntry::Opus(OpusBox {
-                audio: AudioSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    channelcount: 2,
-                    samplesize: AudioSampleEntryFields::DEFAULT_SAMPLESIZE,
-                    samplerate: FixedPointNumber::new(48000u16, 0),
-                },
-                dops_box: DopsBox {
-                    output_channel_count: 2,
-                    pre_skip: 312,
-                    input_sample_rate: 48000,
-                    output_gain: 0,
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_opus_sample_entry()),
             keyfframe: false,
             duration: Duration::from_millis(20),
             data_offset: initial_size + 1024,
@@ -922,31 +810,7 @@ mod tests {
 
         let sample = Sample {
             track_kind: TrackKind::Video,
-            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
-                visual: VisualSampleEntryFields {
-                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                    width: 1920,
-                    height: 1080,
-                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                },
-                avcc_box: AvccBox {
-                    avc_profile_indication: 66,
-                    profile_compatibility: 0,
-                    avc_level_indication: 30,
-                    length_size_minus_one: Uint::new(3),
-                    sps_list: vec![],
-                    pps_list: vec![],
-                    chroma_format: None,
-                    bit_depth_luma_minus8: None,
-                    bit_depth_chroma_minus8: None,
-                    sps_ext_list: vec![],
-                },
-                unknown_boxes: vec![],
-            })),
+            sample_entry: Some(create_avc1_sample_entry()),
             keyfframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
@@ -972,32 +836,7 @@ mod tests {
             let sample = Sample {
                 track_kind: TrackKind::Video,
                 sample_entry: if i == 0 {
-                    Some(SampleEntry::Avc1(Avc1Box {
-                        visual: VisualSampleEntryFields {
-                            data_reference_index:
-                                VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-                            width: 1920,
-                            height: 1080,
-                            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-                            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-                            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-                            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-                            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-                        },
-                        avcc_box: AvccBox {
-                            avc_profile_indication: 66,
-                            profile_compatibility: 0,
-                            avc_level_indication: 30,
-                            length_size_minus_one: Uint::new(3),
-                            sps_list: vec![],
-                            pps_list: vec![],
-                            chroma_format: None,
-                            bit_depth_luma_minus8: None,
-                            bit_depth_chroma_minus8: None,
-                            sps_ext_list: vec![],
-                        },
-                        unknown_boxes: vec![],
-                    }))
+                    Some(create_avc1_sample_entry())
                 } else {
                     None
                 },
@@ -1013,5 +852,51 @@ mod tests {
 
         muxer.finalize().expect("failed to finalize");
         assert!(muxer.finalized_boxes().is_some());
+    }
+
+    fn create_avc1_sample_entry() -> SampleEntry {
+        SampleEntry::Avc1(Avc1Box {
+            visual: VisualSampleEntryFields {
+                data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                width: 1920,
+                height: 1080,
+                horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+            },
+            avcc_box: AvccBox {
+                avc_profile_indication: 66,
+                profile_compatibility: 0,
+                avc_level_indication: 30,
+                length_size_minus_one: Uint::new(3),
+                sps_list: vec![],
+                pps_list: vec![],
+                chroma_format: None,
+                bit_depth_luma_minus8: None,
+                bit_depth_chroma_minus8: None,
+                sps_ext_list: vec![],
+            },
+            unknown_boxes: vec![],
+        })
+    }
+
+    fn create_opus_sample_entry() -> SampleEntry {
+        SampleEntry::Opus(OpusBox {
+            audio: AudioSampleEntryFields {
+                data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                channelcount: 2,
+                samplesize: AudioSampleEntryFields::DEFAULT_SAMPLESIZE,
+                samplerate: FixedPointNumber::new(48000u16, 0),
+            },
+            dops_box: DopsBox {
+                output_channel_count: 2,
+                pre_skip: 312,
+                input_sample_rate: 48000,
+                output_gain: 0,
+            },
+            unknown_boxes: vec![],
+        })
     }
 }
