@@ -6,7 +6,8 @@ use core::{num::NonZeroU32, time::Duration};
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    BoxHeader, BoxSize, Either, Encode, Error, FixedPointNumber, Mp4FileTime, Utf8String,
+    BoxHeader, BoxSize, Either, Encode, Error, FixedPointNumber, Mp4FileTime, TrackKind,
+    Utf8String,
     boxes::{
         Brand, Co64Box, DinfBox, FreeBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox,
         MoovBox, MvhdBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox,
@@ -15,16 +16,6 @@ use crate::{
 };
 
 pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
-
-/// メディアトラックの種類を表す列挙型
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TrackKind {
-    /// 音声トラック
-    Audio,
-
-    /// 映像トラック
-    Video,
-}
 
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {

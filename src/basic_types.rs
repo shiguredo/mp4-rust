@@ -653,3 +653,13 @@ where
         self.0 << OFFSET
     }
 }
+
+/// トラックの種類を表す列挙型
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrackKind {
+    /// 音声トラック
+    Audio,
+
+    /// 映像トラック
+    Video,
+}
