@@ -31,22 +31,19 @@ pub struct Mp4FileMuxerOptions {
 pub struct FinalizedBoxes {
     moov_box_offset: u64,
     moov_box_bytes: Vec<u8>,
-    mdat_box_header_offset: u64,
+    mdat_box_offset: u64,
     mdat_box_header_bytes: Vec<u8>,
 }
 
 impl FinalizedBoxes {
     pub fn is_faststart_enabled(&self) -> bool {
-        self.moov_box_offset < self.mdat_box_header_offset
+        self.moov_box_offset < self.mdat_box_offset
     }
 
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
         [
             (self.moov_box_offset, self.moov_box_bytes.as_slice()),
-            (
-                self.mdat_box_header_offset,
-                self.mdat_box_header_bytes.as_slice(),
-            ),
+            (self.mdat_box_offset, self.mdat_box_header_bytes.as_slice()),
         ]
         .into_iter()
     }
@@ -135,6 +132,8 @@ struct Chunk {
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
     header_bytes: Vec<u8>,
+    free_box_offset: u64,
+    mdat_box_offset: u64,
     next_position: u64,
     last_sample_kind: Option<TrackKind>,
     finalized_boxes: Option<FinalizedBoxes>,
@@ -151,6 +150,8 @@ impl Mp4FileMuxer {
         let mut this = Self {
             options,
             header_bytes: Vec::new(),
+            free_box_offset: 0,
+            mdat_box_offset: 0,
             next_position: 0,
             last_sample_kind: None,
             finalized_boxes: None,
@@ -177,20 +178,18 @@ impl Mp4FileMuxer {
 
         // ftyp ボックスをヘッダーバイト列に追加
         self.header_bytes = ftyp_box.encode_to_vec()?;
+        self.free_box_offset = self.header_bytes.len() as u64;
 
         // faststart 用の moov ボックス用の領域を free ボックスで事前に確保する
-        // （先頭付近にmoovボックスを配置することで、動画プレイヤーの再生開始までに掛かる時間を短縮できる）
-        if let Some(payload_size) = self
-            .options
-            .reserved_moov_box_size
-            .checked_sub(BoxHeader::MIN_SIZE)
-        {
+        // （先頭付近に moov ボックスを配置することで、動画プレイヤーの再生開始までに掛かる時間を短縮できる）
+        if self.options.reserved_moov_box_size > 0 {
             let free_box = FreeBox {
-                payload: vec![0; payload_size],
+                payload: vec![0; self.options.reserved_moov_box_size],
             };
             self.header_bytes
                 .extend_from_slice(&free_box.encode_to_vec()?);
         }
+        self.mdat_box_offset = self.header_bytes.len() as u64;
 
         // 可変長の mdat ボックスのヘッダーを書きこむ
         let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::LARGE_VARIABLE_SIZE);
@@ -282,14 +281,292 @@ impl Mp4FileMuxer {
             return Err(MuxError::AlreadyFinalized);
         }
 
-        // TODO: Build and write moov box with collected sample metadata
-        // For now, just mark as finalized
+        // moov ボックスを構築
+        let moov_box = self.build_moov_box()?;
+        let moov_box_bytes = moov_box.encode_to_vec()?;
+
+        // free ボックスのサイズで収まるかを確認
+        let free_box_header_size = BoxHeader::MIN_SIZE;
+
+        let moov_box_offset = if moov_box_bytes.len() <= self.options.reserved_moov_box_size {
+            // 事前に確保した free ボックスのペイロード領域に moov を書き込む
+            // （free ボックスのヘッダーも更新して mdat ボックスの末尾に追加する）
+            todo!()
+        } else {
+            // ファイル末尾に moov を追記
+            self.next_position
+        };
+
+        // mdat ボックスヘッダーのサイズ部分を確定する
+        let mdat_box_size = self.next_position - self.mdat_box_offset;
+        let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::Large(mdat_box_size));
+        let mdat_box_header_bytes = mdat_box_header.encode_to_vec()?;
+
         self.finalized_boxes = Some(FinalizedBoxes {
-            moov_box_offset: 0,
-            moov_box_bytes: Vec::new(),
-            mdat_box_header_offset: 0,
-            mdat_box_header_bytes: Vec::new(),
+            moov_box_offset,
+            moov_box_bytes,
+            mdat_box_offset: self.mdat_box_offset,
+            mdat_box_header_bytes,
         });
-        todo!()
+        Ok(())
+    }
+
+    fn build_moov_box(&self) -> Result<MoovBox, MuxError> {
+        let mut trak_boxes = Vec::new();
+
+        if !self.audio_chunks.is_empty() {
+            let track_id = trak_boxes.len() as u32 + 1;
+            trak_boxes.push(self.build_audio_trak_box(track_id)?);
+        }
+
+        if !self.video_chunks.is_empty() {
+            let track_id = trak_boxes.len() as u32 + 1;
+            trak_boxes.push(self.build_video_trak_box(track_id)?);
+        }
+
+        let mvhd_box = MvhdBox {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: TIMESCALE,
+            duration: self.calculate_total_duration()?,
+            rate: MvhdBox::DEFAULT_RATE,
+            volume: MvhdBox::DEFAULT_VOLUME,
+            matrix: MvhdBox::DEFAULT_MATRIX,
+            next_track_id: trak_boxes.len() as u32 + 1,
+        };
+
+        Ok(MoovBox {
+            mvhd_box,
+            trak_boxes,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_audio_trak_box(&self, track_id: u32) -> Result<TrakBox, MuxError> {
+        let total_duration = self
+            .audio_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        let tkhd_box = TkhdBox {
+            flag_track_enabled: true,
+            flag_track_in_movie: true,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: false,
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            track_id,
+            duration: total_duration,
+            layer: TkhdBox::DEFAULT_LAYER,
+            alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
+            volume: TkhdBox::DEFAULT_AUDIO_VOLUME,
+            matrix: TkhdBox::DEFAULT_MATRIX,
+            width: FixedPointNumber::default(),
+            height: FixedPointNumber::default(),
+        };
+
+        Ok(TrakBox {
+            tkhd_box,
+            edts_box: None,
+            mdia_box: self.build_audio_mdia_box()?,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_video_trak_box(&self, track_id: u32) -> Result<TrakBox, MuxError> {
+        let total_duration = self
+            .video_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        let tkhd_box = TkhdBox {
+            flag_track_enabled: true,
+            flag_track_in_movie: true,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: false,
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            track_id,
+            duration: total_duration,
+            layer: TkhdBox::DEFAULT_LAYER,
+            alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
+            volume: TkhdBox::DEFAULT_VIDEO_VOLUME,
+            matrix: TkhdBox::DEFAULT_MATRIX,
+            width: FixedPointNumber::default(),
+            height: FixedPointNumber::default(),
+        };
+
+        Ok(TrakBox {
+            tkhd_box,
+            edts_box: None,
+            mdia_box: self.build_video_mdia_box()?,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_audio_mdia_box(&self) -> Result<MdiaBox, MuxError> {
+        let total_duration = self
+            .audio_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        let sample_entry = self
+            .audio_chunks
+            .first()
+            .map(|c| c.sample_entry.clone())
+            .ok_or(MuxError::MissingSampleEntry {
+                track_kind: TrackKind::Audio,
+            })?;
+
+        let mdhd_box = MdhdBox {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: TIMESCALE,
+            duration: total_duration,
+            language: MdhdBox::LANGUAGE_UNDEFINED,
+        };
+
+        let hdlr_box = HdlrBox {
+            handler_type: HdlrBox::HANDLER_TYPE_SOUN,
+            name: Utf8String::EMPTY.into_null_terminated_bytes(),
+        };
+
+        let minf_box = MinfBox {
+            smhd_or_vmhd_box: Either::A(SmhdBox::default()),
+            dinf_box: DinfBox::LOCAL_FILE,
+            stbl_box: self.build_stbl_box(&sample_entry, &self.audio_chunks),
+            unknown_boxes: Vec::new(),
+        };
+
+        Ok(MdiaBox {
+            mdhd_box,
+            hdlr_box,
+            minf_box,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_video_mdia_box(&self) -> Result<MdiaBox, MuxError> {
+        let total_duration = self
+            .video_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        let sample_entry = self
+            .video_chunks
+            .first()
+            .map(|c| c.sample_entry.clone())
+            .ok_or(MuxError::MissingSampleEntry {
+                track_kind: TrackKind::Video,
+            })?;
+
+        let mdhd_box = MdhdBox {
+            creation_time: Mp4FileTime::default(),
+            modification_time: Mp4FileTime::default(),
+            timescale: TIMESCALE,
+            duration: total_duration,
+            language: MdhdBox::LANGUAGE_UNDEFINED,
+        };
+
+        let hdlr_box = HdlrBox {
+            handler_type: HdlrBox::HANDLER_TYPE_VIDE,
+            name: Utf8String::EMPTY.into_null_terminated_bytes(),
+        };
+
+        let minf_box = MinfBox {
+            smhd_or_vmhd_box: Either::B(VmhdBox::default()),
+            dinf_box: DinfBox::LOCAL_FILE,
+            stbl_box: self.build_stbl_box(&sample_entry, &self.video_chunks),
+            unknown_boxes: Vec::new(),
+        };
+
+        Ok(MdiaBox {
+            mdhd_box,
+            hdlr_box,
+            minf_box,
+            unknown_boxes: Vec::new(),
+        })
+    }
+
+    fn build_stbl_box(&self, sample_entry: &SampleEntry, chunks: &[Chunk]) -> StblBox {
+        let stsd_box = StsdBox {
+            entries: vec![sample_entry.clone()],
+        };
+
+        let stts_box = SttsBox::from_sample_deltas(
+            chunks
+                .iter()
+                .flat_map(|c| c.samples.iter().map(|s| s.duration)),
+        );
+
+        let stsc_box = StscBox {
+            entries: chunks
+                .iter()
+                .enumerate()
+                .map(|(i, c)| StscEntry {
+                    first_chunk: NonZeroU32::MIN.saturating_add(i as u32),
+                    sample_per_chunk: c.samples.len() as u32,
+                    sample_description_index: NonZeroU32::MIN,
+                })
+                .collect(),
+        };
+
+        let stsz_box = StszBox::Variable {
+            entry_sizes: chunks
+                .iter()
+                .flat_map(|c| c.samples.iter().map(|s| s.size))
+                .collect(),
+        };
+
+        let stco_box = StcoBox {
+            chunk_offsets: chunks.iter().map(|c| c.offset as u32).collect(),
+        };
+
+        let is_all_keyframe = chunks.iter().all(|c| c.samples.iter().all(|s| s.keyframe));
+        let stss_box = if is_all_keyframe {
+            None
+        } else {
+            Some(StssBox {
+                sample_numbers: chunks
+                    .iter()
+                    .flat_map(|c| c.samples.iter())
+                    .enumerate()
+                    .filter_map(|(i, s)| {
+                        s.keyframe
+                            .then_some(NonZeroU32::MIN.saturating_add(i as u32))
+                    })
+                    .collect(),
+            })
+        };
+
+        StblBox {
+            stsd_box,
+            stts_box,
+            stsc_box,
+            stsz_box,
+            stco_or_co64_box: Either::A(stco_box),
+            stss_box,
+            unknown_boxes: Vec::new(),
+        }
+    }
+
+    fn calculate_total_duration(&self) -> Result<u64, MuxError> {
+        let audio_duration = self
+            .audio_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        let video_duration = self
+            .video_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+
+        Ok(audio_duration.max(video_duration))
     }
 }
