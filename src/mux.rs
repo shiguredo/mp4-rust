@@ -15,8 +15,6 @@ use crate::{
     },
 };
 
-pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
-
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {
     pub reserved_moov_box_size: usize,
@@ -155,6 +153,8 @@ pub struct Mp4FileMuxer {
 }
 
 impl Mp4FileMuxer {
+    pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
+
     pub fn new() -> Result<Self, MuxError> {
         Self::with_options(Mp4FileMuxerOptions::default())
     }
@@ -348,7 +348,7 @@ impl Mp4FileMuxer {
         let mvhd_box = MvhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: TIMESCALE,
+            timescale: Self::TIMESCALE,
             duration: self.calculate_total_duration(),
             rate: MvhdBox::DEFAULT_RATE,
             volume: MvhdBox::DEFAULT_VOLUME,
@@ -454,7 +454,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: TIMESCALE,
+            timescale: Self::TIMESCALE,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -496,7 +496,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: TIMESCALE,
+            timescale: Self::TIMESCALE,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
