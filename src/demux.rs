@@ -32,7 +32,7 @@
 //! // 時系列順にサンプルを抽出する
 //! while let Some(sample) = demuxer.next_sample().expect("サンプル読み込み失敗") {
 //!     println!("サンプル - トラックID: {}, タイムスタンプ: {:?}, サイズ: {} バイト",
-//!              sample.track_id, sample.timestamp(), sample.data_size);
+//!              sample.track.track_id, sample.timestamp(), sample.data_size);
 //!     // sample.data_offset の位置から sample.data_size バイトのサンプルデータにアクセス
 //!     let sample_data = &file_data[sample.data_offset as usize..
 //!                                   sample.data_offset as usize + sample.data_size];
@@ -94,19 +94,14 @@ impl TrackInfo {
 /// メタデータとデータ位置情報を保持する
 #[derive(Debug, Clone)]
 pub struct Sample<'a> {
-    /// サンプルが属するトラックの ID
-    pub track_id: u32,
+    /// サンプルが属するトラックの情報
+    pub track: &'a TrackInfo,
 
     /// サンプルの詳細情報
     pub sample_entry: &'a SampleEntry,
 
     /// キーフレームであるかの判定
     pub keyframe: bool,
-
-    /// サンプルのタイムスケール
-    ///
-    /// これは対応するトラックの [`TrackInfo::timescale`] と同じ値となる
-    pub timescale: NonZeroU32,
 
     /// サンプルのタイムスタンプ（タイムスケール単位）
     pub timescaled_timestamp: u64,
@@ -129,7 +124,7 @@ impl Sample<'_> {
     /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
     /// もしそれが問題となる場合は `timescaled_timestamp` および `timescale` フィールドを直接参照すること
     pub fn timestamp(&self) -> Duration {
-        Duration::from_secs(self.timescaled_timestamp) / self.timescale.get()
+        Duration::from_secs(self.timescaled_timestamp) / self.track.timescale.get()
     }
 
     /// サンプルの尺を [`Duration`] 形式で返す
@@ -139,7 +134,7 @@ impl Sample<'_> {
     /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
     /// もしそれが問題となる場合は `timescaled_duration` および `timescale` フィールドを直接参照すること
     pub fn duration(&self) -> Duration {
-        Duration::from_secs(self.timescaled_duration as u64) / self.timescale.get()
+        Duration::from_secs(self.timescaled_duration as u64) / self.track.timescale.get()
     }
 }
 
@@ -174,7 +169,6 @@ impl<'a> Input<'a> {
 
 #[derive(Debug)]
 struct TrackState {
-    track_id: u32,
     table: SampleTableAccessor<StblBox>,
     next_sample_index: NonZeroU32,
     timescale: NonZeroU32,
@@ -401,7 +395,6 @@ impl Mp4FileDemuxer {
                 timescale,
             });
             self.tracks.push(TrackState {
-                track_id,
                 table,
                 next_sample_index: NonZeroU32::MIN,
                 timescale,
@@ -452,9 +445,7 @@ impl Mp4FileDemuxer {
 
         // 最も早いサンプルを提供したトラックを進める
         if let Some((_timestamp, track_index)) = earliest_sample {
-            let track_id = self.tracks[track_index].track_id;
             let sample_index = self.tracks[track_index].next_sample_index;
-            let timescale = self.tracks[track_index].timescale;
             self.tracks[track_index].next_sample_index =
                 sample_index.checked_add(1).ok_or_else(|| {
                     DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
@@ -465,10 +456,9 @@ impl Mp4FileDemuxer {
                 .get_sample(sample_index)
                 .expect("bug");
             let sample = Sample {
-                track_id,
+                track: &self.track_infos[track_index],
                 sample_entry: sample_accessor.chunk().sample_entry(),
                 keyframe: sample_accessor.is_sync_sample(),
-                timescale,
                 timescaled_timestamp: sample_accessor.timestamp(),
                 timescaled_duration: sample_accessor.duration(),
                 data_offset: sample_accessor.data_offset(),
