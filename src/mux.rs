@@ -285,15 +285,22 @@ impl Mp4FileMuxer {
         let moov_box = self.build_moov_box()?;
         let moov_box_bytes = moov_box.encode_to_vec()?;
 
-        // free ボックスのサイズで収まるかを確認
-        let free_box_header_size = BoxHeader::MIN_SIZE;
+        // moov ボックスの書き込み位置を決定
+        let moov_box_offset = if let Some(free_box_payload_size) = self
+            .options
+            .reserved_moov_box_size
+            .checked_sub(moov_box_bytes.len())
+        {
+            // 事前に確保した free ボックスのペイロード領域に収まる場合は、そこに moov ボックスを書き込む
+            // （free ボックスのヘッダーも更新して moov ボックスの末尾に追加する）
+            let free_box = FreeBox {
+                payload: vec![0; free_box_payload_size],
+            };
+            moov_box_bytes.extend_from_slice(&free_box.encode_to_vec()?);
 
-        let moov_box_offset = if moov_box_bytes.len() <= self.options.reserved_moov_box_size {
-            // 事前に確保した free ボックスのペイロード領域に moov を書き込む
-            // （free ボックスのヘッダーも更新して mdat ボックスの末尾に追加する）
-            todo!()
+            self.free_box_offset
         } else {
-            // ファイル末尾に moov を追記
+            // 収まらない場合はファイル末尾に moov ボックスを追記
             self.next_position
         };
 
