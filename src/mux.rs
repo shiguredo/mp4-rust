@@ -64,7 +64,7 @@ impl FinalizedBoxes {
 pub struct Sample {
     pub track_kind: TrackKind,
     pub sample_entry: Option<SampleEntry>,
-    pub keyfframe: bool,
+    pub keyframe: bool,
     pub duration: Duration,
     pub data_offset: u64,
     pub data_size: usize,
@@ -236,7 +236,7 @@ impl Mp4FileMuxer {
 
         let metadata = SampleMetadata {
             duration: sample.duration.as_micros() as u32,
-            keyframe: sample.keyfframe,
+            keyframe: sample.keyframe,
             size: sample.data_size as u32,
         };
 
@@ -644,7 +644,7 @@ mod tests {
         let sample = Sample {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
-            keyfframe: true,
+            keyframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
             data_size: 1024,
@@ -658,7 +658,7 @@ mod tests {
         let sample2 = Sample {
             track_kind: TrackKind::Video,
             sample_entry: None,
-            keyfframe: false,
+            keyframe: false,
             duration: Duration::from_millis(33),
             data_offset: initial_size + 1024,
             data_size: 512,
@@ -686,7 +686,7 @@ mod tests {
         let sample = Sample {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
-            keyfframe: true,
+            keyframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size + 100, // 誤ったオフセット
             data_size: 1024,
@@ -711,7 +711,7 @@ mod tests {
         let sample = Sample {
             track_kind: TrackKind::Audio,
             sample_entry: None,
-            keyfframe: false,
+            keyframe: false,
             duration: Duration::from_millis(20),
             data_offset: initial_size,
             data_size: 512,
@@ -734,7 +734,7 @@ mod tests {
         let sample = Sample {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
-            keyfframe: true,
+            keyframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
             data_size: 1024,
@@ -749,7 +749,7 @@ mod tests {
         let sample2 = Sample {
             track_kind: TrackKind::Video,
             sample_entry: None,
-            keyfframe: false,
+            keyframe: false,
             duration: Duration::from_millis(33),
             data_offset: initial_size + 1024,
             data_size: 512,
@@ -771,7 +771,7 @@ mod tests {
         let video_sample = Sample {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
-            keyfframe: true,
+            keyframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
             data_size: 1024,
@@ -784,7 +784,7 @@ mod tests {
         let audio_sample = Sample {
             track_kind: TrackKind::Audio,
             sample_entry: Some(create_opus_sample_entry()),
-            keyfframe: false,
+            keyframe: false,
             duration: Duration::from_millis(20),
             data_offset: initial_size + 1024,
             data_size: 256,
@@ -811,7 +811,7 @@ mod tests {
         let sample = Sample {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
-            keyfframe: true,
+            keyframe: true,
             duration: Duration::from_millis(33),
             data_offset: initial_size,
             data_size: 1024,
@@ -840,7 +840,7 @@ mod tests {
                 } else {
                     None
                 },
-                keyfframe: i % 2 == 0,
+                keyframe: i % 2 == 0,
                 duration: Duration::from_millis(33),
                 data_offset: initial_size + (i as u64 * 1024),
                 data_size: 1024,
