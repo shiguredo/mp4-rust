@@ -358,7 +358,7 @@ impl Mp4FileMuxer {
             creation_time,
             modification_time: creation_time,
             timescale: TIMESCALE,
-            duration: self.calculate_total_duration()?,
+            duration: self.calculate_total_duration(),
             rate: MvhdBox::DEFAULT_RATE,
             volume: MvhdBox::DEFAULT_VOLUME,
             matrix: MvhdBox::DEFAULT_MATRIX,
@@ -598,7 +598,7 @@ impl Mp4FileMuxer {
         }
     }
 
-    fn calculate_total_duration(&self) -> Result<u64, MuxError> {
+    fn calculate_total_duration(&self) -> u64 {
         let audio_duration = self
             .audio_chunks
             .iter()
@@ -611,6 +611,6 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        Ok(audio_duration.max(video_duration))
+        audio_duration.max(video_duration)
     }
 }
