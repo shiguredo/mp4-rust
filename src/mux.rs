@@ -28,22 +28,25 @@ pub struct Mp4FileMuxerOptions {
 }
 
 #[derive(Debug)]
-pub struct FinalizedBoxes<'a> {
+pub struct FinalizedBoxes {
     moov_box_offset: u64,
-    moov_box_bytes: &'a [u8],
+    moov_box_bytes: Vec<u8>,
     mdat_box_header_offset: u64,
-    mdat_box_header_bytes: &'a [u8],
+    mdat_box_header_bytes: Vec<u8>,
 }
 
-impl<'a> FinalizedBoxes<'a> {
+impl FinalizedBoxes {
     pub fn is_faststart_enabled(&self) -> bool {
         self.moov_box_offset < self.mdat_box_header_offset
     }
 
-    pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &'a [u8])> {
+    pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
         [
-            (self.moov_box_offset, self.moov_box_bytes),
-            (self.mdat_box_header_offset, self.mdat_box_header_bytes),
+            (self.moov_box_offset, self.moov_box_bytes.as_slice()),
+            (
+                self.mdat_box_header_offset,
+                self.mdat_box_header_bytes.as_slice(),
+            ),
         ]
         .into_iter()
     }
@@ -134,7 +137,7 @@ pub struct Mp4FileMuxer {
     header_bytes: Vec<u8>,
     next_position: u64,
     last_sample_kind: Option<TrackKind>,
-    is_finalized: bool,
+    finalized_boxes: Option<FinalizedBoxes>,
     audio_chunks: Vec<Chunk>,
     video_chunks: Vec<Chunk>,
 }
@@ -150,7 +153,7 @@ impl Mp4FileMuxer {
             header_bytes: Vec::new(),
             next_position: 0,
             last_sample_kind: None,
-            is_finalized: false,
+            finalized_boxes: None,
             audio_chunks: Vec::new(),
             video_chunks: Vec::new(),
         };
@@ -204,12 +207,12 @@ impl Mp4FileMuxer {
         &self.header_bytes
     }
 
-    pub fn finalized_boxes(&self) -> Option<FinalizedBoxes<'_>> {
-        todo!()
+    pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
+        self.finalized_boxes.as_ref()
     }
 
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
-        if self.is_finalized {
+        if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
         }
         if self.next_position != sample.data_offset {
@@ -275,12 +278,18 @@ impl Mp4FileMuxer {
     }
 
     pub fn finalize(&mut self) -> Result<(), MuxError> {
-        if self.is_finalized {
+        if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
         }
-        self.is_finalized = true;
 
         // TODO: Build and write moov box with collected sample metadata
+        // For now, just mark as finalized
+        self.finalized_boxes = Some(FinalizedBoxes {
+            moov_box_offset: 0,
+            moov_box_bytes: Vec::new(),
+            mdat_box_header_offset: 0,
+            mdat_box_header_bytes: Vec::new(),
+        });
         todo!()
     }
 }
