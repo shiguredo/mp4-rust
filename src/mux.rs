@@ -1,4 +1,4 @@
-#![expect(missing_docs)]
+#![expect(missing_docs, dead_code)]
 
 use core::{num::NonZeroU32, time::Duration};
 
@@ -76,11 +76,22 @@ impl std::error::Error for MuxError {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SampleMetadata {
+    duration: u32,
+    keyframe: bool,
+    size: u32,
+}
+
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
     header_bytes: Vec<u8>,
     next_position: u64,
+    audio_samples: Vec<SampleMetadata>,
+    video_samples: Vec<SampleMetadata>,
+    audio_sample_entry: Option<SampleEntry>,
+    video_sample_entry: Option<SampleEntry>,
 }
 
 impl Mp4FileMuxer {
@@ -93,6 +104,10 @@ impl Mp4FileMuxer {
             options,
             header_bytes: Vec::new(),
             next_position: 0,
+            audio_samples: Vec::new(),
+            video_samples: Vec::new(),
+            audio_sample_entry: None,
+            video_sample_entry: None,
         };
         this.build_header()?;
         Ok(this)
@@ -158,9 +173,33 @@ impl Mp4FileMuxer {
                 actual: sample.data_offset,
             });
         }
+
+        let metadata = SampleMetadata {
+            duration: sample.duration.as_micros() as u32,
+            keyframe: sample.keyfframe,
+            size: sample.data_size as u32,
+        };
+
+        match sample.track_kind {
+            TrackKind::Audio => {
+                if sample.sample_entry.is_some() {
+                    self.audio_sample_entry = sample.sample_entry.clone();
+                }
+                self.audio_samples.push(metadata);
+            }
+            TrackKind::Video => {
+                if sample.sample_entry.is_some() {
+                    self.video_sample_entry = sample.sample_entry.clone();
+                }
+                self.video_samples.push(metadata);
+            }
+        }
+
         self.next_position += sample.data_size as u64;
-        todo!()
+        Ok(())
     }
 
-    pub fn finalize(&mut self) {}
+    pub fn finalize(&mut self) {
+        // TODO: Build and write moov box with collected sample metadata
+    }
 }
