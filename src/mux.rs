@@ -1,4 +1,4 @@
-#![expect(missing_docs, dead_code)]
+#![expect(missing_docs)]
 
 use core::{num::NonZeroU32, time::Duration};
 
@@ -6,8 +6,12 @@ use core::{num::NonZeroU32, time::Duration};
 use alloc::{vec, vec::Vec};
 
 use crate::{
-    BoxHeader, BoxSize, Encode, Error,
-    boxes::{Brand, FreeBox, FtypBox, MdatBox, SampleEntry},
+    BoxHeader, BoxSize, Either, Encode, Error, FixedPointNumber, Mp4FileTime, Utf8String,
+    boxes::{
+        Brand, DinfBox, FreeBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox,
+        MvhdBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
+        StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
+    },
 };
 
 pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
@@ -283,7 +287,7 @@ impl Mp4FileMuxer {
 
         // moov ボックスを構築
         let moov_box = self.build_moov_box()?;
-        let moov_box_bytes = moov_box.encode_to_vec()?;
+        let mut moov_box_bytes = moov_box.encode_to_vec()?;
 
         // moov ボックスの書き込み位置を決定
         let moov_box_offset = if let Some(free_box_payload_size) = self
@@ -306,7 +310,7 @@ impl Mp4FileMuxer {
 
         // mdat ボックスヘッダーのサイズ部分を確定する
         let mdat_box_size = self.next_position - self.mdat_box_offset;
-        let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::Large(mdat_box_size));
+        let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::U64(mdat_box_size));
         let mdat_box_header_bytes = mdat_box_header.encode_to_vec()?;
 
         self.finalized_boxes = Some(FinalizedBoxes {
