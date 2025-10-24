@@ -353,11 +353,10 @@ impl Mp4FileMuxer {
             trak_boxes.push(self.build_video_trak_box(track_id)?);
         }
 
-        let mp4_creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
-
+        let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mvhd_box = MvhdBox {
-            creation_time: mp4_creation_time,
-            modification_time: mp4_creation_time,
+            creation_time,
+            modification_time: creation_time,
             timescale: TIMESCALE,
             duration: self.calculate_total_duration()?,
             rate: MvhdBox::DEFAULT_RATE,
@@ -380,15 +379,14 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let mp4_creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
-
+        let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let tkhd_box = TkhdBox {
             flag_track_enabled: true,
             flag_track_in_movie: true,
             flag_track_in_preview: false,
             flag_track_size_is_aspect_ratio: false,
-            creation_time: mp4_creation_time,
-            modification_time: mp4_creation_time,
+            creation_time,
+            modification_time: creation_time,
             track_id,
             duration: total_duration,
             layer: TkhdBox::DEFAULT_LAYER,
@@ -414,15 +412,14 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let mp4_creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
-
+        let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let tkhd_box = TkhdBox {
             flag_track_enabled: true,
             flag_track_in_movie: true,
             flag_track_in_preview: false,
             flag_track_size_is_aspect_ratio: false,
-            creation_time: mp4_creation_time,
-            modification_time: mp4_creation_time,
+            creation_time,
+            modification_time: creation_time,
             track_id,
             duration: total_duration,
             layer: TkhdBox::DEFAULT_LAYER,
@@ -456,11 +453,10 @@ impl Mp4FileMuxer {
                 track_kind: TrackKind::Audio,
             })?;
 
-        let mp4_creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
-
+        let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
-            creation_time: mp4_creation_time,
-            modification_time: mp4_creation_time,
+            creation_time,
+            modification_time: creation_time,
             timescale: TIMESCALE,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
@@ -501,11 +497,10 @@ impl Mp4FileMuxer {
                 track_kind: TrackKind::Video,
             })?;
 
-        let mp4_creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
-
+        let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
-            creation_time: mp4_creation_time,
-            modification_time: mp4_creation_time,
+            creation_time,
+            modification_time: creation_time,
             timescale: TIMESCALE,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
