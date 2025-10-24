@@ -672,9 +672,9 @@ mod tests {
         assert!(finalized.mdat_box_header_bytes.len() > 0);
     }
 
+    /// ポジション不一致エラーのテスト
     #[test]
     fn test_position_mismatch_error() {
-        // ポジション不一致エラーのテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
@@ -686,19 +686,16 @@ mod tests {
             data_offset: initial_size + 100, // 誤ったオフセット
             data_size: 1024,
         };
-
-        match muxer.append_sample(&sample) {
-            Err(MuxError::PositionMismatch { expected, actual }) => {
-                assert_eq!(expected, initial_size);
-                assert_eq!(actual, initial_size + 100);
-            }
-            _ => panic!("expected PositionMismatch error"),
-        }
+        assert!(matches!(
+            muxer.append_sample(&sample),
+            Err(MuxError::PositionMismatch { expected, actual })
+            if expected == initial_size && actual == initial_size + 100
+        ));
     }
 
+    /// サンプルエントリー不在エラーのテスト
     #[test]
     fn test_missing_sample_entry_error() {
-        // サンプルエントリー不在エラーのテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
@@ -711,18 +708,17 @@ mod tests {
             data_offset: initial_size,
             data_size: 512,
         };
-
-        match muxer.append_sample(&sample) {
-            Err(MuxError::MissingSampleEntry { track_kind }) => {
-                assert_eq!(track_kind, TrackKind::Audio);
-            }
-            _ => panic!("expected MissingSampleEntry error"),
-        }
+        assert!(matches!(
+            muxer.append_sample(&sample),
+            Err(MuxError::MissingSampleEntry {
+                track_kind: TrackKind::Audio
+            })
+        ));
     }
 
+    /// ファイナライズ済みエラーのテスト
     #[test]
     fn test_already_finalized_error() {
-        // ファイナライズ済みエラーのテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
@@ -734,7 +730,6 @@ mod tests {
             data_offset: initial_size,
             data_size: 1024,
         };
-
         muxer
             .append_sample(&sample)
             .expect("failed to append sample");
@@ -749,16 +744,15 @@ mod tests {
             data_offset: initial_size + 1024,
             data_size: 512,
         };
-
-        match muxer.append_sample(&sample2) {
-            Err(MuxError::AlreadyFinalized) => (),
-            _ => panic!("expected AlreadyFinalized error"),
-        }
+        assert!(matches!(
+            muxer.append_sample(&sample2),
+            Err(MuxError::AlreadyFinalized)
+        ));
     }
 
+    /// 音声と映像の複数トラックのテスト
     #[test]
     fn test_audio_and_video_tracks() {
-        // 音声と映像の複数トラックのテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
@@ -792,12 +786,12 @@ mod tests {
         assert!(finalized.moov_box_bytes.len() > 0);
     }
 
+    /// faststart 機能の有効化テスト
     #[test]
     fn test_faststart_enabled() {
-        // ファストスタート機能の有効化テスト
         let options = Mp4FileMuxerOptions {
             reserved_moov_box_size: 8192,
-            creation_timestamp: Duration::from_secs(0),
+            ..Default::default()
         };
         let mut muxer =
             Mp4FileMuxer::with_options(options).expect("failed to create muxer with options");
@@ -811,7 +805,6 @@ mod tests {
             data_offset: initial_size,
             data_size: 1024,
         };
-
         muxer
             .append_sample(&sample)
             .expect("failed to append sample");
@@ -820,20 +813,17 @@ mod tests {
         assert!(finalized.is_faststart_enabled());
     }
 
+    /// 複数ビデオサンプルのテスト
     #[test]
     fn test_multiple_video_samples() {
-        // 複数ビデオサンプルのテスト
         let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
         let initial_size = muxer.initial_boxes_bytes().len() as u64;
 
+        let mut sample_entry = Some(create_avc1_sample_entry());
         for i in 0..5 {
             let sample = Sample {
                 track_kind: TrackKind::Video,
-                sample_entry: if i == 0 {
-                    Some(create_avc1_sample_entry())
-                } else {
-                    None
-                },
+                sample_entry: sample_entry.take(),
                 keyframe: i % 2 == 0,
                 duration: Duration::from_millis(33),
                 data_offset: initial_size + (i as u64 * 1024),
