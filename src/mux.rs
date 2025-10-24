@@ -605,3 +605,413 @@ impl Mp4FileMuxer {
         audio_duration.max(video_duration)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        Uint,
+        boxes::{
+            AudioSampleEntryFields, Avc1Box, AvccBox, DopsBox, OpusBox, VisualSampleEntryFields,
+        },
+    };
+
+    #[test]
+    fn test_muxer_creation() {
+        // マルチプレクサーの基本的な生成テスト
+        let muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        assert!(muxer.initial_boxes_bytes().len() > 0);
+        assert!(muxer.finalized_boxes().is_none());
+    }
+
+    #[test]
+    fn test_muxer_with_options() {
+        // カスタムオプション付きのマルチプレクサー生成テスト
+        let options = Mp4FileMuxerOptions {
+            reserved_moov_box_size: 4096,
+            creation_timestamp: Duration::from_secs(0),
+        };
+        let muxer =
+            Mp4FileMuxer::with_options(options).expect("failed to create muxer with options");
+        assert!(muxer.initial_boxes_bytes().len() > 0);
+    }
+
+    #[test]
+    fn test_append_sample_and_finalize() {
+        // サンプル追加とファイナライズの基本的なワークフローテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        // H.264 ビデオサンプルを作成
+        let sample = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    width: 1920,
+                    height: 1080,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                avcc_box: AvccBox {
+                    avc_profile_indication: 66,
+                    profile_compatibility: 0,
+                    avc_level_indication: 30,
+                    length_size_minus_one: Uint::new(3),
+                    sps_list: vec![],
+                    pps_list: vec![],
+                    chroma_format: None,
+                    bit_depth_luma_minus8: None,
+                    bit_depth_chroma_minus8: None,
+                    sps_ext_list: vec![],
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: true,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size,
+            data_size: 1024,
+        };
+
+        muxer
+            .append_sample(&sample)
+            .expect("failed to append sample");
+
+        // 別のサンプルを追加
+        let sample2 = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: None,
+            keyfframe: false,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size + 1024,
+            data_size: 512,
+        };
+
+        muxer
+            .append_sample(&sample2)
+            .expect("failed to append sample");
+
+        // マルチプレクサーをファイナライズ
+        muxer.finalize().expect("failed to finalize");
+        assert!(muxer.finalized_boxes().is_some());
+
+        let finalized = muxer.finalized_boxes().unwrap();
+        assert!(finalized.moov_box_bytes.len() > 0);
+        assert!(finalized.mdat_box_header_bytes.len() > 0);
+    }
+
+    #[test]
+    fn test_position_mismatch_error() {
+        // ポジション不一致エラーのテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        let sample = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    width: 1920,
+                    height: 1080,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                avcc_box: AvccBox {
+                    avc_profile_indication: 66,
+                    profile_compatibility: 0,
+                    avc_level_indication: 30,
+                    length_size_minus_one: Uint::new(3),
+                    sps_list: vec![],
+                    pps_list: vec![],
+                    chroma_format: None,
+                    bit_depth_luma_minus8: None,
+                    bit_depth_chroma_minus8: None,
+                    sps_ext_list: vec![],
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: true,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size + 100, // 誤ったオフセット
+            data_size: 1024,
+        };
+
+        match muxer.append_sample(&sample) {
+            Err(MuxError::PositionMismatch { expected, actual }) => {
+                assert_eq!(expected, initial_size);
+                assert_eq!(actual, initial_size + 100);
+            }
+            _ => panic!("expected PositionMismatch error"),
+        }
+    }
+
+    #[test]
+    fn test_missing_sample_entry_error() {
+        // サンプルエントリー不在エラーのテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        // サンプルエントリーなしの最初のサンプルは失敗するはず
+        let sample = Sample {
+            track_kind: TrackKind::Audio,
+            sample_entry: None,
+            keyfframe: false,
+            duration: Duration::from_millis(20),
+            data_offset: initial_size,
+            data_size: 512,
+        };
+
+        match muxer.append_sample(&sample) {
+            Err(MuxError::MissingSampleEntry { track_kind }) => {
+                assert_eq!(track_kind, TrackKind::Audio);
+            }
+            _ => panic!("expected MissingSampleEntry error"),
+        }
+    }
+
+    #[test]
+    fn test_already_finalized_error() {
+        // ファイナライズ済みエラーのテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        let sample = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    width: 1920,
+                    height: 1080,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                avcc_box: AvccBox {
+                    avc_profile_indication: 66,
+                    profile_compatibility: 0,
+                    avc_level_indication: 30,
+                    length_size_minus_one: Uint::new(3),
+                    sps_list: vec![],
+                    pps_list: vec![],
+                    chroma_format: None,
+                    bit_depth_luma_minus8: None,
+                    bit_depth_chroma_minus8: None,
+                    sps_ext_list: vec![],
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: true,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size,
+            data_size: 1024,
+        };
+
+        muxer
+            .append_sample(&sample)
+            .expect("failed to append sample");
+        muxer.finalize().expect("failed to finalize");
+
+        // ファイナライズ後に別のサンプルを追加しようとする
+        let sample2 = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: None,
+            keyfframe: false,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size + 1024,
+            data_size: 512,
+        };
+
+        match muxer.append_sample(&sample2) {
+            Err(MuxError::AlreadyFinalized) => (),
+            _ => panic!("expected AlreadyFinalized error"),
+        }
+    }
+
+    #[test]
+    fn test_audio_and_video_tracks() {
+        // 音声と映像の複数トラックのテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        // ビデオサンプルを追加
+        let video_sample = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    width: 1920,
+                    height: 1080,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                avcc_box: AvccBox {
+                    avc_profile_indication: 66,
+                    profile_compatibility: 0,
+                    avc_level_indication: 30,
+                    length_size_minus_one: Uint::new(3),
+                    sps_list: vec![],
+                    pps_list: vec![],
+                    chroma_format: None,
+                    bit_depth_luma_minus8: None,
+                    bit_depth_chroma_minus8: None,
+                    sps_ext_list: vec![],
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: true,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size,
+            data_size: 1024,
+        };
+        muxer
+            .append_sample(&video_sample)
+            .expect("failed to append video sample");
+
+        // オーディオサンプルを追加
+        let audio_sample = Sample {
+            track_kind: TrackKind::Audio,
+            sample_entry: Some(SampleEntry::Opus(OpusBox {
+                audio: AudioSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    channelcount: 2,
+                    samplesize: AudioSampleEntryFields::DEFAULT_SAMPLESIZE,
+                    samplerate: FixedPointNumber::new(48000u16, 0),
+                },
+                dops_box: DopsBox {
+                    output_channel_count: 2,
+                    pre_skip: 312,
+                    input_sample_rate: 48000,
+                    output_gain: 0,
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: false,
+            duration: Duration::from_millis(20),
+            data_offset: initial_size + 1024,
+            data_size: 256,
+        };
+        muxer
+            .append_sample(&audio_sample)
+            .expect("failed to append audio sample");
+
+        muxer.finalize().expect("failed to finalize");
+        assert!(muxer.finalized_boxes().is_some());
+    }
+
+    #[test]
+    fn test_faststart_enabled() {
+        // ファストスタート機能の有効化テスト
+        let options = Mp4FileMuxerOptions {
+            reserved_moov_box_size: 8192,
+            creation_timestamp: Duration::from_secs(0),
+        };
+        let mut muxer =
+            Mp4FileMuxer::with_options(options).expect("failed to create muxer with options");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        let sample = Sample {
+            track_kind: TrackKind::Video,
+            sample_entry: Some(SampleEntry::Avc1(Avc1Box {
+                visual: VisualSampleEntryFields {
+                    data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                    width: 1920,
+                    height: 1080,
+                    horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                    vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                    frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                    compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                    depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                },
+                avcc_box: AvccBox {
+                    avc_profile_indication: 66,
+                    profile_compatibility: 0,
+                    avc_level_indication: 30,
+                    length_size_minus_one: Uint::new(3),
+                    sps_list: vec![],
+                    pps_list: vec![],
+                    chroma_format: None,
+                    bit_depth_luma_minus8: None,
+                    bit_depth_chroma_minus8: None,
+                    sps_ext_list: vec![],
+                },
+                unknown_boxes: vec![],
+            })),
+            keyfframe: true,
+            duration: Duration::from_millis(33),
+            data_offset: initial_size,
+            data_size: 1024,
+        };
+
+        muxer
+            .append_sample(&sample)
+            .expect("failed to append sample");
+        muxer.finalize().expect("failed to finalize");
+
+        let finalized = muxer.finalized_boxes().unwrap();
+        assert!(finalized.is_faststart_enabled());
+    }
+
+    #[test]
+    fn test_multiple_video_samples() {
+        // 複数ビデオサンプルのテスト
+        let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+        let initial_size = muxer.initial_boxes_bytes().len() as u64;
+
+        for i in 0..5 {
+            let sample = Sample {
+                track_kind: TrackKind::Video,
+                sample_entry: if i == 0 {
+                    Some(SampleEntry::Avc1(Avc1Box {
+                        visual: VisualSampleEntryFields {
+                            data_reference_index:
+                                VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                            width: 1920,
+                            height: 1080,
+                            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+                            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+                            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+                            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+                            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+                        },
+                        avcc_box: AvccBox {
+                            avc_profile_indication: 66,
+                            profile_compatibility: 0,
+                            avc_level_indication: 30,
+                            length_size_minus_one: Uint::new(3),
+                            sps_list: vec![],
+                            pps_list: vec![],
+                            chroma_format: None,
+                            bit_depth_luma_minus8: None,
+                            bit_depth_chroma_minus8: None,
+                            sps_ext_list: vec![],
+                        },
+                        unknown_boxes: vec![],
+                    }))
+                } else {
+                    None
+                },
+                keyfframe: i % 2 == 0,
+                duration: Duration::from_millis(33),
+                data_offset: initial_size + (i as u64 * 1024),
+                data_size: 1024,
+            };
+            muxer
+                .append_sample(&sample)
+                .expect("failed to append sample");
+        }
+
+        muxer.finalize().expect("failed to finalize");
+        assert!(muxer.finalized_boxes().is_some());
+    }
+}
