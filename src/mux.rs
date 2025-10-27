@@ -364,27 +364,19 @@ impl Mp4FileMuxer {
         Ok(())
     }
 
-    /// 初期 MP4 ボックスのバイト列を取得
+    /// 構築する MP4 ファイルに含まれる初期ボックス群を表すバイト列を取得する
     ///
-    /// このメソッドが返すバイト列には、ftyp ボックスと、
-    /// faststart 用に予約された領域（free ボックス）、および mdat ボックスのヘッダーが含まれる。
-    /// この内容をファイルの先頭に書きこむ必要がある。
+    /// 利用側は [`Mp4FileMuxer::append_sample()`] を呼び出す前に、このメソッドが返す内容で
+    /// 出力先を初期化しておく必要がある
     pub fn initial_boxes_bytes(&self) -> &[u8] {
         &self.initial_boxes_bytes
     }
 
-    /// ファイナライズされたボックス情報を取得
+    /// 映像ないし音声サンプルのデータを MP4 ファイルに追記したことを [`Mp4FileMuxer`] に通知する
     ///
-    /// [`finalize()`](Self::finalize) を呼び出す前は `None` が返される
-    pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
-        self.finalized_boxes.as_ref()
-    }
-
-    /// サンプルをマルチプレックスに追加
-    ///
-    /// サンプルはファイルポジション順に追加する必要があり、
-    /// [`sample.data_offset`](Sample::data_offset) は前のサンプルの終了位置と
-    /// 一致していなければならない。
+    /// 実際のデータ追記処理自体は利用側の責務であり、
+    /// このメソッド目的は、その追記結果などを伝えることで、
+    /// [`Mp4FileMuxer`] が適切に、MP4ファイルの再生に必要なメタデータを構築できるようにすることである。
     pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
@@ -501,6 +493,13 @@ impl Mp4FileMuxer {
         });
 
         Ok(self.finalized_boxes.as_ref().expect("infallible"))
+    }
+
+    /// ファイナライズされたボックス情報を取得
+    ///
+    /// [`finalize()`](Self::finalize) を呼び出す前は `None` が返される
+    pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
+        self.finalized_boxes.as_ref()
     }
 
     fn build_moov_box(&self) -> Result<MoovBox, MuxError> {
