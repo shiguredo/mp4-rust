@@ -317,11 +317,12 @@ impl BaseBox for FreeBox {
 }
 
 /// [ISO/IEC 14496-12] MediaDataBox class
+///
+/// # NOTE
+///
+/// 可変長ペイロードを表現したい場合には、この構造体ではなく [`BoxHeader`] を直接使用する必要がある
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MdatBox {
-    /// ペイロードが可変長かどうか
-    pub is_variable_size: bool,
-
     /// ペイロード
     pub payload: Vec<u8>,
 }
@@ -333,11 +334,7 @@ impl MdatBox {
 
 impl Encode for MdatBox {
     fn encode(&self, buf: &mut [u8]) -> Result<usize> {
-        let box_size = if self.is_variable_size {
-            BoxSize::VARIABLE_SIZE
-        } else {
-            BoxSize::with_payload_size(Self::TYPE, self.payload.len() as u64)
-        };
+        let box_size = BoxSize::with_payload_size(Self::TYPE, self.payload.len() as u64);
         let mut offset = BoxHeader::new(Self::TYPE, box_size).encode(buf)?;
         offset += self.payload.encode(&mut buf[offset..])?;
         Ok(offset)
@@ -351,7 +348,6 @@ impl Decode for MdatBox {
 
         Ok((
             Self {
-                is_variable_size: header.box_size == BoxSize::VARIABLE_SIZE,
                 payload: payload.to_vec(),
             },
             header.external_size() + payload.len(),
