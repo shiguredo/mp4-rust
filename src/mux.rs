@@ -598,12 +598,6 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let sample_entry = self.audio_chunks.first().map(|c| &c.sample_entry).ok_or(
-            MuxError::MissingSampleEntry {
-                track_kind: TrackKind::Audio,
-            },
-        )?;
-
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
             creation_time,
@@ -621,7 +615,7 @@ impl Mp4FileMuxer {
         let minf_box = MinfBox {
             smhd_or_vmhd_box: Either::A(SmhdBox::default()),
             dinf_box: DinfBox::LOCAL_FILE,
-            stbl_box: self.build_stbl_box(sample_entry, &self.audio_chunks),
+            stbl_box: self.build_stbl_box(&self.audio_chunks),
             unknown_boxes: Vec::new(),
         };
 
@@ -640,12 +634,6 @@ impl Mp4FileMuxer {
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        let sample_entry = self.video_chunks.first().map(|c| &c.sample_entry).ok_or(
-            MuxError::MissingSampleEntry {
-                track_kind: TrackKind::Video,
-            },
-        )?;
-
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
         let mdhd_box = MdhdBox {
             creation_time,
@@ -663,7 +651,7 @@ impl Mp4FileMuxer {
         let minf_box = MinfBox {
             smhd_or_vmhd_box: Either::B(VmhdBox::default()),
             dinf_box: DinfBox::LOCAL_FILE,
-            stbl_box: self.build_stbl_box(sample_entry, &self.video_chunks),
+            stbl_box: self.build_stbl_box(&self.video_chunks),
             unknown_boxes: Vec::new(),
         };
 
@@ -675,9 +663,20 @@ impl Mp4FileMuxer {
         })
     }
 
-    fn build_stbl_box(&self, sample_entry: &SampleEntry, chunks: &[Chunk]) -> StblBox {
+    fn build_stbl_box(&self, chunks: &[Chunk]) -> StblBox {
+        // [NOTE]
+        // 典型的にはユニークなサンプルエントリーの数は高々数個なので、線形探索を行う
+        // （`HashMap`は nostd 環境で使えず、`BTreeMap`には`Ord`実装が必要なので使用していない）
+        let mut sample_entries = Vec::new();
+        for chunk in chunks {
+            if sample_entries.contains(&chunk.sample_entry) {
+                continue;
+            }
+            sample_entries.push(chunk.sample_entry.clone());
+        }
+
         let stsd_box = StsdBox {
-            entries: vec![sample_entry.clone()],
+            entries: sample_entries.clone(),
         };
 
         let stts_box = SttsBox::from_sample_deltas(
@@ -690,10 +689,17 @@ impl Mp4FileMuxer {
             entries: chunks
                 .iter()
                 .enumerate()
-                .map(|(i, c)| StscEntry {
-                    first_chunk: NonZeroU32::MIN.saturating_add(i as u32),
-                    sample_per_chunk: c.samples.len() as u32,
-                    sample_description_index: NonZeroU32::MIN,
+                .map(|(i, c)| {
+                    let sample_description_index = sample_entries
+                        .iter()
+                        .position(|entry| entry == &c.sample_entry)
+                        .map(|idx| NonZeroU32::MIN.saturating_add(idx as u32))
+                        .expect("sample_entry should exist in sample_entries");
+                    StscEntry {
+                        first_chunk: NonZeroU32::MIN.saturating_add(i as u32),
+                        sample_per_chunk: c.samples.len() as u32,
+                        sample_description_index,
+                    }
                 })
                 .collect(),
         };
