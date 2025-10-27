@@ -443,15 +443,12 @@ impl Mp4FileMuxer {
             .is_none_or(|c| c.sample_entry != *sample_entry)
     }
 
-    /// MP4 マルチプレックス処理を完了し、moov ボックスを生成
+    /// すべてのサンプルの追加が完了したことを [`Mp4FileMuxer`] に通知する
     ///
-    /// このメソッドを呼び出した後、返された [`FinalizedBoxes`] の情報を使用して、
-    /// moov ボックスとファイル全体を最終化する。
+    /// このメソッドが呼び出されると、[`Mp4FileMuxer`] はそれまでの情報を用いて、
+    /// MP4 ファイルの再生に必要な修正やメタデータの構築を行う。
     ///
-    /// # Errors
-    ///
-    /// - [`MuxError::AlreadyFinalized`]: 既に [`finalize()`](Self::finalize) を呼び出した場合
-    /// - [`MuxError::EncodeError`]: MP4 ボックスのエンコードに失敗
+    /// 利用側は、このメソッドが返した結果を、出力先に反映する必要がある。
     pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
         if self.finalized_boxes.is_some() {
             return Err(MuxError::AlreadyFinalized);
@@ -495,9 +492,10 @@ impl Mp4FileMuxer {
         Ok(self.finalized_boxes.as_ref().expect("infallible"))
     }
 
-    /// ファイナライズされたボックス情報を取得
+    /// ファイナライズされたボックス情報を取得する
     ///
-    /// [`finalize()`](Self::finalize) を呼び出す前は `None` が返される
+    /// ファイナライズ結果を後から取得したい時のためのメソッド。
+    /// [`Mp4FileMuxer::finalize()`] の呼び出し前は `None` が返される。
     pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
         self.finalized_boxes.as_ref()
     }
