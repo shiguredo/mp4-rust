@@ -123,6 +123,11 @@ impl FinalizedBoxes {
         self.moov_box_offset < self.mdat_box_offset
     }
 
+    /// 最終的な moov ボックスのサイズを返す（バイト単位）
+    pub fn moov_box_size(&self) -> usize {
+        self.moov_box_bytes.len()
+    }
+
     /// MP4 ファイルの構築を完了するために、ファイルに書きこむべきボックスのオフセットとバイト列の組を返す
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
         [
