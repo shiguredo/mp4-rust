@@ -59,7 +59,6 @@ impl OutputMp4Builder {
 
     fn build_mdat_box(&mut self) -> MdatBox {
         let mut mdat_box = MdatBox {
-            is_variable_size: false,
             payload: Vec::new(),
         };
         self.file_size += mdat_box.encode_to_vec().map(|b| b.len()).expect("bug") as u32;
