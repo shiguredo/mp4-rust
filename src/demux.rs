@@ -45,20 +45,10 @@ use core::{num::NonZeroU32, time::Duration};
 use alloc::vec::Vec;
 
 use crate::{
-    BoxHeader, Decode, Error,
+    BoxHeader, Decode, Error, TrackKind,
     aux::{SampleTableAccessor, SampleTableAccessorError},
     boxes::{FtypBox, HdlrBox, MoovBox, SampleEntry, StblBox},
 };
-
-/// メディアトラックの種類を表す列挙型
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TrackKind {
-    /// 音声トラック
-    Audio,
-
-    /// 映像トラック
-    Video,
-}
 
 /// メディアトラックの情報を表す構造体
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -175,6 +165,7 @@ struct TrackState {
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
+#[non_exhaustive]
 pub enum DemuxError {
     /// MP4 ボックスのデコード処理中に発生したエラー
     DecodeError(Error),
