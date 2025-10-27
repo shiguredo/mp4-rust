@@ -354,6 +354,15 @@ impl Mp4FileMuxer {
         self.mdat_box_offset = self.initial_boxes_bytes.len() as u64;
 
         // 可変長の mdat ボックスのヘッダーを書きこむ
+        //
+        // [NOTE]
+        // mdat ボックスのペイロードサイズが 4 GB を越えても大丈夫なように
+        // 常に `BoxSize::LARGE_VARIABLE_SIZE` を使用している
+        //
+        // 初期化時には `BoxSize::VARIABLE_SIZE` を使用して、ファイナライズの時に
+        // 実際のペイロードサイズに応じて mdat ヘッダーの領域を調整することも可能ではあるが、
+        // 処理が複雑になる割にサイズ的なメリットが薄い（4 バイト削減できるかどうか）ので、
+        // ここではシンプルな方法を採用している
         let mdat_box_header = BoxHeader::new(MdatBox::TYPE, BoxSize::LARGE_VARIABLE_SIZE);
         self.initial_boxes_bytes
             .extend_from_slice(&mdat_box_header.encode_to_vec()?);
