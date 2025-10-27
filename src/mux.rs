@@ -267,7 +267,7 @@ struct Chunk {
     samples: Vec<SampleMetadata>,
 }
 
-/// MP4 ファイルを生成するマルチプレックス処理を行うメインの構造体
+/// MP4 ファイルを生成するマルチプレックス処理を行うための構造体
 ///
 /// この構造体は、複数のメディアトラック（音声・映像）からのサンプルを
 /// 時系列順に統合して、MP4 ファイルを生成するための主要な処理を行う。
@@ -276,7 +276,15 @@ struct Chunk {
 /// 1. [`new()`](Self::new) または [`with_options()`](Self::with_options) でインスタンスを作成
 /// 2. [`initial_boxes_bytes()`](Self::initial_boxes_bytes) で得られたバイト列をファイルに書きこむ
 /// 3. [`append_sample()`](Self::append_sample) でサンプルを追加
-/// 4. [`finalize()`](Self::finalize) でマルチプレックス処理を完了し、moov ボックスを取得
+/// 4. [`finalize()`](Self::finalize) でマルチプレックス処理を完了する
+///
+/// なお、この構造体自体はファイル書き込みなどの I/O 操作は行わず、
+/// そのために必要な情報を提供するだけとなっている（I/O 操作を行うのは利用側の責務）。
+///
+/// また、この構造体の目的は「MP4 ファイル構築の典型的なユースケースをカバーして簡単に行えるようにすること」であり、
+/// 細かい制御は行えないようになっている。
+/// もし構築する MP4 ファイルの細部までコントロールしたい場合には、この構造体経由ではなく、
+/// 利用側で MP4 ボックス群を直接構築することを推奨する。
 #[derive(Debug)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
@@ -291,23 +299,15 @@ pub struct Mp4FileMuxer {
 }
 
 impl Mp4FileMuxer {
-    /// MP4 ファイル内で使用されるタイムスケール
+    /// [`Mp4FileMuxer`] が構築する MP4 ファイル内で使用されるタイムスケール（マイクロ秒固定）
     pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
 
-    /// デフォルト設定で新しいマルチプレックス処理を初期化
-    ///
-    /// # Errors
-    ///
-    /// MP4 ボックスのエンコードに失敗した場合、[`MuxError`] が返される
+    /// [`Mp4FileMuxer`] インスタンスを生成する
     pub fn new() -> Result<Self, MuxError> {
         Self::with_options(Mp4FileMuxerOptions::default())
     }
 
-    /// 指定した設定で新しいマルチプレックス処理を初期化
-    ///
-    /// # Errors
-    ///
-    /// MP4 ボックスのエンコードに失敗した場合、[`MuxError`] が返される
+    /// 指定したオプションで [`Mp4FileMuxer`] インスタンスを生成する
     pub fn with_options(options: Mp4FileMuxerOptions) -> Result<Self, MuxError> {
         let mut this = Self {
             options,
