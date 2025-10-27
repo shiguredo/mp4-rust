@@ -182,6 +182,7 @@ pub struct Sample {
 }
 
 /// マルチプレックス処理中に発生するエラー
+#[non_exhaustive]
 pub enum MuxError {
     /// MP4 ボックスのエンコード処理中に発生したエラー
     EncodeError(Error),
@@ -203,6 +204,16 @@ pub enum MuxError {
 
     /// マルチプレックスが既にファイナライズ済み
     AlreadyFinalized,
+
+    /// サンプルの尺が最大値を超過している
+    ///
+    /// MP4 ファイル形式では、サンプルの尺（duration）を u32 の値で表現し、
+    /// [`Mp4FileMuxer`] のタイムスケールはマイクロ秒単位であるため、
+    /// およそ 4,294 秒（約 71 分）を超えるサンプルの尺は表現できない。
+    SampleDurationOverflow {
+        /// 超過したサンプルの尺
+        duration: Duration,
+    },
 }
 
 impl From<Error> for MuxError {
@@ -237,6 +248,13 @@ impl core::fmt::Display for MuxError {
             }
             MuxError::AlreadyFinalized => {
                 write!(f, "Muxer has already been finalized")
+            }
+            MuxError::SampleDurationOverflow { duration } => {
+                write!(
+                    f,
+                    "Sample duration overflow: {} microseconds exceeds u32::MAX",
+                    duration.as_micros(),
+                )
             }
         }
     }
@@ -397,8 +415,13 @@ impl Mp4FileMuxer {
             });
         }
 
+        let duration = u32::try_from(sample.duration.as_micros()).map_err(|_| {
+            MuxError::SampleDurationOverflow {
+                duration: sample.duration,
+            }
+        })?;
         let metadata = SampleMetadata {
-            duration: sample.duration.as_micros() as u32,
+            duration,
             keyframe: sample.keyframe,
             size: sample.data_size as u32,
         };

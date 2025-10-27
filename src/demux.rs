@@ -165,6 +165,7 @@ struct TrackState {
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
+#[non_exhaustive]
 pub enum DemuxError {
     /// MP4 ボックスのデコード処理中に発生したエラー
     DecodeError(Error),
