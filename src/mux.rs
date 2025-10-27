@@ -498,10 +498,12 @@ impl Mp4FileMuxer {
         {
             // 事前に確保した free ボックスのペイロード領域に収まる場合は、そこに moov ボックスを書き込む
             // （free ボックスのヘッダーも更新して moov ボックスの末尾に追加する）
-            let free_box = FreeBox {
-                payload: vec![0; free_box_payload_size],
-            };
-            moov_box_bytes.extend_from_slice(&free_box.encode_to_vec()?);
+            if free_box_payload_size > 0 {
+                let free_box_size =
+                    BoxSize::with_payload_size(FreeBox::TYPE, free_box_payload_size as u64);
+                let free_box_header = BoxHeader::new(FreeBox::TYPE, free_box_size);
+                moov_box_bytes.extend_from_slice(&free_box_header.encode_to_vec()?);
+            }
 
             self.free_box_offset
         } else {
