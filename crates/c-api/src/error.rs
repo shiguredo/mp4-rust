@@ -8,11 +8,12 @@ use shiguredo_mp4::{
 #[repr(C)]
 pub enum Mp4Error {
     Ok = 0,
-    InvalidInput = 1,
-    InvalidData = 2,
-    InvalidState = 3,
-    InputRequired = 4,
-    Other = 100,
+    InvalidInput,
+    InvalidData,
+    InvalidState,
+    InputRequired,
+    NullPointer,
+    Other,
 }
 
 impl From<Error> for Mp4Error {
