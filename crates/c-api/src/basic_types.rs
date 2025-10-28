@@ -1,6 +1,11 @@
 //! ../../../src/basic_types.rs の C API を定義するためのモジュール
 use shiguredo_mp4::TrackKind;
 
+#[unsafe(no_mangle)]
+pub extern "C" fn foo() -> Mp4TrackKind {
+    Mp4TrackKind::Audio
+}
+
 #[repr(C)]
 pub enum Mp4TrackKind {
     /// 音声トラック

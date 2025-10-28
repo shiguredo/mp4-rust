@@ -12,6 +12,7 @@ pub enum Mp4DemuxError {
     DecodeError = 1,
     SampleTableError = 2,
     InputRequired = 3,
+    Unknown = 4,
 }
 
 impl From<DemuxError> for Mp4DemuxError {
@@ -19,7 +20,8 @@ impl From<DemuxError> for Mp4DemuxError {
         match e {
             DemuxError::DecodeError(_) => Self::DecodeError,
             DemuxError::SampleTableError(_) => Self::SampleTableError,
-            DemuxError::RequiredInput(_) => Self::RequiredInput,
+            DemuxError::InputRequired(_) => Self::InputRequired,
+            _ => Self::Unknown,
         }
     }
 }
