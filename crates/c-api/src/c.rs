@@ -2,69 +2,6 @@
 use crate::TrackKind;
 use crate::demux::{DemuxError, Input, Mp4FileDemuxer, RequiredInput, Sample, TrackInfo};
 
-/// C言語用のデマルチプレックスエラー型
-#[repr(C)]
-pub enum CDemuxError {
-    /// デコードエラー
-    DecodeError = 1,
-    /// サンプルテーブルエラー
-    SampleTableError = 2,
-    /// 入力が必要
-    RequiredInput = 3,
-}
-
-impl CDemuxError {
-    fn from_demux_error(error: &DemuxError) -> Self {
-        match error {
-            DemuxError::DecodeError(_) => CDemuxError::DecodeError,
-            DemuxError::SampleTableError(_) => CDemuxError::SampleTableError,
-            DemuxError::RequiredInput(_) => CDemuxError::RequiredInput,
-        }
-    }
-}
-
-/// C言語用のトラック種別型
-#[repr(C)]
-pub enum CTrackKind {
-    /// 映像トラック
-    Video = 0,
-    /// 音声トラック
-    Audio = 1,
-}
-
-impl CTrackKind {
-    fn from_track_kind(kind: &TrackKind) -> Self {
-        match kind {
-            TrackKind::Video => CTrackKind::Video,
-            TrackKind::Audio => CTrackKind::Audio,
-        }
-    }
-}
-
-/// C言語用のトラック情報構造体
-#[repr(C)]
-pub struct CTrackInfo {
-    /// トラックID
-    pub track_id: u32,
-    /// トラックの種類
-    pub kind: CTrackKind,
-    /// トラックの尺（タイムスケール単位）
-    pub timescaled_duration: u64,
-    /// トラックで使用されているタイムスケール
-    pub timescale: u32,
-}
-
-impl CTrackInfo {
-    fn from_track_info(info: &TrackInfo) -> Self {
-        Self {
-            track_id: info.track_id,
-            kind: CTrackKind::from_track_kind(&info.kind),
-            timescaled_duration: info.timescaled_duration,
-            timescale: info.timescale.get(),
-        }
-    }
-}
-
 /// C言語用のサンプル情報構造体
 #[repr(C)]
 pub struct CSample {

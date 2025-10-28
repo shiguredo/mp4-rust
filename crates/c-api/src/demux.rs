@@ -1,30 +1,10 @@
-//! ../../../src/demuxer.rs の C API を定義するためのモジュール
+//! ../../../src/demux.rs の C API を定義するためのモジュール
 use shiguredo_mp4::{
     TrackKind,
     demux::{DemuxError, Input, Mp4FileDemuxer, RequiredInput, Sample, TrackInfo},
 };
 
-use crate::basic_types::Mp4TrackKind;
-
-#[repr(C)]
-pub enum Mp4DemuxError {
-    Ok = 0,
-    DecodeError = 1,
-    SampleTableError = 2,
-    InputRequired = 3,
-    Unknown = 4,
-}
-
-impl From<DemuxError> for Mp4DemuxError {
-    fn from(e: DemuxError) -> Self {
-        match e {
-            DemuxError::DecodeError(_) => Self::DecodeError,
-            DemuxError::SampleTableError(_) => Self::SampleTableError,
-            DemuxError::InputRequired(_) => Self::InputRequired,
-            _ => Self::Unknown,
-        }
-    }
-}
+use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
 
 #[repr(C)]
 pub struct Mp4TrackInfo {
@@ -41,6 +21,29 @@ impl From<TrackInfo> for Mp4TrackInfo {
             kind: track_info.kind.into(),
             duration: track_info.timescaled_duration,
             timescale: track_info.timescale.get(),
+        }
+    }
+}
+
+#[repr(C)]
+pub struct Mp4Sample {
+    pub track_id: u32,
+    pub keyframe: bool,
+    pub timestamp: u64,
+    pub duration: u32,
+    pub data_offset: u64,
+    pub data_size: usize,
+}
+
+impl<'a> From<Sample<'a>> for Mp4Sample {
+    fn from(sample: Sample<'a>) -> Self {
+        Self {
+            track_id: sample.track.track_id,
+            keyframe: sample.keyframe,
+            timestamp: sample.timescaled_timestamp,
+            duration: sample.timescaled_duration,
+            data_offset: sample.data_offset,
+            data_size: sample.data_size,
         }
     }
 }
