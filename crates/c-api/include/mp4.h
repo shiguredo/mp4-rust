@@ -16,11 +16,13 @@ typedef enum Mp4TrackKind {
 
 typedef enum Mp4Error {
   Ok = 0,
-  InvalidInput = 1,
-  InvalidData = 2,
-  InvalidState = 3,
-  InputRequired = 4,
-  Other = 100,
+  InvalidInput,
+  InvalidData,
+  InvalidState,
+  InputRequired,
+  NullPointer,
+  NoMoreSamples,
+  Other,
 } Mp4Error;
 
 typedef struct Mp4FileDemuxer Mp4FileDemuxer;
@@ -51,7 +53,7 @@ const uint8_t *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demu
 
 enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer,
                                                   uint64_t *out_required_input_position,
-                                                  uint32_t *out_required_input_size);
+                                                  int32_t *out_required_input_size);
 
 enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
                                             uint64_t input_position,

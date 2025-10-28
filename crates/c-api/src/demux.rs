@@ -47,6 +47,7 @@ impl Mp4Sample {
 
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
+    tracks: Vec<Mp4TrackInfo>,
     last_error_string: Option<CString>,
 }
 
@@ -60,6 +61,7 @@ impl Mp4FileDemuxer {
 pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
     let demuxer = Mp4FileDemuxer {
         inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
+        tracks: Vec::new(),
         last_error_string: None,
     };
     Box::into_raw(Box::new(demuxer))
@@ -157,7 +159,34 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     out_tracks: *mut *const Mp4TrackInfo,
     out_track_count: *mut u32,
 ) -> Mp4Error {
-    todo!()
+    if demuxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let demuxer = unsafe { &mut *demuxer };
+
+    if out_tracks.is_null() {
+        demuxer.set_last_error("[mp4_file_demuxer_get_tracks] out_tracks is null");
+        return Mp4Error::NullPointer;
+    }
+    if out_track_count.is_null() {
+        demuxer.set_last_error("[mp4_file_demuxer_get_tracks] out_track_count is null");
+        return Mp4Error::NullPointer;
+    }
+
+    match demuxer.inner.tracks() {
+        Ok(tracks) => {
+            demuxer.tracks = tracks.iter().map(|t| t.clone().into()).collect();
+            unsafe {
+                *out_tracks = demuxer.tracks.as_ptr();
+                *out_track_count = demuxer.tracks.len() as u32;
+            }
+            Mp4Error::Ok
+        }
+        Err(e) => {
+            demuxer.set_last_error(&format!("[mp4_file_demuxer_get_tracks] {e}"));
+            e.into()
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -165,5 +194,39 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
     demuxer: *mut Mp4FileDemuxer,
     out_sample: *mut Mp4Sample,
 ) -> Mp4Error {
-    todo!()
+    if demuxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let demuxer = unsafe { &mut *demuxer };
+
+    if out_sample.is_null() {
+        demuxer.set_last_error("[mp4_file_demuxer_next_sample] out_sample is null");
+        return Mp4Error::NullPointer;
+    }
+
+    match demuxer.inner.next_sample() {
+        Ok(Some(sample)) => {
+            let Some(track_info) = demuxer
+                .tracks
+                .iter()
+                .find(|t| t.track_id == sample.track.track_id)
+            else {
+                demuxer.set_last_error(
+                    "[mp4_file_demuxer_next_sample] track info not found for sample",
+                );
+                return Mp4Error::InvalidState;
+            };
+
+            unsafe {
+                *out_sample = Mp4Sample::new(sample, track_info);
+            }
+
+            Mp4Error::Ok
+        }
+        Ok(None) => Mp4Error::NoMoreSamples,
+        Err(e) => {
+            demuxer.set_last_error(&format!("[mp4_file_demuxer_next_sample] {e}"));
+            e.into()
+        }
+    }
 }
