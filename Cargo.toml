@@ -18,4 +18,4 @@ default = ["std"]
 std = []
 
 [workspace]
-members = ["examples/dump_wasm", "examples/transcode_wasm"]
+members = ["crates/c-api","examples/dump_wasm", "examples/transcode_wasm"]
