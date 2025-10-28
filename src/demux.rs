@@ -199,27 +199,19 @@ pub enum DemuxError {
     /// サンプルテーブル処理中に発生したエラー
     SampleTableError(SampleTableAccessorError),
 
-    /// ファイルデータの読み込みが必要なことを示すエラー
+    /// 入力データの読み込みが必要なことを示すエラー
     ///
     /// このエラーが返された場合、呼び出し元は指定された位置とサイズのファイルデータを
-    /// 読み込み、[`Mp4FileDemuxer::handle_input()`] に渡す必要がある。
-    NeedInput {
-        /// 必要なデータの開始位置（バイト単位）
-        position: u64,
-
-        /// 必要なデータのサイズ（バイト単位）
-        ///
-        /// `None` はファイルの末尾までを意味する
-        ///
-        /// なお、ここで指定されたサイズよりも大きいデータを
-        /// [`Mp4FileDemuxer::handle_input()`] に渡しても問題はない
-        size: Option<usize>,
-    },
+    /// 読み込み、[`Mp4FileDemuxer::handle_input()`] に渡す必要がある
+    ///
+    /// なお I/O が必要になる可能性がある各メソッドを使用する前に [`Mp4FileDemuxer::required_input()`] を呼び出すことで、
+    /// 事前に必要なデータを [`Mp4FileDemuxer`] に供給するが可能となる
+    RequiredInput(RequiredInput),
 }
 
 impl DemuxError {
-    fn need_input(position: u64, size: Option<usize>) -> Self {
-        Self::NeedInput { position, size }
+    fn required_input(position: u64, size: Option<usize>) -> Self {
+        Self::RequiredInput(RequiredInput::new(position, size))
     }
 }
 
@@ -250,11 +242,16 @@ impl core::fmt::Display for DemuxError {
             DemuxError::SampleTableError(error) => {
                 write!(f, "Sample table error: {error}")
             }
-            DemuxError::NeedInput { position, size } => match size {
-                Some(s) => write!(f, "Need input data: {s} bytes at position {position}"),
+            DemuxError::RequiredInput(required) => match required.size {
+                Some(s) => write!(
+                    f,
+                    "Need input data: {s} bytes at position {}",
+                    required.position
+                ),
                 None => write!(
                     f,
-                    "Need input data: from position {position} to end of file",
+                    "Need input data: from position {} to end of file",
+                    required.position
                 ),
             },
         }
@@ -333,9 +330,9 @@ impl Mp4FileDemuxer {
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
     ///
-    /// さらなるデータの読み込みが必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// さらなるデータの読み込みが必要な場合は [`DemuxError::RequiredInput`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
-    /// 再度このメソッドを呼び出す必要がある。
+    /// 再度このメソッドを呼び出す必要がある
     pub fn handle_input(&mut self, input: Input) -> Result<(), DemuxError> {
         match self.phase {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
@@ -351,7 +348,7 @@ impl Mp4FileDemuxer {
 
         let data_size = Some(BoxHeader::MAX_SIZE);
         let Some(data) = input.slice_range(0, data_size) else {
-            return Err(DemuxError::need_input(0, data_size));
+            return Err(DemuxError::required_input(0, data_size));
         };
         let (header, _header_size) = BoxHeader::decode(data)?;
         header.box_type.expect(FtypBox::TYPE)?;
@@ -366,7 +363,7 @@ impl Mp4FileDemuxer {
             panic!("bug");
         };
         let Some(data) = input.slice_range(0, box_size) else {
-            return Err(DemuxError::need_input(0, box_size));
+            return Err(DemuxError::required_input(0, box_size));
         };
         let (_ftyp_box, ftyp_box_size) = FtypBox::decode(data)?;
         self.phase = Phase::ReadMoovBoxHeader {
@@ -382,7 +379,7 @@ impl Mp4FileDemuxer {
 
         let data_size = Some(BoxHeader::MAX_SIZE);
         let Some(data) = input.slice_range(offset, data_size) else {
-            return Err(DemuxError::need_input(offset, data_size));
+            return Err(DemuxError::required_input(offset, data_size));
         };
 
         let (header, _header_size) = BoxHeader::decode(data)?;
@@ -409,7 +406,7 @@ impl Mp4FileDemuxer {
         };
 
         let Some(data) = input.slice_range(offset, box_size) else {
-            return Err(DemuxError::need_input(offset, box_size));
+            return Err(DemuxError::required_input(offset, box_size));
         };
         let (moov_box, _moov_box_size) = MoovBox::decode(data)?;
 
@@ -445,7 +442,7 @@ impl Mp4FileDemuxer {
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
     /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
-        self.initialize_if_need()?;
+        self.ensure_initialized()?;
         Ok(&self.track_infos)
     }
 
@@ -459,7 +456,7 @@ impl Mp4FileDemuxer {
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
     /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn next_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
-        self.initialize_if_need()?;
+        self.ensure_initialized()?;
 
         let mut earliest_sample: Option<(Duration, usize)> = None;
 
@@ -504,17 +501,11 @@ impl Mp4FileDemuxer {
         }
     }
 
-    fn initialize_if_need(&mut self) -> Result<(), DemuxError> {
-        match self.phase {
-            Phase::ReadFtypBoxHeader => Err(DemuxError::need_input(0, Some(BoxHeader::MAX_SIZE))),
-            Phase::ReadFtypBox { box_size } => Err(DemuxError::need_input(0, box_size)),
-            Phase::ReadMoovBoxHeader { offset } => {
-                Err(DemuxError::need_input(offset, Some(BoxHeader::MAX_SIZE)))
-            }
-            Phase::ReadMoovBox { offset, box_size } => {
-                Err(DemuxError::need_input(offset, box_size))
-            }
-            Phase::Initialized => Ok(()),
+    fn ensure_initialized(&self) -> Result<(), DemuxError> {
+        if let Some(required) = self.required_input() {
+            Err(DemuxError::RequiredInput(required))
+        } else {
+            Ok(())
         }
     }
 }
