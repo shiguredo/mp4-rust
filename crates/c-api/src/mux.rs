@@ -13,6 +13,23 @@ pub struct Mp4FileMuxer {
     last_error_string: Option<CString>,
 }
 
+impl Mp4FileMuxer {
+    fn set_last_error(&mut self, message: &str) {
+        self.last_error_string = CString::new(message).ok();
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn mp4_estimate_maximum_moov_box_size(
+    audio_sample_count: u32,
+    video_sample_count: u32,
+) -> u32 {
+    shiguredo_mp4::mux::estimate_maximum_moov_box_size(&[
+        audio_sample_count as usize,
+        video_sample_count as usize,
+    ]) as u32
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
     let muxer = Mp4FileMuxer {
@@ -74,4 +91,29 @@ pub unsafe extern "C" fn mp4_file_muxer_set_creation_timestamp(
     muxer.options.creation_timestamp = timestamp;
 
     Mp4Error::Ok
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> Mp4Error {
+    if muxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let muxer = unsafe { &mut *muxer };
+
+    if muxer.inner.is_some() {
+        return Mp4Error::InvalidState;
+    }
+
+    match shiguredo_mp4::mux::Mp4FileMuxer::with_options(muxer.options.clone()) {
+        Ok(inner) => {
+            muxer.inner = Some(inner);
+            Mp4Error::Ok
+        }
+        Err(e) => {
+            muxer.set_last_error(&format!(
+                "[mp4_file_muxer_initialize] Failed to initialize muxer: {e}",
+            ));
+            e.into()
+        }
+    }
 }

@@ -77,6 +77,9 @@ enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4Sample *out_sample);
 
+uint32_t mp4_estimate_maximum_moov_box_size(uint32_t audio_sample_count,
+                                            uint32_t video_sample_count);
+
 struct Mp4FileMuxer *mp4_file_muxer_new(void);
 
 void mp4_file_muxer_free(struct Mp4FileMuxer *muxer);
@@ -87,3 +90,5 @@ enum Mp4Error mp4_file_muxer_set_reserved_moov_box_size(struct Mp4FileMuxer *mux
 
 enum Mp4Error mp4_file_muxer_set_creation_timestamp(struct Mp4FileMuxer *muxer,
                                                     uint64_t timestamp_micros);
+
+enum Mp4Error mp4_file_muxer_initialize(struct Mp4FileMuxer *muxer);
