@@ -1,5 +1,6 @@
 //! ../../../src/demux.rs の C API を定義するためのモジュール
 use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
+use std::ffi::CString;
 
 #[repr(C)]
 pub struct Mp4TrackInfo {
@@ -46,14 +47,14 @@ impl Mp4Sample {
 
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
-    last_error_string: String,
+    last_error_string: Option<CString>,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
     let demuxer = Mp4FileDemuxer {
         inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
-        last_error_string: String::new(),
+        last_error_string: None,
     };
     Box::into_raw(Box::new(demuxer))
 }
@@ -65,10 +66,23 @@ pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
     }
 }
 
-// TODO: Add a functio to get the last error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
+    demuxer: *const Mp4FileDemuxer,
+) -> *const u8 {
+    if demuxer.is_null() {
+        return core::ptr::null();
+    }
+
+    let demuxer = unsafe { &*demuxer };
+    let Some(e) = &demuxer.last_error_string else {
+        return core::ptr::null();
+    };
+    e.as_ptr()
+}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_file_demuxer_required_input(
+pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
     demuxer: *mut Mp4FileDemuxer,
     out_required_input_position: *mut u64,
     out_required_input_size: *mut u32,
@@ -82,14 +96,14 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     input_position: u64,
     input_data: *const u8,
     input_data_size: u32,
-) {
+) -> Mp4Error {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_file_demuxer_tracks(
+pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     demuxer: *mut Mp4FileDemuxer,
-    out_tracks: *const Mp4TrackInfo,
+    out_tracks: *mut *const Mp4TrackInfo,
     out_track_count: *mut u32,
 ) -> Mp4Error {
     todo!()
