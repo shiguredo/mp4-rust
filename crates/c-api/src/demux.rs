@@ -1,9 +1,4 @@
 //! ../../../src/demux.rs の C API を定義するためのモジュール
-use shiguredo_mp4::{
-    TrackKind,
-    demux::{DemuxError, Input, Mp4FileDemuxer, RequiredInput, Sample, TrackInfo},
-};
-
 use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
 
 #[repr(C)]
@@ -14,8 +9,8 @@ pub struct Mp4TrackInfo {
     pub timescale: u32,
 }
 
-impl From<TrackInfo> for Mp4TrackInfo {
-    fn from(track_info: TrackInfo) -> Self {
+impl From<shiguredo_mp4::demux::TrackInfo> for Mp4TrackInfo {
+    fn from(track_info: shiguredo_mp4::demux::TrackInfo) -> Self {
         Self {
             track_id: track_info.track_id,
             kind: track_info.kind.into(),
@@ -27,7 +22,8 @@ impl From<TrackInfo> for Mp4TrackInfo {
 
 #[repr(C)]
 pub struct Mp4Sample {
-    pub track_id: u32,
+    pub track: *const Mp4TrackInfo,
+    // TODO: sample_entry,
     pub keyframe: bool,
     pub timestamp: u64,
     pub duration: u32,
@@ -35,10 +31,10 @@ pub struct Mp4Sample {
     pub data_size: usize,
 }
 
-impl<'a> From<Sample<'a>> for Mp4Sample {
-    fn from(sample: Sample<'a>) -> Self {
+impl Mp4Sample {
+    pub fn new(sample: shiguredo_mp4::demux::Sample<'_>, track: &Mp4TrackInfo) -> Self {
         Self {
-            track_id: sample.track.track_id,
+            track,
             keyframe: sample.keyframe,
             timestamp: sample.timescaled_timestamp,
             duration: sample.timescaled_duration,
