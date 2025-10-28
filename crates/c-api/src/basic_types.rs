@@ -18,12 +18,3 @@ impl From<TrackKind> for Mp4TrackKind {
         }
     }
 }
-
-impl From<Mp4TrackKind> for TrackKind {
-    fn from(kind: Mp4TrackKind) -> Self {
-        match kind {
-            Mp4TrackKind::Audio => Self::Audio,
-            Mp4TrackKind::Video => Self::Video,
-        }
-    }
-}

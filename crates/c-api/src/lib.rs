@@ -1,3 +1,3 @@
 // #![no_std]
-pub mod demuxer;
+pub mod demux;
 pub mod basic_types;
