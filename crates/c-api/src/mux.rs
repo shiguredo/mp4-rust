@@ -5,42 +5,19 @@ use crate::error::Mp4Error;
 
 #[repr(C)]
 pub struct Mp4FileMuxer {
-    inner: shiguredo_mp4::mux::Mp4FileMuxer,
+    options: shiguredo_mp4::mux::Mp4FileMuxerOptions,
+    inner: Option<shiguredo_mp4::mux::Mp4FileMuxer>,
     last_error_string: Option<CString>,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
-    match shiguredo_mp4::mux::Mp4FileMuxer::new() {
-        Ok(inner) => {
-            let muxer = Mp4FileMuxer {
-                inner,
-                last_error_string: None,
-            };
-            Box::into_raw(Box::new(muxer))
-        }
-        Err(_) => core::ptr::null_mut(),
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn mp4_file_muxer_new_with_reserved_moov_size(
-    reserved_moov_box_size: usize,
-) -> *mut Mp4FileMuxer {
-    let options = shiguredo_mp4::mux::Mp4FileMuxerOptions {
-        reserved_moov_box_size,
-        ..Default::default()
+    let muxer = Mp4FileMuxer {
+        options: shiguredo_mp4::mux::Mp4FileMuxerOptions::default(),
+        inner: None,
+        last_error_string: None,
     };
-    match shiguredo_mp4::mux::Mp4FileMuxer::with_options(options) {
-        Ok(inner) => {
-            let muxer = Mp4FileMuxer {
-                inner,
-                last_error_string: None,
-            };
-            Box::into_raw(Box::new(muxer))
-        }
-        Err(_) => core::ptr::null_mut(),
-    }
+    Box::into_raw(Box::new(muxer))
 }
 
 #[unsafe(no_mangle)]
@@ -64,6 +41,29 @@ pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
     };
     e.as_ptr()
 }
+
+/*
+#[unsafe(no_mangle)]
+pub extern "C" fn mp4_file_muxer_new_with_reserved_moov_size(
+    reserved_moov_box_size: usize,
+) -> *mut Mp4FileMuxer {
+    let options = shiguredo_mp4::mux::Mp4FileMuxerOptions {
+        reserved_moov_box_size,
+        ..Default::default()
+    };
+    match shiguredo_mp4::mux::Mp4FileMuxer::with_options(options) {
+        Ok(inner) => {
+            let muxer = Mp4FileMuxer {
+                inner,
+                last_error_string: None,
+            };
+            Box::into_raw(Box::new(muxer))
+        }
+        Err(_) => core::ptr::null_mut(),
+    }
+}
+
+
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_initial_boxes_bytes(
@@ -275,3 +275,4 @@ pub unsafe extern "C" fn mp4_file_muxer_is_faststart_enabled(
 
     Mp4Error::Ok
 }
+*/
