@@ -152,6 +152,14 @@ impl RequiredInput {
     const fn new(position: u64, size: Option<usize>) -> Self {
         Self { position, size }
     }
+
+    /// この [`RequiredInput`] インスタンスを、提供されたデータを使用して [`Input`] に変換する
+    pub const fn to_input<'a>(self, data: &'a [u8]) -> Input<'a> {
+        Input {
+            position: self.position,
+            data,
+        }
+    }
 }
 
 /// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
