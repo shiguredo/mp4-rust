@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [lib]
+name = "mp4"
 crate-type = ["staticlib"]
 
 [dependencies]

@@ -82,3 +82,8 @@ struct Mp4FileMuxer *mp4_file_muxer_new(void);
 void mp4_file_muxer_free(struct Mp4FileMuxer *muxer);
 
 const char *mp4_file_muxer_get_last_error(const struct Mp4FileMuxer *muxer);
+
+enum Mp4Error mp4_file_muxer_set_reserved_moov_box_size(struct Mp4FileMuxer *muxer, uint64_t size);
+
+enum Mp4Error mp4_file_muxer_set_creation_timestamp(struct Mp4FileMuxer *muxer,
+                                                    uint64_t timestamp_micros);
