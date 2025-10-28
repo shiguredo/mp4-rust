@@ -49,7 +49,7 @@ struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
 
 void mp4_file_demuxer_free(struct Mp4FileDemuxer *demuxer);
 
-const uint8_t *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demuxer);
+const char *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demuxer);
 
 enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer,
                                                   uint64_t *out_required_input_position,
