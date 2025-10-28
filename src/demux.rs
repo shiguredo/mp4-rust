@@ -214,12 +214,12 @@ pub enum DemuxError {
     ///
     /// なお I/O が必要になる可能性がある各メソッドを使用する前に [`Mp4FileDemuxer::required_input()`] を呼び出すことで、
     /// 事前に必要なデータを [`Mp4FileDemuxer`] に供給するが可能となる
-    RequiredInput(RequiredInput),
+    InputRequired(RequiredInput),
 }
 
 impl DemuxError {
-    fn required_input(position: u64, size: Option<usize>) -> Self {
-        Self::RequiredInput(RequiredInput::new(position, size))
+    fn input_required(position: u64, size: Option<usize>) -> Self {
+        Self::InputRequired(RequiredInput::new(position, size))
     }
 }
 
@@ -250,7 +250,7 @@ impl core::fmt::Display for DemuxError {
             DemuxError::SampleTableError(error) => {
                 write!(f, "Sample table error: {error}")
             }
-            DemuxError::RequiredInput(required) => match required.size {
+            DemuxError::InputRequired(required) => match required.size {
                 Some(s) => write!(
                     f,
                     "Need input data: {s} bytes at position {}",
@@ -345,7 +345,7 @@ impl Mp4FileDemuxer {
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
     pub fn handle_input(&mut self, input: Input) {
         if let Err(e) = self.handle_input_inner(input)
-            && !matches!(e, DemuxError::RequiredInput(_))
+            && !matches!(e, DemuxError::InputRequired(_))
         {
             // 入力処理中に（入力不足以外の）エラーが出た場合は required_input() との
             // 相互呼び出しで無限ループするのを避けるためにエラー情報を覚えておく
@@ -369,7 +369,7 @@ impl Mp4FileDemuxer {
 
         let data_size = Some(BoxHeader::MAX_SIZE);
         let Some(data) = input.slice_range(0, data_size) else {
-            return Err(DemuxError::required_input(0, data_size));
+            return Err(DemuxError::input_required(0, data_size));
         };
         let (header, _header_size) = BoxHeader::decode(data)?;
         header.box_type.expect(FtypBox::TYPE)?;
@@ -384,7 +384,7 @@ impl Mp4FileDemuxer {
             panic!("bug");
         };
         let Some(data) = input.slice_range(0, box_size) else {
-            return Err(DemuxError::required_input(0, box_size));
+            return Err(DemuxError::input_required(0, box_size));
         };
         let (_ftyp_box, ftyp_box_size) = FtypBox::decode(data)?;
         self.phase = Phase::ReadMoovBoxHeader {
@@ -400,7 +400,7 @@ impl Mp4FileDemuxer {
 
         let data_size = Some(BoxHeader::MAX_SIZE);
         let Some(data) = input.slice_range(offset, data_size) else {
-            return Err(DemuxError::required_input(offset, data_size));
+            return Err(DemuxError::input_required(offset, data_size));
         };
 
         let (header, _header_size) = BoxHeader::decode(data)?;
@@ -427,7 +427,7 @@ impl Mp4FileDemuxer {
         };
 
         let Some(data) = input.slice_range(offset, box_size) else {
-            return Err(DemuxError::required_input(offset, box_size));
+            return Err(DemuxError::input_required(offset, box_size));
         };
         let (moov_box, _moov_box_size) = MoovBox::decode(data)?;
 
@@ -526,7 +526,7 @@ impl Mp4FileDemuxer {
         if let Some(e) = self.handle_input_error.take() {
             Err(e)
         } else if let Some(required) = self.required_input() {
-            Err(DemuxError::RequiredInput(required))
+            Err(DemuxError::InputRequired(required))
         } else {
             Ok(())
         }
