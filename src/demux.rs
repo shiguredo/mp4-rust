@@ -128,6 +128,32 @@ impl Sample<'_> {
     }
 }
 
+/// デマルチプレックスに必要な入力データの情報を表す構造体
+///
+/// この構造体は、デマルチプレックス処理を進めるために読み込む必要があるデータの
+/// 位置とサイズを示す。この情報をもとに呼び出し元がファイルなどからデータを読み込み、
+/// [`Mp4FileDemuxer::handle_input()`] に渡す
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RequiredInput {
+    /// 必要なデータの開始位置（バイト単位）
+    pub position: u64,
+
+    /// 必要なデータのサイズ（バイト単位）
+    ///
+    ///
+    /// ここで指定されたサイズはあくまでもヒントであり、厳密に一致したサイズのデータを提供する必要はない
+    /// （特に指定サイズよりも大きいデータを呼び出し元がすでに保持している場合には、それをそのまま渡した方が効率がいい）
+    ///
+    /// `None` はファイルなどの末尾までを意味する
+    pub size: Option<usize>,
+}
+
+impl RequiredInput {
+    const fn new(position: u64, size: Option<usize>) -> Self {
+        Self { position, size }
+    }
+}
+
 /// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
 ///
 /// [`Mp4FileDemuxer`] 自体は I/O 操作を行わず、各メソッドで I/O 操作が必要になった場合には、
@@ -261,6 +287,7 @@ enum Phase {
     },
     Initialized,
 }
+
 /// MP4 ファイルをデマルチプレックスして、メディアサンプルを取得するための構造体
 ///
 /// この構造体は段階的にファイルデータを処理し、複数のメディアトラックから
@@ -285,6 +312,22 @@ impl Mp4FileDemuxer {
             phase: Phase::ReadFtypBoxHeader,
             track_infos: Vec::new(),
             tracks: Vec::new(),
+        }
+    }
+
+    /// 次の処理を進めるために必要な I/O の位置とサイズを返す
+    ///
+    /// デマルチプレックス処理が初期化済みの場合は `None` を返す。
+    /// それ以外の場合は、必要なファイルデータの情報を返す。
+    pub fn required_input(&self) -> Option<RequiredInput> {
+        match self.phase {
+            Phase::ReadFtypBoxHeader => Some(RequiredInput::new(0, Some(BoxHeader::MAX_SIZE))),
+            Phase::ReadFtypBox { box_size } => Some(RequiredInput::new(0, box_size)),
+            Phase::ReadMoovBoxHeader { offset } => {
+                Some(RequiredInput::new(offset, Some(BoxHeader::MAX_SIZE)))
+            }
+            Phase::ReadMoovBox { offset, box_size } => Some(RequiredInput::new(offset, box_size)),
+            Phase::Initialized => None,
         }
     }
 
