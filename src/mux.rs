@@ -67,6 +67,30 @@ use crate::{
     },
 };
 
+/// MP4 ファイルの moov ボックスの最大サイズを見積もる
+///
+/// [`Mp4FileMuxerOptions::reserved_moov_box_size`] に設定する値を簡易的に決定するために使用できる関数。
+/// トラックごとのサンプル数から、faststart 形式で必要なメタデータ領域を概算で計算する。
+pub fn estimate_maximum_moov_box_size(sample_count_per_track: &[usize]) -> usize {
+    // moov ボックスの基本的なオーバーヘッド（mvhd_box とボックスヘッダーなど）
+    const BASE_MOOV_OVERHEAD: usize = 512;
+
+    // トラックあたりのオーバーヘッド（tkhd_box、mdia_box など）
+    const PER_TRACK_OVERHEAD: usize = 1024;
+
+    // サンプルあたりの概算バイト数：
+    // - stts_box（時間-サンプル）: エントリあたり ~8 バイト
+    // - stsc_box（サンプル-チャンク）: チャンクあたり ~12 バイト（通常はサンプルより少ない）
+    // - stsz_box（サンプルサイズ）: サンプルあたり ~4 バイト
+    // - stss_box（同期サンプル）: キーフレームあたり ~4 バイト（最悪の場合はすべてキーフレーム）
+    // - stco_box/co64_box（チャンクオフセット）: チャンクあたり ~8 バイト
+    const BYTES_PER_SAMPLE: usize = 16;
+
+    BASE_MOOV_OVERHEAD
+        + (sample_count_per_track.len() * PER_TRACK_OVERHEAD)
+        + (sample_count_per_track.iter().sum::<usize>() * BYTES_PER_SAMPLE)
+}
+
 /// [`Mp4FileMuxer`] 用のオプション
 #[derive(Debug, Clone)]
 pub struct Mp4FileMuxerOptions {
