@@ -43,3 +43,62 @@ impl Mp4Sample {
         }
     }
 }
+
+pub struct Mp4FileDemuxer {
+    inner: shiguredo_mp4::demux::Mp4FileDemuxer,
+    last_error_string: String,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
+    let demuxer = Mp4FileDemuxer {
+        inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
+        last_error_string: String::new(),
+    };
+    Box::into_raw(Box::new(demuxer))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
+    if !demuxer.is_null() {
+        let _ = unsafe { Box::from_raw(demuxer) };
+    }
+}
+
+// TODO: Add a functio to get the last error
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_required_input(
+    demuxer: *mut Mp4FileDemuxer,
+    out_required_input_position: *mut u64,
+    out_required_input_size: *mut u32,
+) -> Mp4Error {
+    todo!()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
+    demuxer: *mut Mp4FileDemuxer,
+    input_position: u64,
+    input_data: *const u8,
+    input_data_size: u32,
+) {
+    todo!()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_tracks(
+    demuxer: *mut Mp4FileDemuxer,
+    out_tracks: *const Mp4TrackInfo,
+    out_track_count: *mut u32,
+) -> Mp4Error {
+    todo!()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
+    demuxer: *mut Mp4FileDemuxer,
+    out_sample: *mut Mp4Sample,
+) -> Mp4Error {
+    todo!()
+}
