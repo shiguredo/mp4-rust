@@ -2,3 +2,4 @@
 pub mod basic_types;
 pub mod demux;
 pub mod error;
+pub mod mux;

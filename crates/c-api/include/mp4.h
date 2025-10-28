@@ -27,6 +27,8 @@ typedef enum Mp4Error {
 
 typedef struct Mp4FileDemuxer Mp4FileDemuxer;
 
+typedef struct Option_CString Option_CString;
+
 typedef struct Mp4TrackInfo {
   uint32_t track_id;
   enum Mp4TrackKind kind;
@@ -42,6 +44,11 @@ typedef struct Mp4Sample {
   uint64_t data_offset;
   uintptr_t data_size;
 } Mp4Sample;
+
+typedef struct Mp4FileMuxer {
+  struct Mp4FileMuxer inner;
+  struct Option_CString last_error_string;
+} Mp4FileMuxer;
 
 enum Mp4TrackKind foo(void);
 
@@ -66,3 +73,41 @@ enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
 
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4Sample *out_sample);
+
+struct Mp4FileMuxer *mp4_file_muxer_new(void);
+
+struct Mp4FileMuxer *mp4_file_muxer_new_with_reserved_moov_size(uintptr_t reserved_moov_box_size);
+
+void mp4_file_muxer_free(struct Mp4FileMuxer *muxer);
+
+const char *mp4_file_muxer_get_last_error(const struct Mp4FileMuxer *muxer);
+
+enum Mp4Error mp4_file_muxer_initial_boxes_bytes(const struct Mp4FileMuxer *muxer,
+                                                 const uint8_t **out_bytes,
+                                                 uintptr_t *out_size);
+
+enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
+                                           uint32_t track_kind,
+                                           bool keyframe,
+                                           uint64_t duration_us,
+                                           uint64_t data_offset,
+                                           uintptr_t data_size);
+
+enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);
+
+enum Mp4Error mp4_file_muxer_finalized_boxes_moov_offset(const struct Mp4FileMuxer *muxer,
+                                                         uint64_t *out_offset);
+
+enum Mp4Error mp4_file_muxer_finalized_boxes_moov_bytes(const struct Mp4FileMuxer *muxer,
+                                                        const uint8_t **out_bytes,
+                                                        uintptr_t *out_size);
+
+enum Mp4Error mp4_file_muxer_finalized_boxes_mdat_offset(const struct Mp4FileMuxer *muxer,
+                                                         uint64_t *out_offset);
+
+enum Mp4Error mp4_file_muxer_finalized_boxes_mdat_header_bytes(const struct Mp4FileMuxer *muxer,
+                                                               const uint8_t **out_bytes,
+                                                               uintptr_t *out_size);
+
+enum Mp4Error mp4_file_muxer_is_faststart_enabled(const struct Mp4FileMuxer *muxer,
+                                                  bool *out_enabled);
