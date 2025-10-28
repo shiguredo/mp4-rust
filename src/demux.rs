@@ -19,7 +19,7 @@
 //!     position: 0,
 //!     data: &file_data,
 //! };
-//! demuxer.handle_input(input).expect("ファイル処理失敗");
+//! demuxer.handle_input(input);
 //!
 //! // トラック情報を取得する
 //! let tracks = demuxer.tracks().expect("トラック取得失敗");
@@ -307,6 +307,7 @@ pub struct Mp4FileDemuxer {
     phase: Phase,
     track_infos: Vec<TrackInfo>,
     tracks: Vec<TrackState>,
+    handle_input_error: Option<DemuxError>,
 }
 
 impl Mp4FileDemuxer {
@@ -317,6 +318,7 @@ impl Mp4FileDemuxer {
             phase: Phase::ReadFtypBoxHeader,
             track_infos: Vec::new(),
             tracks: Vec::new(),
+            handle_input_error: None,
         }
     }
 
@@ -325,6 +327,10 @@ impl Mp4FileDemuxer {
     /// デマルチプレックス処理が初期化済みの場合は `None` を返す。
     /// それ以外の場合は、必要なファイルデータの情報を返す。
     pub fn required_input(&self) -> Option<RequiredInput> {
+        if self.handle_input_error.is_some() {
+            return None;
+        }
+
         match self.phase {
             Phase::ReadFtypBoxHeader => Some(RequiredInput::new(0, Some(BoxHeader::MAX_SIZE))),
             Phase::ReadFtypBox { box_size } => Some(RequiredInput::new(0, box_size)),
@@ -337,11 +343,18 @@ impl Mp4FileDemuxer {
     }
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
-    ///
-    /// さらなるデータの読み込みが必要な場合は [`DemuxError::RequiredInput`] が返される。
-    /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
-    /// 再度このメソッドを呼び出す必要がある
-    pub fn handle_input(&mut self, input: Input) -> Result<(), DemuxError> {
+    pub fn handle_input(&mut self, input: Input) {
+        if let Err(e) = self.handle_input_inner(input)
+            && !matches!(e, DemuxError::RequiredInput(_))
+        {
+            // 入力処理中に（入力不足以外の）エラーが出た場合は required_input() との
+            // 相互呼び出しで無限ループするのを避けるためにエラー情報を覚えておく
+            // （このメソッド自体が Result を返すと、呼び出し元のハンドリングが複雑になるのでそれは避ける）
+            self.handle_input_error = Some(e);
+        }
+    }
+
+    fn handle_input_inner(&mut self, input: Input) -> Result<(), DemuxError> {
         match self.phase {
             Phase::ReadFtypBoxHeader => self.read_ftyp_box_header(input),
             Phase::ReadFtypBox { .. } => self.read_ftyp_box(input),
@@ -363,7 +376,7 @@ impl Mp4FileDemuxer {
 
         let box_size = Some(header.box_size.get() as usize).filter(|n| *n > 0);
         self.phase = Phase::ReadFtypBox { box_size };
-        self.handle_input(input)
+        self.handle_input_inner(input)
     }
 
     fn read_ftyp_box(&mut self, input: Input) -> Result<(), DemuxError> {
@@ -377,7 +390,7 @@ impl Mp4FileDemuxer {
         self.phase = Phase::ReadMoovBoxHeader {
             offset: ftyp_box_size as u64,
         };
-        self.handle_input(input)
+        self.handle_input_inner(input)
     }
 
     fn read_moov_box_header(&mut self, input: Input) -> Result<(), DemuxError> {
@@ -405,7 +418,7 @@ impl Mp4FileDemuxer {
             let box_size = box_size.map(|n| n as usize);
             self.phase = Phase::ReadMoovBox { offset, box_size };
         }
-        self.handle_input(input)
+        self.handle_input_inner(input)
     }
 
     fn read_moov_box(&mut self, input: Input) -> Result<(), DemuxError> {
@@ -509,8 +522,10 @@ impl Mp4FileDemuxer {
         }
     }
 
-    fn ensure_initialized(&self) -> Result<(), DemuxError> {
-        if let Some(required) = self.required_input() {
+    fn ensure_initialized(&mut self) -> Result<(), DemuxError> {
+        if let Some(e) = self.handle_input_error.take() {
+            Err(e)
+        } else if let Some(required) = self.required_input() {
             Err(DemuxError::RequiredInput(required))
         } else {
             Ok(())
@@ -528,7 +543,7 @@ mod tests {
             data: &file_data,
         };
         let mut demuxer = Mp4FileDemuxer::new();
-        demuxer.handle_input(input).expect("failed to handle input");
+        demuxer.handle_input(input);
 
         let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
 
