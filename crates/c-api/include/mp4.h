@@ -92,3 +92,7 @@ enum Mp4Error mp4_file_muxer_set_creation_timestamp(struct Mp4FileMuxer *muxer,
                                                     uint64_t timestamp_micros);
 
 enum Mp4Error mp4_file_muxer_initialize(struct Mp4FileMuxer *muxer);
+
+enum Mp4Error mp4_file_muxer_get_initial_boxes_bytes(struct Mp4FileMuxer *muxer,
+                                                     const uint8_t **out_bytes,
+                                                     uint32_t *out_size);

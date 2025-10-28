@@ -117,3 +117,45 @@ pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> 
         }
     }
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_muxer_get_initial_boxes_bytes(
+    muxer: *mut Mp4FileMuxer,
+    out_bytes: *mut *const u8,
+    out_size: *mut u32,
+) -> Mp4Error {
+    if muxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let muxer = unsafe { &mut *muxer };
+
+    if out_bytes.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_get_initial_boxes_bytes] out_bytes is null");
+        return Mp4Error::NullPointer;
+    }
+    if out_size.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_get_initial_boxes_bytes] out_size is null");
+        return Mp4Error::NullPointer;
+    }
+
+    let Some(inner) = &muxer.inner else {
+        muxer.set_last_error(
+            "[mp4_file_muxer_get_initial_boxes_bytes] Muxer has not been initialized",
+        );
+        return Mp4Error::InvalidState;
+    };
+
+    let initial_bytes = inner.initial_boxes_bytes();
+    unsafe {
+        *out_bytes = initial_bytes.as_ptr();
+        *out_size = initial_bytes.len() as u32;
+    }
+
+    Mp4Error::Ok
+}
+
+// TODO: Add    pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
+
+// memo:   pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
+
+// memo:   pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
