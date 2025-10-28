@@ -139,8 +139,7 @@ pub struct FinalizedBoxes {
     moov_box_bytes: Vec<u8>,
     mdat_box_offset: u64,
     mdat_box_header_bytes: Vec<u8>,
-    audio_chunk_count: usize,
-    video_chunk_count: usize,
+    moov_box: MoovBox,
 }
 
 impl FinalizedBoxes {
@@ -163,14 +162,9 @@ impl FinalizedBoxes {
         .into_iter()
     }
 
-    /// 最終的なオーディオチャンク数を返す
-    pub fn audio_chunk_count(&self) -> usize {
-        self.audio_chunk_count
-    }
-
-    /// 最終的なビデオチャンク数を返す
-    pub fn video_chunk_count(&self) -> usize {
-        self.video_chunk_count
+    /// 最構築された moov ボックスを返す
+    pub fn moov_box(&self) -> &MoovBox {
+        &self.moov_box
     }
 }
 
@@ -557,8 +551,7 @@ impl Mp4FileMuxer {
             moov_box_bytes,
             mdat_box_offset: self.mdat_box_offset,
             mdat_box_header_bytes,
-            audio_chunk_count: self.audio_chunks.len(),
-            video_chunk_count: self.video_chunks.len(),
+            moov_box,
         });
 
         Ok(self.finalized_boxes.as_ref().expect("infallible"))
