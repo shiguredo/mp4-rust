@@ -1,6 +1,7 @@
 //! ../../../src/demux.rs の C API を定義するためのモジュール
+use std::ffi::{CString, c_char};
+
 use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
-use std::ffi::CString;
 
 #[repr(C)]
 pub struct Mp4TrackInfo {
@@ -77,7 +78,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
     demuxer: *const Mp4FileDemuxer,
-) -> *const u8 {
+) -> *const c_char {
     if demuxer.is_null() {
         return c"Invalid demuxer: null pointer".as_ptr();
     }
