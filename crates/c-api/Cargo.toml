@@ -6,7 +6,7 @@ publish = false
 
 [lib]
 name = "mp4"
-crate-type = ["staticlib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 shiguredo_mp4 = { path = "../../", default-features = false }
