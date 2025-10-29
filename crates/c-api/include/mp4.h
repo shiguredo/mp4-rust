@@ -31,31 +31,31 @@ typedef enum Mp4SampleEntryKind {
   /**
    * AVC1 (H.264)
    */
-  Avc1,
+  MP4_SAMPLE_ENTRY_KIND_AVC1,
   /**
    * HEV1 (H.265/HEVC)
    */
-  Hev1,
+  MP4_SAMPLE_ENTRY_KIND_HEV1,
   /**
    * VP08 (VP8)
    */
-  Vp08,
+  MP4_SAMPLE_ENTRY_KIND_VP08,
   /**
    * VP09 (VP9)
    */
-  Vp09,
+  MP4_SAMPLE_ENTRY_KIND_VP09,
   /**
    * AV01 (AV1)
    */
-  Av01,
+  MP4_SAMPLE_ENTRY_KIND_AV01,
   /**
    * Opus
    */
-  Opus,
+  MP4_SAMPLE_ENTRY_KIND_OPUS,
   /**
    * MP4A (AAC)
    */
-  Mp4a,
+  MP4_SAMPLE_ENTRY_KIND_MP4A,
 } Mp4SampleEntryKind;
 
 typedef struct Mp4FileDemuxer Mp4FileDemuxer;

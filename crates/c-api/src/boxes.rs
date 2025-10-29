@@ -3,23 +3,29 @@ use shiguredo_mp4::Uint;
 
 use crate::error::Mp4Error;
 
-// TODO: consider to use SCREMAING_UPPER_CASE for C convention
 #[repr(C)]
+#[expect(non_camel_case_types)]
 pub enum Mp4SampleEntryKind {
     /// AVC1 (H.264)
-    Avc1,
+    MP4_SAMPLE_ENTRY_KIND_AVC1,
+
     /// HEV1 (H.265/HEVC)
-    Hev1,
+    MP4_SAMPLE_ENTRY_KIND_HEV1,
+
     /// VP08 (VP8)
-    Vp08,
+    MP4_SAMPLE_ENTRY_KIND_VP08,
+
     /// VP09 (VP9)
-    Vp09,
+    MP4_SAMPLE_ENTRY_KIND_VP09,
+
     /// AV01 (AV1)
-    Av01,
+    MP4_SAMPLE_ENTRY_KIND_AV01,
+
     /// Opus
-    Opus,
+    MP4_SAMPLE_ENTRY_KIND_OPUS,
+
     /// MP4A (AAC)
-    Mp4a,
+    MP4_SAMPLE_ENTRY_KIND_MP4A,
 }
 
 pub enum Mp4SampleEntryOwned {
@@ -163,7 +169,7 @@ impl Mp4SampleEntryOwned {
                         .unwrap_or(0),
                 };
                 Mp4SampleEntry {
-                    kind: Mp4SampleEntryKind::Avc1,
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1,
                     data: Mp4SampleEntryData { avc1 },
                 }
             }
@@ -205,7 +211,7 @@ impl Mp4SampleEntryOwned {
                     nalu_sizes: nalu_sizes.as_ptr(),
                 };
                 Mp4SampleEntry {
-                    kind: Mp4SampleEntryKind::Hev1,
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1,
                     data: Mp4SampleEntryData { hev1 },
                 }
             }
@@ -221,7 +227,7 @@ impl Mp4SampleEntryOwned {
                     matrix_coefficients: inner.vpcc_box.matrix_coefficients,
                 };
                 Mp4SampleEntry {
-                    kind: Mp4SampleEntryKind::Vp08,
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08,
                     data: Mp4SampleEntryData { vp08 },
                 }
             }
@@ -245,7 +251,7 @@ impl Mp4SampleEntryOwned {
                     codec_initialization_data_size: *codec_init_size,
                 };
                 Mp4SampleEntry {
-                    kind: Mp4SampleEntryKind::Vp09,
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09,
                     data: Mp4SampleEntryData { vp09 },
                 }
             }
@@ -275,7 +281,7 @@ impl Mp4SampleEntryOwned {
                     config_obus_size: config_obus.len() as u32,
                 };
                 Mp4SampleEntry {
-                    kind: Mp4SampleEntryKind::Av01,
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01,
                     data: Mp4SampleEntryData { av01 },
                 }
             }
@@ -303,11 +309,21 @@ pub struct Mp4SampleEntry {
 impl Mp4SampleEntry {
     pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         match self.kind {
-            Mp4SampleEntryKind::Avc1 => unsafe { self.data.avc1.to_sample_entry() },
-            Mp4SampleEntryKind::Hev1 => unsafe { self.data.hev1.to_sample_entry() },
-            Mp4SampleEntryKind::Vp08 => unsafe { self.data.vp08.to_sample_entry() },
-            Mp4SampleEntryKind::Vp09 => unsafe { self.data.vp09.to_sample_entry() },
-            Mp4SampleEntryKind::Av01 => unsafe { self.data.av01.to_sample_entry() },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1 => unsafe {
+                self.data.avc1.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1 => unsafe {
+                self.data.hev1.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08 => unsafe {
+                self.data.vp08.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09 => unsafe {
+                self.data.vp09.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01 => unsafe {
+                self.data.av01.to_sample_entry()
+            },
             _ => Err(Mp4Error::InvalidInput),
         }
     }
