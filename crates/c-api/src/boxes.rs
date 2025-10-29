@@ -36,6 +36,9 @@ pub enum Mp4SampleEntryOwned {
         nalu_data: Vec<*const u8>,
         nalu_sizes: Vec<u32>,
     },
+    Vp08 {
+        inner: shiguredo_mp4::boxes::Vp08Box,
+    },
 }
 
 impl Mp4SampleEntryOwned {
@@ -88,7 +91,7 @@ impl Mp4SampleEntryOwned {
                     nalu_sizes,
                 })
             }
-
+            shiguredo_mp4::boxes::SampleEntry::Vp08(inner) => Some(Self::Vp08 { inner }),
             _ => None,
         }
     }
@@ -183,6 +186,22 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { hev1 },
                 }
             }
+            Self::Vp08 { inner } => {
+                let vp08 = Mp4SampleEntryVp08 {
+                    width: inner.visual.width,
+                    height: inner.visual.height,
+                    bit_depth: inner.vpcc_box.bit_depth.get(),
+                    chroma_subsampling: inner.vpcc_box.chroma_subsampling.get(),
+                    video_full_range_flag: inner.vpcc_box.video_full_range_flag.get() != 0,
+                    colour_primaries: inner.vpcc_box.colour_primaries,
+                    transfer_characteristics: inner.vpcc_box.transfer_characteristics,
+                    matrix_coefficients: inner.vpcc_box.matrix_coefficients,
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::Vp08,
+                    data: Mp4SampleEntryData { vp08 },
+                }
+            }
         }
     }
 }
@@ -191,7 +210,7 @@ impl Mp4SampleEntryOwned {
 pub union Mp4SampleEntryData {
     pub avc1: Mp4SampleEntryAvc1,
     pub hev1: Mp4SampleEntryHev1,
-    //pub vp08: Mp4SampleEntryVp08,
+    pub vp08: Mp4SampleEntryVp08,
     //pub vp09: Mp4SampleEntryVp09,
     //pub av01: Mp4SampleEntryAv01,
     //pub opus: Mp4SampleEntryOpus,
@@ -209,6 +228,7 @@ impl Mp4SampleEntry {
         match self.kind {
             Mp4SampleEntryKind::Avc1 => unsafe { self.data.avc1.to_sample_entry() },
             Mp4SampleEntryKind::Hev1 => unsafe { self.data.hev1.to_sample_entry() },
+            Mp4SampleEntryKind::Vp08 => unsafe { self.data.vp08.to_sample_entry() },
             _ => Err(Mp4Error::InvalidInput),
         }
     }
@@ -444,5 +464,54 @@ impl Mp4SampleEntryHev1 {
             index += nalu_index;
             index
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryVp08 {
+    pub width: u16,
+    pub height: u16,
+
+    pub bit_depth: u8,
+    pub chroma_subsampling: u8,
+    pub video_full_range_flag: bool,
+    pub colour_primaries: u8,
+    pub transfer_characteristics: u8,
+    pub matrix_coefficients: u8,
+}
+
+impl Mp4SampleEntryVp08 {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        let vpcc_box = shiguredo_mp4::boxes::VpccBox {
+            bit_depth: shiguredo_mp4::Uint::new(self.bit_depth),
+            chroma_subsampling: shiguredo_mp4::Uint::new(self.chroma_subsampling),
+            video_full_range_flag: shiguredo_mp4::Uint::new(self.video_full_range_flag as u8),
+            colour_primaries: self.colour_primaries,
+            transfer_characteristics: self.transfer_characteristics,
+            matrix_coefficients: self.matrix_coefficients,
+
+            // VP8 では以下の値は常に固定値
+            profile: 0,
+            level: 0,
+            codec_initialization_data: Vec::new(),
+        };
+        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
+            data_reference_index:
+                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width: self.width,
+            height: self.height,
+            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
+        };
+        let vp08_box = shiguredo_mp4::boxes::Vp08Box {
+            visual,
+            vpcc_box,
+            unknown_boxes: Vec::new(),
+        };
+        Ok(shiguredo_mp4::boxes::SampleEntry::Vp08(vp08_box))
     }
 }

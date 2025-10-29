@@ -120,9 +120,21 @@ typedef struct Mp4SampleEntryHev1 {
   const uint32_t *nalu_sizes;
 } Mp4SampleEntryHev1;
 
+typedef struct Mp4SampleEntryVp08 {
+  uint16_t width;
+  uint16_t height;
+  uint8_t bit_depth;
+  uint8_t chroma_subsampling;
+  bool video_full_range_flag;
+  uint8_t colour_primaries;
+  uint8_t transfer_characteristics;
+  uint8_t matrix_coefficients;
+} Mp4SampleEntryVp08;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
   struct Mp4SampleEntryHev1 hev1;
+  struct Mp4SampleEntryVp08 vp08;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {
