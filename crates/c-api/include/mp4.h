@@ -77,8 +77,8 @@ typedef struct Mp4SampleEntry {
 } Mp4SampleEntry;
 
 typedef struct Mp4SampleEntryAvc1 {
-  uint32_t width;
-  uint32_t height;
+  uint16_t width;
+  uint16_t height;
   uint8_t avc_profile_indication;
   uint8_t profile_compatibility;
   uint8_t avc_level_indication;

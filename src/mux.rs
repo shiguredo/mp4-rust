@@ -641,7 +641,7 @@ impl Mp4FileMuxer {
             .video_chunks
             .iter()
             .filter_map(|c| c.sample_entry.video_resolution())
-            .fold((0u32, 0u32), |(max_w, max_h), (w, h)| {
+            .fold((0u16, 0u16), |(max_w, max_h), (w, h)| {
                 (max_w.max(w), max_h.max(h))
             });
 

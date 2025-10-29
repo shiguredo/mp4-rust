@@ -1,4 +1,5 @@
 //! ../../../src/boxes.rs の（一部に対応する） C API を定義するためのモジュール
+use shiguredo_mp4::Uint;
 
 use crate::error::Mp4Error;
 
@@ -128,8 +129,8 @@ pub extern "C" fn mp4_sample_entry_get_avc1(
     };
 
     unsafe {
-        (*out_entry).width = inner.visual.width as u32;
-        (*out_entry).height = inner.visual.height as u32;
+        (*out_entry).width = inner.visual.width;
+        (*out_entry).height = inner.visual.height;
 
         (*out_entry).avc_profile_indication = inner.avcc_box.avc_profile_indication;
         (*out_entry).profile_compatibility = inner.avcc_box.profile_compatibility;
@@ -169,8 +170,8 @@ pub extern "C" fn mp4_sample_entry_get_avc1(
 
 #[repr(C)]
 pub struct Mp4SampleEntryAvc1 {
-    pub width: u32,
-    pub height: u32,
+    pub width: u16,
+    pub height: u16,
 
     pub avc_profile_indication: u8,
     pub profile_compatibility: u8,
@@ -193,4 +194,82 @@ pub struct Mp4SampleEntryAvc1 {
 
     pub is_bit_depth_chroma_minus8_present: bool,
     pub bit_depth_chroma_minus8: u8,
+}
+
+impl From<Mp4SampleEntryAvc1> for Mp4SampleEntry {
+    fn from(entry: Mp4SampleEntryAvc1) -> Self {
+        let mut sps_list = Vec::new();
+        if !entry.sps_data.is_null() && entry.sps_count > 0 {
+            unsafe {
+                for i in 0..entry.sps_count as usize {
+                    let sps_ptr = *entry.sps_data.add(i);
+                    let sps_size = *entry.sps_sizes.add(i) as usize;
+                    if !sps_ptr.is_null() {
+                        sps_list.push(std::slice::from_raw_parts(sps_ptr, sps_size).to_vec());
+                    }
+                }
+            }
+        }
+
+        let mut pps_list = Vec::new();
+        if !entry.pps_data.is_null() && entry.pps_count > 0 {
+            unsafe {
+                for i in 0..entry.pps_count as usize {
+                    let pps_ptr = *entry.pps_data.add(i);
+                    let pps_size = *entry.pps_sizes.add(i) as usize;
+                    if !pps_ptr.is_null() {
+                        pps_list.push(std::slice::from_raw_parts(pps_ptr, pps_size).to_vec());
+                    }
+                }
+            }
+        }
+
+        let chroma_format = if entry.is_chroma_format_present {
+            Some(Uint::new(entry.chroma_format))
+        } else {
+            None
+        };
+
+        let bit_depth_luma_minus8 = if entry.is_bit_depth_luma_minus8_present {
+            Some(Uint::new(entry.bit_depth_luma_minus8))
+        } else {
+            None
+        };
+
+        let bit_depth_chroma_minus8 = if entry.is_bit_depth_chroma_minus8_present {
+            Some(Uint::new(entry.bit_depth_chroma_minus8))
+        } else {
+            None
+        };
+
+        let avcc_box = shiguredo_mp4::boxes::AvccBox {
+            avc_profile_indication: entry.avc_profile_indication,
+            profile_compatibility: entry.profile_compatibility,
+            avc_level_indication: entry.avc_level_indication,
+            length_size_minus_one: Uint::new(entry.length_size_minus_one),
+            sps_list,
+            pps_list,
+            chroma_format,
+            bit_depth_luma_minus8,
+            bit_depth_chroma_minus8,
+            sps_ext_list: Vec::new(),
+        };
+        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
+            data_reference_index:
+                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width: entry.width,
+            height: entry.height,
+            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
+        };
+        let avc1_box = shiguredo_mp4::boxes::Avc1Box {
+            visual,
+            avcc_box,
+            unknown_boxes: Vec::new(),
+        };
+        Mp4SampleEntry::from(shiguredo_mp4::boxes::SampleEntry::Avc1(avc1_box))
+    }
 }
