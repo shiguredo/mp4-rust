@@ -97,7 +97,9 @@ int main(int argc, char *argv[]) {
     uint64_t output_offset;
     uint32_t output_size;
     const uint8_t *output_data;
+    uint64_t current_output_data_offset = 0;
 
+    printf("Writing initial muxer boxes...\n");
     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) ==
            MP4_ERROR_OK) {
         if (output_size == 0) break;
@@ -112,11 +114,16 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        printf("Wrote %u bytes at offset %lu\n", output_size, output_offset);
+        printf("  Wrote %u bytes at offset %lu\n", output_size, output_offset);
+
+        // Track the current output data offset (where sample data should start)
+        current_output_data_offset = output_offset + output_size;
     }
 
+    printf("Sample data will start at offset: %lu\n\n", current_output_data_offset);
+
     // ==================== DEMUX INPUT ====================
-    printf("\nDemuxing input file...\n");
+    printf("Demuxing input file...\n");
 
     while (true) {
         uint64_t required_position;
@@ -193,7 +200,7 @@ int main(int argc, char *argv[]) {
             .keyframe = demux_sample.keyframe,
             .duration_micros = (uint64_t)demux_sample.duration * 1000000 /
                                demux_sample.track->timescale,
-            .data_offset = demux_sample.data_offset,
+            .data_offset = current_output_data_offset,  
             .data_size = (uint32_t)demux_sample.data_size,
         };
 
@@ -209,6 +216,9 @@ int main(int argc, char *argv[]) {
         }
 
         sample_count++;
+
+        // Update output offset for next sample
+        current_output_data_offset += demux_sample.data_size;
 
         if (sample_count % 100 == 0) {
             printf("  Processed %u samples\n", sample_count);
@@ -261,7 +271,7 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        printf("Wrote final %u bytes at offset %lu\n", output_size, output_offset);
+        printf("  Wrote final %u bytes at offset %lu\n", output_size, output_offset);
     }
 
     printf("\nSuccessfully remuxed '%s' to '%s'\n", input_filepath, output_filepath);
@@ -275,4 +285,3 @@ cleanup:
 
     return 0;
 }
-
