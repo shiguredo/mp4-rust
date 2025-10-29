@@ -1,7 +1,13 @@
 //! ../../../src/demux.rs の C API を定義するためのモジュール
 use std::ffi::{CString, c_char};
 
-use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
+use shiguredo_mp4::BaseBox;
+
+use crate::{
+    basic_types::Mp4TrackKind,
+    boxes::{Mp4SampleEntry, Mp4SampleEntryOwned},
+    error::Mp4Error,
+};
 
 #[repr(C)]
 pub struct Mp4DemuxTrackInfo {
@@ -25,7 +31,7 @@ impl From<shiguredo_mp4::demux::TrackInfo> for Mp4DemuxTrackInfo {
 #[repr(C)]
 pub struct Mp4DemuxSample {
     pub track: *const Mp4DemuxTrackInfo,
-    // TODO: sample_entry,
+    pub sample_entry: *const Mp4SampleEntry,
     pub keyframe: bool,
     pub timestamp: u64,
     pub duration: u32,
@@ -34,9 +40,14 @@ pub struct Mp4DemuxSample {
 }
 
 impl Mp4DemuxSample {
-    pub fn new(sample: shiguredo_mp4::demux::Sample<'_>, track: &Mp4DemuxTrackInfo) -> Self {
+    pub fn new(
+        sample: shiguredo_mp4::demux::Sample<'_>,
+        track: &Mp4DemuxTrackInfo,
+        sample_entry: &Mp4SampleEntry,
+    ) -> Self {
         Self {
             track,
+            sample_entry,
             keyframe: sample.keyframe,
             timestamp: sample.timescaled_timestamp,
             duration: sample.timescaled_duration,
@@ -49,6 +60,11 @@ impl Mp4DemuxSample {
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
     tracks: Vec<Mp4DemuxTrackInfo>,
+    sample_entries: Vec<(
+        shiguredo_mp4::boxes::SampleEntry,
+        Mp4SampleEntryOwned,
+        Mp4SampleEntry,
+    )>,
     last_error_string: Option<CString>,
 }
 
@@ -63,6 +79,7 @@ pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
     let demuxer = Mp4FileDemuxer {
         inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
         tracks: Vec::new(),
+        sample_entries: Vec::new(),
         last_error_string: None,
     };
     Box::into_raw(Box::new(demuxer))
@@ -218,8 +235,34 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                 return Mp4Error::InvalidState;
             };
 
+            let sample_entry_box_type = sample.sample_entry.box_type();
+            let sample_entry = if let Some(entry) = demuxer
+                .sample_entries
+                .iter()
+                .find_map(|entry| (entry.0 == *sample.sample_entry).then_some(&entry.2))
+            {
+                entry
+            } else {
+                let Some(entry_owned) = Mp4SampleEntryOwned::new(sample.sample_entry.clone())
+                else {
+                    demuxer.set_last_error(&format!(
+                        "[mp4_file_demuxer_next_sample] Unsupported sample entry box type: {sample_entry_box_type}",
+                    ));
+                    return Mp4Error::Unsupported;
+                };
+                let entry = entry_owned.to_mp4_sample_entry();
+                demuxer
+                    .sample_entries
+                    .push((sample.sample_entry.clone(), entry_owned, entry));
+                demuxer
+                    .sample_entries
+                    .last()
+                    .map(|entry| &entry.2)
+                    .expect("infallible")
+            };
+
             unsafe {
-                *out_sample = Mp4DemuxSample::new(sample, track_info);
+                *out_sample = Mp4DemuxSample::new(sample, track_info, sample_entry);
             }
 
             Mp4Error::Ok

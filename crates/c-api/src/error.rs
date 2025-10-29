@@ -15,6 +15,7 @@ pub enum Mp4Error {
     OutputRequired,
     NullPointer,
     NoMoreSamples,
+    Unsupported,
     Other,
 }
 
@@ -23,6 +24,7 @@ impl From<Error> for Mp4Error {
         match e.kind {
             ErrorKind::InvalidInput => Self::InvalidInput,
             ErrorKind::InvalidData => Self::InvalidData,
+            ErrorKind::Unsupported => Self::Unsupported,
             _ => Self::Other,
         }
     }

@@ -34,6 +34,35 @@ pub enum Mp4SampleEntryOwned {
 }
 
 impl Mp4SampleEntryOwned {
+    pub fn new(entry: shiguredo_mp4::boxes::SampleEntry) -> Option<Self> {
+        match entry {
+            shiguredo_mp4::boxes::SampleEntry::Avc1(inner) => {
+                let mut sps_data = Vec::new();
+                let mut sps_sizes = Vec::new();
+                for sps in &inner.avcc_box.sps_list {
+                    sps_data.push(sps.as_ptr());
+                    sps_sizes.push(sps.len() as u32);
+                }
+
+                let mut pps_data = Vec::new();
+                let mut pps_sizes = Vec::new();
+                for pps in &inner.avcc_box.pps_list {
+                    pps_data.push(pps.as_ptr());
+                    pps_sizes.push(pps.len() as u32);
+                }
+
+                Some(Self::Avc1 {
+                    inner: inner,
+                    sps_data,
+                    sps_sizes,
+                    pps_data,
+                    pps_sizes,
+                })
+            }
+            _ => None,
+        }
+    }
+
     pub fn to_mp4_sample_entry(&self) -> Mp4SampleEntry {
         match self {
             Self::Avc1 {
@@ -96,8 +125,6 @@ pub union Mp4SampleEntryData {
     //pub opus: Mp4SampleEntryOpus,
     //pub mp4a: Mp4SampleEntryMp4a,
 }
-
-// TODO: Add a union for Mp4SampleEntryAvc1 and other codecs
 
 #[repr(C)]
 pub struct Mp4SampleEntry {

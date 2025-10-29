@@ -23,6 +23,7 @@ typedef enum Mp4Error {
   OutputRequired,
   NullPointer,
   NoMoreSamples,
+  Unsupported,
   Other,
 } Mp4Error;
 
@@ -76,23 +77,6 @@ typedef struct Mp4DemuxTrackInfo {
   uint32_t timescale;
 } Mp4DemuxTrackInfo;
 
-typedef struct Mp4DemuxSample {
-  const struct Mp4DemuxTrackInfo *track;
-  bool keyframe;
-  uint64_t timestamp;
-  uint32_t duration;
-  uint64_t data_offset;
-  uintptr_t data_size;
-} Mp4DemuxSample;
-
-typedef struct Mp4FileMuxer {
-  Mp4FileMuxerOptions options;
-  struct Option_Mp4FileMuxer inner;
-  struct Option_CString last_error_string;
-  struct Vec_Output output_list;
-  uintptr_t next_output_index;
-} Mp4FileMuxer;
-
 typedef struct Mp4SampleEntryAvc1 {
   uint16_t width;
   uint16_t height;
@@ -122,6 +106,24 @@ typedef struct Mp4SampleEntry {
   enum Mp4SampleEntryKind kind;
   union Mp4SampleEntryData data;
 } Mp4SampleEntry;
+
+typedef struct Mp4DemuxSample {
+  const struct Mp4DemuxTrackInfo *track;
+  const struct Mp4SampleEntry *sample_entry;
+  bool keyframe;
+  uint64_t timestamp;
+  uint32_t duration;
+  uint64_t data_offset;
+  uintptr_t data_size;
+} Mp4DemuxSample;
+
+typedef struct Mp4FileMuxer {
+  Mp4FileMuxerOptions options;
+  struct Option_Mp4FileMuxer inner;
+  struct Option_CString last_error_string;
+  struct Vec_Output output_list;
+  uintptr_t next_output_index;
+} Mp4FileMuxer;
 
 typedef struct Mp4MuxSample {
   enum Mp4TrackKind track_kind;
