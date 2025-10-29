@@ -5,8 +5,6 @@ use crate::error::Mp4Error;
 
 #[repr(C)]
 pub enum Mp4SampleEntryKind {
-    /// Unknown
-    Unknown = 0,
     /// AVC1 (H.264)
     Avc1,
     /// HEV1 (H.265/HEVC)
@@ -132,6 +130,15 @@ pub struct Mp4SampleEntry {
     pub data: Mp4SampleEntryData,
 }
 
+impl Mp4SampleEntry {
+    pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        match self.kind {
+            Mp4SampleEntryKind::Avc1 => unsafe { self.data.avc1.to_sample_entry() },
+            _ => Err(Mp4Error::InvalidInput),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryAvc1 {
@@ -162,7 +169,7 @@ pub struct Mp4SampleEntryAvc1 {
 }
 
 impl Mp4SampleEntryAvc1 {
-    pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         // SPS / PPS リストをメモリから読み込む
         let mut sps_list = Vec::new();
         if self.sps_data.is_null() {

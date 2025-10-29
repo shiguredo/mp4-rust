@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
+use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
 
 #[repr(C)]
 pub struct Mp4MuxSample {
@@ -14,13 +14,6 @@ pub struct Mp4MuxSample {
     pub duration_micros: u64,
     pub data_offset: u64,
     pub data_size: u32,
-}
-
-#[repr(C)]
-pub struct Mp4SampleEntry {
-    // This would contain the sample entry data
-    // For now, we'll use an opaque representation
-    _opaque: [u8; 0],
 }
 
 struct Output {
@@ -220,7 +213,15 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     let sample_entry = if sample.sample_entry.is_null() {
         None
     } else {
-        None // TODO: Implement conversion
+        unsafe {
+            match (&*sample.sample_entry).to_sample_entry() {
+                Ok(entry) => Some(entry),
+                Err(e) => {
+                    muxer.set_last_error("[mp4_file_muxer_append_sample] Invalid sample entry");
+                    return e;
+                }
+            }
+        }
     };
 
     let Some(inner) = &mut muxer.inner else {

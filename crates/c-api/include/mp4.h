@@ -29,10 +29,6 @@ typedef enum Mp4Error {
 
 typedef enum Mp4SampleEntryKind {
   /**
-   * Unknown
-   */
-  Unknown = 0,
-  /**
    * AVC1 (H.264)
    */
   Avc1,
