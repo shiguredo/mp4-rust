@@ -4,27 +4,27 @@
 #include <stdlib.h>
 
 typedef enum Mp4Error {
-  Ok = 0,
-  InvalidInput,
-  InvalidData,
-  InvalidState,
-  InputRequired,
-  OutputRequired,
-  NullPointer,
-  NoMoreSamples,
-  Unsupported,
-  Other,
+  MP4_ERROR_OK = 0,
+  MP4_ERROR_INVALID_INPUT,
+  MP4_ERROR_INVALID_DATA,
+  MP4_ERROR_INVALID_STATE,
+  MP4_ERROR_INPUT_REQUIRED,
+  MP4_ERROR_OUTPUT_REQUIRED,
+  MP4_ERROR_NULL_POINTER,
+  MP4_ERROR_NO_MORE_SAMPLES,
+  MP4_ERROR_UNSUPPORTED,
+  MP4_ERROR_OTHER,
 } Mp4Error;
 
 typedef enum Mp4TrackKind {
   /**
    * 音声トラック
    */
-  Audio = 0,
+  MP4_TRACK_KIND_AUDIO = 0,
   /**
    * 映像トラック
    */
-  Video = 1,
+  MP4_TRACK_KIND_VIDEO = 1,
 } Mp4TrackKind;
 
 typedef enum Mp4SampleEntryKind {

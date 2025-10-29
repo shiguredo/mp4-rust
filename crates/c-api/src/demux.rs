@@ -114,7 +114,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
     out_required_input_size: *mut i32,
 ) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
@@ -122,13 +122,13 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
         demuxer.set_last_error(
             "[mp4_file_demuxer_get_required_input] out_required_input_position is null",
         );
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     if out_required_input_size.is_null() {
         demuxer.set_last_error(
             "[mp4_file_demuxer_get_required_input] out_required_input_size is null",
         );
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     unsafe {
@@ -141,7 +141,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
         }
     }
 
-    Mp4Error::Ok
+    Mp4Error::MP4_ERROR_OK
 }
 
 #[unsafe(no_mangle)]
@@ -152,13 +152,13 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     input_data_size: u32,
 ) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
     if input_data.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_handle_input] input_data is null");
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     let input_data = unsafe { std::slice::from_raw_parts(input_data, input_data_size as usize) };
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     };
     demuxer.inner.handle_input(input);
 
-    Mp4Error::Ok
+    Mp4Error::MP4_ERROR_OK
 }
 
 #[unsafe(no_mangle)]
@@ -178,17 +178,17 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     out_track_count: *mut u32,
 ) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
     if out_tracks.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_get_tracks] out_tracks is null");
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     if out_track_count.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_get_tracks] out_track_count is null");
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     match demuxer.inner.tracks() {
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
                 *out_tracks = demuxer.tracks.as_ptr();
                 *out_track_count = demuxer.tracks.len() as u32;
             }
-            Mp4Error::Ok
+            Mp4Error::MP4_ERROR_OK
         }
         Err(e) => {
             demuxer.set_last_error(&format!("[mp4_file_demuxer_get_tracks] {e}"));
@@ -213,13 +213,13 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
     out_sample: *mut Mp4DemuxSample,
 ) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
     if out_sample.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_next_sample] out_sample is null");
-        return Mp4Error::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     match demuxer.inner.next_sample() {
@@ -232,7 +232,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                 demuxer.set_last_error(
                     "[mp4_file_demuxer_next_sample] track info not found for sample",
                 );
-                return Mp4Error::InvalidState;
+                return Mp4Error::MP4_ERROR_INVALID_STATE;
             };
 
             let sample_entry_box_type = sample.sample_entry.box_type();
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                     demuxer.set_last_error(&format!(
                         "[mp4_file_demuxer_next_sample] Unsupported sample entry box type: {sample_entry_box_type}",
                     ));
-                    return Mp4Error::Unsupported;
+                    return Mp4Error::MP4_ERROR_UNSUPPORTED;
                 };
                 let entry = Box::new(entry_owned.to_mp4_sample_entry());
                 demuxer
@@ -265,9 +265,9 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                 *out_sample = Mp4DemuxSample::new(sample, track_info, sample_entry);
             }
 
-            Mp4Error::Ok
+            Mp4Error::MP4_ERROR_OK
         }
-        Ok(None) => Mp4Error::NoMoreSamples,
+        Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
         Err(e) => {
             demuxer.set_last_error(&format!("[mp4_file_demuxer_next_sample] {e}"));
             e.into()

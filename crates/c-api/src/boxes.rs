@@ -324,7 +324,7 @@ impl Mp4SampleEntry {
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01 => unsafe {
                 self.data.av01.to_sample_entry()
             },
-            _ => Err(Mp4Error::InvalidInput),
+            _ => Err(Mp4Error::MP4_ERROR_INVALID_INPUT),
         }
     }
 }
@@ -363,7 +363,7 @@ impl Mp4SampleEntryAvc1 {
         // SPS / PPS リストをメモリから読み込む
         let mut sps_list = Vec::new();
         if self.sps_data.is_null() {
-            return Err(Mp4Error::NullPointer);
+            return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
         }
         if self.sps_count > 0 {
             unsafe {
@@ -371,7 +371,7 @@ impl Mp4SampleEntryAvc1 {
                     let sps_ptr = *self.sps_data.add(i);
                     let sps_size = *self.sps_sizes.add(i) as usize;
                     if sps_ptr.is_null() {
-                        return Err(Mp4Error::NullPointer);
+                        return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
                     }
                     sps_list.push(std::slice::from_raw_parts(sps_ptr, sps_size).to_vec());
                 }
@@ -380,7 +380,7 @@ impl Mp4SampleEntryAvc1 {
 
         let mut pps_list = Vec::new();
         if self.pps_data.is_null() {
-            return Err(Mp4Error::NullPointer);
+            return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
         }
         if self.pps_count > 0 {
             unsafe {
@@ -388,7 +388,7 @@ impl Mp4SampleEntryAvc1 {
                     let pps_ptr = *self.pps_data.add(i);
                     let pps_size = *self.pps_sizes.add(i) as usize;
                     if pps_ptr.is_null() {
-                        return Err(Mp4Error::NullPointer);
+                        return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
                     }
                     pps_list.push(std::slice::from_raw_parts(pps_ptr, pps_size).to_vec());
                 }
@@ -476,7 +476,7 @@ impl Mp4SampleEntryHev1 {
                         let nalu_size = *self.nalu_sizes.add(nalu_index) as usize;
 
                         if nalu_ptr.is_null() {
-                            return Err(Mp4Error::NullPointer);
+                            return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
                         }
                         nalus.push(std::slice::from_raw_parts(nalu_ptr, nalu_size).to_vec());
                     }
@@ -599,7 +599,7 @@ impl Mp4SampleEntryVp09 {
     fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let codec_initialization_data = if self.codec_initialization_data_size > 0 {
             if self.codec_initialization_data.is_null() {
-                return Err(Mp4Error::NullPointer);
+                return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
             }
             unsafe {
                 std::slice::from_raw_parts(
@@ -656,7 +656,7 @@ impl Mp4SampleEntryAv01 {
     fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let config_obus = if self.config_obus_size > 0 {
             if self.config_obus.is_null() {
-                return Err(Mp4Error::NullPointer);
+                return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
             }
             unsafe {
                 std::slice::from_raw_parts(self.config_obus, self.config_obus_size as usize)
