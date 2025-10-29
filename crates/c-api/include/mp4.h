@@ -14,6 +14,41 @@ typedef enum Mp4TrackKind {
   Video = 1,
 } Mp4TrackKind;
 
+typedef enum Mp4SampleEntryKind {
+  /**
+   * Unknown
+   */
+  Unknown = 0,
+  /**
+   * AVC1 (H.264)
+   */
+  Avc1,
+  /**
+   * HEV1 (H.265/HEVC)
+   */
+  Hev1,
+  /**
+   * VP08 (VP8)
+   */
+  Vp08,
+  /**
+   * VP09 (VP9)
+   */
+  Vp09,
+  /**
+   * AV01 (AV1)
+   */
+  Av01,
+  /**
+   * Opus
+   */
+  Opus,
+  /**
+   * MP4A (AAC)
+   */
+  Mp4a,
+} Mp4SampleEntryKind;
+
 typedef enum Mp4Error {
   Ok = 0,
   InvalidInput,
@@ -26,6 +61,8 @@ typedef enum Mp4Error {
   Other,
 } Mp4Error;
 
+typedef struct CodecSpecificData CodecSpecificData;
+
 typedef struct Mp4FileDemuxer Mp4FileDemuxer;
 
 typedef struct Option_CString Option_CString;
@@ -33,6 +70,32 @@ typedef struct Option_CString Option_CString;
 typedef struct Option_Mp4FileMuxer Option_Mp4FileMuxer;
 
 typedef struct Vec_Output Vec_Output;
+
+typedef struct Mp4SampleEntry {
+  SampleEntry inner;
+  struct CodecSpecificData data;
+} Mp4SampleEntry;
+
+typedef struct Mp4SampleEntryAvc1 {
+  uint32_t width;
+  uint32_t height;
+  uint8_t avc_profile_indication;
+  uint8_t profile_compatibility;
+  uint8_t avc_level_indication;
+  uint8_t length_size_minus_one;
+  const uint8_t *const *sps_data;
+  const uint32_t *sps_sizes;
+  uint32_t sps_count;
+  const uint8_t *const *pps_data;
+  const uint32_t *pps_sizes;
+  uint32_t pps_count;
+  bool is_chroma_format_present;
+  uint8_t chroma_format;
+  bool is_bit_depth_luma_minus8_present;
+  uint8_t bit_depth_luma_minus8;
+  bool is_bit_depth_chroma_minus8_present;
+  uint8_t bit_depth_chroma_minus8;
+} Mp4SampleEntryAvc1;
 
 typedef struct Mp4DemuxTrackInfo {
   uint32_t track_id;
@@ -58,10 +121,6 @@ typedef struct Mp4FileMuxer {
   uintptr_t next_output_index;
 } Mp4FileMuxer;
 
-typedef struct Mp4SampleEntry {
-  uint8_t _opaque[0];
-} Mp4SampleEntry;
-
 typedef struct Mp4MuxSample {
   enum Mp4TrackKind track_kind;
   const struct Mp4SampleEntry *sample_entry;
@@ -72,6 +131,11 @@ typedef struct Mp4MuxSample {
 } Mp4MuxSample;
 
 enum Mp4TrackKind foo(void);
+
+enum Mp4SampleEntryKind mp4_sample_entry_get_kind(const struct Mp4SampleEntry *entry);
+
+enum Mp4Error mp4_sample_entry_get_avc1(const struct Mp4SampleEntry *entry,
+                                        struct Mp4SampleEntryAvc1 *out_entry);
 
 struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
 
