@@ -21,6 +21,7 @@ struct Output {
     data: Vec<u8>,
 }
 
+/// cbindgen:no-export
 #[repr(C)]
 pub struct Mp4FileMuxer {
     options: shiguredo_mp4::mux::Mp4FileMuxerOptions,

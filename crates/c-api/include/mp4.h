@@ -60,8 +60,6 @@ typedef enum Mp4SampleEntryKind {
   MP4_SAMPLE_ENTRY_KIND_MP4A,
 } Mp4SampleEntryKind;
 
-typedef struct Mp4FileDemuxer Mp4FileDemuxer;
-
 typedef struct Option_CString Option_CString;
 
 typedef struct Option_Mp4FileMuxer Option_Mp4FileMuxer;
@@ -210,14 +208,6 @@ typedef struct Mp4DemuxSample {
   uint64_t data_offset;
   uintptr_t data_size;
 } Mp4DemuxSample;
-
-typedef struct Mp4FileMuxer {
-  Mp4FileMuxerOptions options;
-  struct Option_Mp4FileMuxer inner;
-  struct Option_CString last_error_string;
-  struct Vec_Output output_list;
-  uintptr_t next_output_index;
-} Mp4FileMuxer;
 
 typedef struct Mp4MuxSample {
   enum Mp4TrackKind track_kind;

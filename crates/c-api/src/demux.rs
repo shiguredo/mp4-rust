@@ -57,6 +57,7 @@ impl Mp4DemuxSample {
     }
 }
 
+/// cbindgen:no-export
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
     tracks: Vec<Mp4DemuxTrackInfo>, // NOTE: sample_entries とは異なりサイズが途中で変わらないので `Box` は不要
