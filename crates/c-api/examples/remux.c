@@ -193,6 +193,38 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
+        // Read sample data from input file and append the data to output file
+
+        // Seek to the sample data position in the input file
+        if (fseek(input_file, demux_sample.data_offset, SEEK_SET) != 0) {
+            fprintf(stderr, "Error: Could not seek to sample data offset %lu\n", demux_sample.data_offset);
+            goto cleanup;
+        }
+
+        // Read the sample data from input file
+        uint8_t *sample_data = (uint8_t *)malloc(demux_sample.data_size);
+        if (!sample_data) {
+            fprintf(stderr, "Error: Could not allocate memory for sample data\n");
+            goto cleanup;
+        }
+
+        size_t bytes_read = fread(sample_data, 1, demux_sample.data_size, input_file);
+        if (bytes_read != demux_sample.data_size) {
+            fprintf(stderr, "Error: Failed to read sample data (expected %zu bytes, got %zu)\n",
+                    demux_sample.data_size, bytes_read);
+            free(sample_data);
+            goto cleanup;
+        }
+
+        // Write the sample data to output file (append sequentially)
+        if (fwrite(sample_data, 1, demux_sample.data_size, output_file) != demux_sample.data_size) {
+            fprintf(stderr, "Error: Failed to write sample data to output file\n");
+            free(sample_data);
+            goto cleanup;
+        }
+
+        free(sample_data);
+
         // Create mux sample from demux sample
         struct Mp4MuxSample mux_sample = {
             .track_kind = demux_sample.track->kind,
@@ -200,7 +232,7 @@ int main(int argc, char *argv[]) {
             .keyframe = demux_sample.keyframe,
             .duration_micros = (uint64_t)demux_sample.duration * 1000000 /
                                demux_sample.track->timescale,
-            .data_offset = current_output_data_offset,  
+            .data_offset = current_output_data_offset,
             .data_size = (uint32_t)demux_sample.data_size,
         };
 
@@ -222,22 +254,6 @@ int main(int argc, char *argv[]) {
 
         if (sample_count % 100 == 0) {
             printf("  Processed %u samples\n", sample_count);
-        }
-
-        // Write any pending muxer output
-        while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) ==
-               MP4_ERROR_OK) {
-            if (output_size == 0) break;
-
-            if (fseek(output_file, output_offset, SEEK_SET) != 0) {
-                fprintf(stderr, "Error: Failed to seek in output file\n");
-                goto cleanup;
-            }
-
-            if (fwrite(output_data, 1, output_size, output_file) != output_size) {
-                fprintf(stderr, "Error: Failed to write to output file\n");
-                goto cleanup;
-            }
         }
     }
 
@@ -285,3 +301,4 @@ cleanup:
 
     return 0;
 }
+
