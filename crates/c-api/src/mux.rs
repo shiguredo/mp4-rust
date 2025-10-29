@@ -23,11 +23,18 @@ pub struct Mp4SampleEntry {
     _opaque: [u8; 0],
 }
 
+struct Output {
+    offset: u64,
+    data: Vec<u8>,
+}
+
 #[repr(C)]
 pub struct Mp4FileMuxer {
     options: shiguredo_mp4::mux::Mp4FileMuxerOptions,
     inner: Option<shiguredo_mp4::mux::Mp4FileMuxer>,
     last_error_string: Option<CString>,
+    output_list: Vec<Output>,
+    next_output_index: usize,
 }
 
 impl Mp4FileMuxer {
@@ -53,6 +60,8 @@ pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
         options: shiguredo_mp4::mux::Mp4FileMuxerOptions::default(),
         inner: None,
         last_error_string: None,
+        output_list: Vec::new(),
+        next_output_index: 0,
     };
     Box::into_raw(Box::new(muxer))
 }
@@ -118,11 +127,17 @@ pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> 
     let muxer = unsafe { &mut *muxer };
 
     if muxer.inner.is_some() {
+        muxer.set_last_error("[mp4_file_muxer_initialize] Muxer has already been initialized");
         return Mp4Error::InvalidState;
     }
 
     match shiguredo_mp4::mux::Mp4FileMuxer::with_options(muxer.options.clone()) {
         Ok(inner) => {
+            let initial = inner.initial_boxes_bytes();
+            muxer.output_list.push(Output {
+                offset: 0,
+                data: initial.to_vec(),
+            });
             muxer.inner = Some(inner);
             Mp4Error::Ok
         }
@@ -136,36 +151,43 @@ pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_file_muxer_get_initial_boxes_bytes(
+pub unsafe extern "C" fn mp4_file_muxer_next_output(
     muxer: *mut Mp4FileMuxer,
-    out_bytes: *mut *const u8,
-    out_size: *mut u32,
+    out_output_offset: *mut u64,
+    out_output_size: *mut u32,
+    out_output_data: *mut *const u8,
 ) -> Mp4Error {
     if muxer.is_null() {
         return Mp4Error::NullPointer;
     }
     let muxer = unsafe { &mut *muxer };
 
-    if out_bytes.is_null() {
-        muxer.set_last_error("[mp4_file_muxer_get_initial_boxes_bytes] out_bytes is null");
+    if out_output_offset.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_next_output] out_output_offset is null");
         return Mp4Error::NullPointer;
     }
-    if out_size.is_null() {
-        muxer.set_last_error("[mp4_file_muxer_get_initial_boxes_bytes] out_size is null");
+    if out_output_size.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_next_output] out_output_size is null");
+        return Mp4Error::NullPointer;
+    }
+    if out_output_data.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_next_output] out_output_data is null");
         return Mp4Error::NullPointer;
     }
 
-    let Some(inner) = &muxer.inner else {
-        muxer.set_last_error(
-            "[mp4_file_muxer_get_initial_boxes_bytes] Muxer has not been initialized",
-        );
-        return Mp4Error::InvalidState;
-    };
-
-    let initial_bytes = inner.initial_boxes_bytes();
-    unsafe {
-        *out_bytes = initial_bytes.as_ptr();
-        *out_size = initial_bytes.len() as u32;
+    if let Some(output) = muxer.output_list.get(muxer.next_output_index) {
+        unsafe {
+            *out_output_offset = output.offset;
+            *out_output_size = output.data.len() as u32;
+            *out_output_data = output.data.as_ptr();
+        }
+        muxer.next_output_index += 1;
+    } else {
+        unsafe {
+            *out_output_offset = 0;
+            *out_output_size = 0;
+            *out_output_data = core::ptr::null_mut();
+        }
     }
 
     Mp4Error::Ok
@@ -180,6 +202,11 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
         return Mp4Error::NullPointer;
     }
     let muxer = unsafe { &mut *muxer };
+
+    if muxer.next_output_index < muxer.output_list.len() {
+        // TODO: set last error
+        return Mp4Error::OutputRequired;
+    }
 
     if sample.is_null() {
         muxer.set_last_error("[mp4_file_muxer_append_sample] sample is null");
@@ -224,6 +251,11 @@ pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp
         return Mp4Error::NullPointer;
     }
     let muxer = unsafe { &mut *muxer };
+
+    if muxer.next_output_index < muxer.output_list.len() {
+        // TODO: set last error
+        return Mp4Error::OutputRequired;
+    }
 
     let Some(inner) = &mut muxer.inner else {
         muxer.set_last_error("[mp4_file_muxer_finalize] Muxer has not been initialized");

@@ -12,6 +12,7 @@ pub enum Mp4Error {
     InvalidData,
     InvalidState,
     InputRequired,
+    OutputRequired,
     NullPointer,
     NoMoreSamples,
     Other,

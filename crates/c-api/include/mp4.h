@@ -20,6 +20,7 @@ typedef enum Mp4Error {
   InvalidData,
   InvalidState,
   InputRequired,
+  OutputRequired,
   NullPointer,
   NoMoreSamples,
   Other,
@@ -30,6 +31,8 @@ typedef struct Mp4FileDemuxer Mp4FileDemuxer;
 typedef struct Option_CString Option_CString;
 
 typedef struct Option_Mp4FileMuxer Option_Mp4FileMuxer;
+
+typedef struct Vec_Output Vec_Output;
 
 typedef struct Mp4DemuxTrackInfo {
   uint32_t track_id;
@@ -51,6 +54,8 @@ typedef struct Mp4FileMuxer {
   Mp4FileMuxerOptions options;
   struct Option_Mp4FileMuxer inner;
   struct Option_CString last_error_string;
+  struct Vec_Output output_list;
+  uintptr_t next_output_index;
 } Mp4FileMuxer;
 
 typedef struct Mp4SampleEntry {
@@ -106,9 +111,10 @@ enum Mp4Error mp4_file_muxer_set_creation_timestamp(struct Mp4FileMuxer *muxer,
 
 enum Mp4Error mp4_file_muxer_initialize(struct Mp4FileMuxer *muxer);
 
-enum Mp4Error mp4_file_muxer_get_initial_boxes_bytes(struct Mp4FileMuxer *muxer,
-                                                     const uint8_t **out_bytes,
-                                                     uint32_t *out_size);
+enum Mp4Error mp4_file_muxer_next_output(struct Mp4FileMuxer *muxer,
+                                         uint64_t *out_output_offset,
+                                         uint32_t *out_output_size,
+                                         const uint8_t **out_output_data);
 
 enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
                                            const struct Mp4MuxSample *sample);
