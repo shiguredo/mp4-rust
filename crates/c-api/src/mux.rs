@@ -266,12 +266,21 @@ pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp
         return Mp4Error::MP4_ERROR_INVALID_STATE;
     };
 
-    if let Err(e) = inner.finalize() {
-        muxer.set_last_error(&format!(
-            "[mp4_file_muxer_finalize] Failed to finalize muxer: {e}"
-        ));
-        e.into()
-    } else {
-        Mp4Error::MP4_ERROR_OK
+    match inner.finalize() {
+        Ok(finalized_boxes) => {
+            for (offset, bytes) in finalized_boxes.offset_and_bytes_pairs() {
+                muxer.output_list.push(Output {
+                    offset,
+                    data: bytes.to_vec(),
+                });
+            }
+            Mp4Error::MP4_ERROR_OK
+        }
+        Err(e) => {
+            muxer.set_last_error(&format!(
+                "[mp4_file_muxer_finalize] Failed to finalize muxer: {e}"
+            ));
+            e.into()
+        }
     }
 }
