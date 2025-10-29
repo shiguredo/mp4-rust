@@ -384,7 +384,6 @@ impl Mp4SampleEntry {
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A => unsafe {
                 self.data.mp4a.to_sample_entry()
             },
-            _ => Err(Mp4Error::MP4_ERROR_INVALID_INPUT),
         }
     }
 }
