@@ -136,53 +136,53 @@ pub struct Mp4SampleEntryAvc1 {
 
 impl Mp4SampleEntryAvc1 {
     pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
-        // SPS/PPSリストをメモリから読み込む
+        // SPS / PPS リストをメモリから読み込む
         let mut sps_list = Vec::new();
-        if !self.sps_data.is_null() && self.sps_count > 0 {
+        if self.sps_data.is_null() {
+            return Err(Mp4Error::NullPointer);
+        }
+        if self.sps_count > 0 {
             unsafe {
                 for i in 0..self.sps_count as usize {
                     let sps_ptr = *self.sps_data.add(i);
                     let sps_size = *self.sps_sizes.add(i) as usize;
-                    if !sps_ptr.is_null() {
-                        sps_list.push(std::slice::from_raw_parts(sps_ptr, sps_size).to_vec());
+                    if sps_ptr.is_null() {
+                        return Err(Mp4Error::NullPointer);
                     }
+                    sps_list.push(std::slice::from_raw_parts(sps_ptr, sps_size).to_vec());
                 }
             }
         }
 
         let mut pps_list = Vec::new();
-        if !self.pps_data.is_null() && self.pps_count > 0 {
+        if self.pps_data.is_null() {
+            return Err(Mp4Error::NullPointer);
+        }
+        if self.pps_count > 0 {
             unsafe {
                 for i in 0..self.pps_count as usize {
                     let pps_ptr = *self.pps_data.add(i);
                     let pps_size = *self.pps_sizes.add(i) as usize;
-                    if !pps_ptr.is_null() {
-                        pps_list.push(std::slice::from_raw_parts(pps_ptr, pps_size).to_vec());
+                    if pps_ptr.is_null() {
+                        return Err(Mp4Error::NullPointer);
                     }
+                    pps_list.push(std::slice::from_raw_parts(pps_ptr, pps_size).to_vec());
                 }
             }
         }
 
         // オプショナルフィールドを構築
-        let chroma_format = if self.is_chroma_format_present {
-            Some(Uint::new(self.chroma_format))
-        } else {
-            None
-        };
+        let chroma_format = self
+            .is_chroma_format_present
+            .then_some(Uint::new(self.chroma_format));
+        let bit_depth_luma_minus8 = self
+            .is_bit_depth_luma_minus8_present
+            .then_some(Uint::new(self.bit_depth_luma_minus8));
+        let bit_depth_chroma_minus8 = self
+            .is_bit_depth_chroma_minus8_present
+            .then_some(Uint::new(self.bit_depth_chroma_minus8));
 
-        let bit_depth_luma_minus8 = if self.is_bit_depth_luma_minus8_present {
-            Some(Uint::new(self.bit_depth_luma_minus8))
-        } else {
-            None
-        };
-
-        let bit_depth_chroma_minus8 = if self.is_bit_depth_chroma_minus8_present {
-            Some(Uint::new(self.bit_depth_chroma_minus8))
-        } else {
-            None
-        };
-
-        // AvccBoxを構築
+        // ボックスを構築
         let avcc_box = shiguredo_mp4::boxes::AvccBox {
             avc_profile_indication: self.avc_profile_indication,
             profile_compatibility: self.profile_compatibility,
@@ -195,8 +195,6 @@ impl Mp4SampleEntryAvc1 {
             bit_depth_chroma_minus8,
             sps_ext_list: Vec::new(),
         };
-
-        // VisualSampleEntryFieldsを構築
         let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
             data_reference_index:
                 shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
@@ -208,8 +206,6 @@ impl Mp4SampleEntryAvc1 {
             compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
             depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
         };
-
-        // Avc1Boxを構築
         let avc1_box = shiguredo_mp4::boxes::Avc1Box {
             visual,
             avcc_box,
