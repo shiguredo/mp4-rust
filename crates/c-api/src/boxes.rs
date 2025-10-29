@@ -2,6 +2,8 @@
 
 #[repr(C)]
 pub enum Mp4SampleEntryKind {
+    /// Unknown
+    Unknown = 0,
     /// AVC1 (H.264)
     Avc1,
     /// HEV1 (H.265/HEVC)
@@ -16,21 +18,19 @@ pub enum Mp4SampleEntryKind {
     Opus,
     /// MP4A (AAC)
     Mp4a,
-    /// Unknown
-    Unknown,
 }
 
-impl From<&crate::boxes::SampleEntry> for Mp4SampleEntryKind {
-    fn from(entry: &crate::boxes::SampleEntry) -> Self {
+impl From<&shiguredo_mp4::boxes::SampleEntry> for Mp4SampleEntryKind {
+    fn from(entry: &shiguredo_mp4::boxes::SampleEntry) -> Self {
         match entry {
-            crate::boxes::SampleEntry::Avc1(_) => Self::Avc1,
-            crate::boxes::SampleEntry::Hev1(_) => Self::Hev1,
-            crate::boxes::SampleEntry::Vp08(_) => Self::Vp08,
-            crate::boxes::SampleEntry::Vp09(_) => Self::Vp09,
-            crate::boxes::SampleEntry::Av01(_) => Self::Av01,
-            crate::boxes::SampleEntry::Opus(_) => Self::Opus,
-            crate::boxes::SampleEntry::Mp4a(_) => Self::Mp4a,
-            crate::boxes::SampleEntry::Unknown(_) => Self::Unknown,
+            shiguredo_mp4::boxes::SampleEntry::Avc1(_) => Self::Avc1,
+            shiguredo_mp4::boxes::SampleEntry::Hev1(_) => Self::Hev1,
+            shiguredo_mp4::boxes::SampleEntry::Vp08(_) => Self::Vp08,
+            shiguredo_mp4::boxes::SampleEntry::Vp09(_) => Self::Vp09,
+            shiguredo_mp4::boxes::SampleEntry::Av01(_) => Self::Av01,
+            shiguredo_mp4::boxes::SampleEntry::Opus(_) => Self::Opus,
+            shiguredo_mp4::boxes::SampleEntry::Mp4a(_) => Self::Mp4a,
+            shiguredo_mp4::boxes::SampleEntry::Unknown(_) => Self::Unknown,
         }
     }
 }
