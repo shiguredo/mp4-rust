@@ -23,23 +23,9 @@ pub enum Mp4SampleEntryKind {
     Mp4a,
 }
 
-impl From<&shiguredo_mp4::boxes::SampleEntry> for Mp4SampleEntryKind {
-    fn from(entry: &shiguredo_mp4::boxes::SampleEntry) -> Self {
-        match entry {
-            shiguredo_mp4::boxes::SampleEntry::Avc1(_) => Self::Avc1,
-            shiguredo_mp4::boxes::SampleEntry::Hev1(_) => Self::Hev1,
-            shiguredo_mp4::boxes::SampleEntry::Vp08(_) => Self::Vp08,
-            shiguredo_mp4::boxes::SampleEntry::Vp09(_) => Self::Vp09,
-            shiguredo_mp4::boxes::SampleEntry::Av01(_) => Self::Av01,
-            shiguredo_mp4::boxes::SampleEntry::Opus(_) => Self::Opus,
-            shiguredo_mp4::boxes::SampleEntry::Mp4a(_) => Self::Mp4a,
-            shiguredo_mp4::boxes::SampleEntry::Unknown(_) => Self::Unknown,
-        }
-    }
-}
-
-enum CodecSpecificData {
+pub enum Mp4SampleEntryOwned {
     Avc1 {
+        inner: shiguredo_mp4::boxes::Avc1Box,
         sps_data: Vec<*const u8>,
         sps_sizes: Vec<u32>,
         pps_data: Vec<*const u8>,
@@ -47,127 +33,79 @@ enum CodecSpecificData {
     },
 }
 
-#[repr(C)]
-pub struct Mp4SampleEntry {
-    inner: shiguredo_mp4::boxes::SampleEntry,
-    data: CodecSpecificData,
-}
-
-impl From<shiguredo_mp4::boxes::SampleEntry> for Mp4SampleEntry {
-    fn from(inner: shiguredo_mp4::boxes::SampleEntry) -> Self {
-        let data = match &inner {
-            shiguredo_mp4::boxes::SampleEntry::Avc1(avc1_box) => {
-                let sps_data: Vec<*const u8> = avc1_box
-                    .avcc_box
-                    .sps_list
-                    .iter()
-                    .map(|sps| sps.as_ptr())
-                    .collect();
-                let sps_sizes: Vec<u32> = avc1_box
-                    .avcc_box
-                    .sps_list
-                    .iter()
-                    .map(|sps| sps.len() as u32)
-                    .collect();
-
-                let pps_data: Vec<*const u8> = avc1_box
-                    .avcc_box
-                    .pps_list
-                    .iter()
-                    .map(|pps| pps.as_ptr())
-                    .collect();
-                let pps_sizes: Vec<u32> = avc1_box
-                    .avcc_box
-                    .pps_list
-                    .iter()
-                    .map(|pps| pps.len() as u32)
-                    .collect();
-
-                CodecSpecificData::Avc1 {
-                    sps_data,
-                    sps_sizes,
-                    pps_data,
-                    pps_sizes,
+impl Mp4SampleEntryOwned {
+    pub fn to_mp4_sample_entry(&self) -> Mp4SampleEntry {
+        match self {
+            Self::Avc1 {
+                inner,
+                sps_data,
+                sps_sizes,
+                pps_data,
+                pps_sizes,
+            } => {
+                let avc1 = Mp4SampleEntryAvc1 {
+                    width: inner.visual.width,
+                    height: inner.visual.height,
+                    avc_profile_indication: inner.avcc_box.avc_profile_indication,
+                    profile_compatibility: inner.avcc_box.profile_compatibility,
+                    avc_level_indication: inner.avcc_box.avc_level_indication,
+                    length_size_minus_one: inner.avcc_box.length_size_minus_one.get(),
+                    sps_data: sps_data.as_ptr(),
+                    sps_sizes: sps_sizes.as_ptr(),
+                    sps_count: sps_data.len() as u32,
+                    pps_data: pps_data.as_ptr(),
+                    pps_sizes: pps_sizes.as_ptr(),
+                    pps_count: pps_data.len() as u32,
+                    is_chroma_format_present: inner.avcc_box.chroma_format.is_some(),
+                    chroma_format: inner.avcc_box.chroma_format.map(|v| v.get()).unwrap_or(0),
+                    is_bit_depth_luma_minus8_present: inner
+                        .avcc_box
+                        .bit_depth_luma_minus8
+                        .is_some(),
+                    bit_depth_luma_minus8: inner
+                        .avcc_box
+                        .bit_depth_luma_minus8
+                        .map(|v| v.get())
+                        .unwrap_or(0),
+                    is_bit_depth_chroma_minus8_present: inner
+                        .avcc_box
+                        .bit_depth_chroma_minus8
+                        .is_some(),
+                    bit_depth_chroma_minus8: inner
+                        .avcc_box
+                        .bit_depth_chroma_minus8
+                        .map(|v| v.get())
+                        .unwrap_or(0),
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::Avc1,
+                    data: Mp4SampleEntryData { avc1 },
                 }
             }
-            _ => todo!(),
-        };
-
-        Mp4SampleEntry { inner, data }
+        }
     }
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn mp4_sample_entry_get_kind(entry: *const Mp4SampleEntry) -> Mp4SampleEntryKind {
-    if entry.is_null() {
-        return Mp4SampleEntryKind::Unknown;
-    }
-
-    unsafe { Mp4SampleEntryKind::from(&(*entry).inner) }
+#[repr(C)]
+pub union Mp4SampleEntryData {
+    pub avc1: Mp4SampleEntryAvc1,
+    //pub hev1: Mp4SampleEntryHev1,
+    //pub vp08: Mp4SampleEntryVp08,
+    //pub vp09: Mp4SampleEntryVp09,
+    //pub av01: Mp4SampleEntryAv01,
+    //pub opus: Mp4SampleEntryOpus,
+    //pub mp4a: Mp4SampleEntryMp4a,
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn mp4_sample_entry_get_avc1(
-    entry: *const Mp4SampleEntry,
-    out_entry: *mut Mp4SampleEntryAvc1,
-) -> Mp4Error {
-    if entry.is_null() {
-        return Mp4Error::NullPointer;
-    }
+// TODO: Add a union for Mp4SampleEntryAvc1 and other codecs
 
-    let (
-        shiguredo_mp4::boxes::SampleEntry::Avc1(inner),
-        CodecSpecificData::Avc1 {
-            sps_data,
-            sps_sizes,
-            pps_data,
-            pps_sizes,
-        },
-    ) = (unsafe { &(*entry).inner }, unsafe { &(*entry).data })
-    else {
-        return Mp4Error::InvalidInput;
-    };
-
-    unsafe {
-        (*out_entry).width = inner.visual.width;
-        (*out_entry).height = inner.visual.height;
-
-        (*out_entry).avc_profile_indication = inner.avcc_box.avc_profile_indication;
-        (*out_entry).profile_compatibility = inner.avcc_box.profile_compatibility;
-        (*out_entry).avc_level_indication = inner.avcc_box.avc_level_indication;
-        (*out_entry).length_size_minus_one = inner.avcc_box.length_size_minus_one.get();
-
-        (*out_entry).sps_data = sps_data.as_ptr();
-        (*out_entry).sps_sizes = sps_sizes.as_ptr();
-        (*out_entry).sps_count = sps_data.len() as u32;
-
-        (*out_entry).pps_data = pps_data.as_ptr();
-        (*out_entry).pps_sizes = pps_sizes.as_ptr();
-        (*out_entry).pps_count = pps_data.len() as u32;
-
-        (*out_entry).is_chroma_format_present = inner.avcc_box.chroma_format.is_some();
-        (*out_entry).chroma_format = inner.avcc_box.chroma_format.map(|v| v.get()).unwrap_or(0);
-
-        (*out_entry).is_bit_depth_luma_minus8_present =
-            inner.avcc_box.bit_depth_luma_minus8.is_some();
-        (*out_entry).bit_depth_luma_minus8 = inner
-            .avcc_box
-            .bit_depth_luma_minus8
-            .map(|v| v.get())
-            .unwrap_or(0);
-
-        (*out_entry).is_bit_depth_chroma_minus8_present =
-            inner.avcc_box.bit_depth_chroma_minus8.is_some();
-        (*out_entry).bit_depth_chroma_minus8 = inner
-            .avcc_box
-            .bit_depth_chroma_minus8
-            .map(|v| v.get())
-            .unwrap_or(0);
-    }
-
-    Mp4Error::Ok
+#[repr(C)]
+pub struct Mp4SampleEntry {
+    pub kind: Mp4SampleEntryKind,
+    pub data: Mp4SampleEntryData,
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryAvc1 {
     pub width: u16,
@@ -196,14 +134,15 @@ pub struct Mp4SampleEntryAvc1 {
     pub bit_depth_chroma_minus8: u8,
 }
 
-impl From<Mp4SampleEntryAvc1> for Mp4SampleEntry {
-    fn from(entry: Mp4SampleEntryAvc1) -> Self {
+impl Mp4SampleEntryAvc1 {
+    pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        // SPS/PPSリストをメモリから読み込む
         let mut sps_list = Vec::new();
-        if !entry.sps_data.is_null() && entry.sps_count > 0 {
+        if !self.sps_data.is_null() && self.sps_count > 0 {
             unsafe {
-                for i in 0..entry.sps_count as usize {
-                    let sps_ptr = *entry.sps_data.add(i);
-                    let sps_size = *entry.sps_sizes.add(i) as usize;
+                for i in 0..self.sps_count as usize {
+                    let sps_ptr = *self.sps_data.add(i);
+                    let sps_size = *self.sps_sizes.add(i) as usize;
                     if !sps_ptr.is_null() {
                         sps_list.push(std::slice::from_raw_parts(sps_ptr, sps_size).to_vec());
                     }
@@ -212,11 +151,11 @@ impl From<Mp4SampleEntryAvc1> for Mp4SampleEntry {
         }
 
         let mut pps_list = Vec::new();
-        if !entry.pps_data.is_null() && entry.pps_count > 0 {
+        if !self.pps_data.is_null() && self.pps_count > 0 {
             unsafe {
-                for i in 0..entry.pps_count as usize {
-                    let pps_ptr = *entry.pps_data.add(i);
-                    let pps_size = *entry.pps_sizes.add(i) as usize;
+                for i in 0..self.pps_count as usize {
+                    let pps_ptr = *self.pps_data.add(i);
+                    let pps_size = *self.pps_sizes.add(i) as usize;
                     if !pps_ptr.is_null() {
                         pps_list.push(std::slice::from_raw_parts(pps_ptr, pps_size).to_vec());
                     }
@@ -224,29 +163,31 @@ impl From<Mp4SampleEntryAvc1> for Mp4SampleEntry {
             }
         }
 
-        let chroma_format = if entry.is_chroma_format_present {
-            Some(Uint::new(entry.chroma_format))
+        // オプショナルフィールドを構築
+        let chroma_format = if self.is_chroma_format_present {
+            Some(Uint::new(self.chroma_format))
         } else {
             None
         };
 
-        let bit_depth_luma_minus8 = if entry.is_bit_depth_luma_minus8_present {
-            Some(Uint::new(entry.bit_depth_luma_minus8))
+        let bit_depth_luma_minus8 = if self.is_bit_depth_luma_minus8_present {
+            Some(Uint::new(self.bit_depth_luma_minus8))
         } else {
             None
         };
 
-        let bit_depth_chroma_minus8 = if entry.is_bit_depth_chroma_minus8_present {
-            Some(Uint::new(entry.bit_depth_chroma_minus8))
+        let bit_depth_chroma_minus8 = if self.is_bit_depth_chroma_minus8_present {
+            Some(Uint::new(self.bit_depth_chroma_minus8))
         } else {
             None
         };
 
+        // AvccBoxを構築
         let avcc_box = shiguredo_mp4::boxes::AvccBox {
-            avc_profile_indication: entry.avc_profile_indication,
-            profile_compatibility: entry.profile_compatibility,
-            avc_level_indication: entry.avc_level_indication,
-            length_size_minus_one: Uint::new(entry.length_size_minus_one),
+            avc_profile_indication: self.avc_profile_indication,
+            profile_compatibility: self.profile_compatibility,
+            avc_level_indication: self.avc_level_indication,
+            length_size_minus_one: Uint::new(self.length_size_minus_one),
             sps_list,
             pps_list,
             chroma_format,
@@ -254,22 +195,27 @@ impl From<Mp4SampleEntryAvc1> for Mp4SampleEntry {
             bit_depth_chroma_minus8,
             sps_ext_list: Vec::new(),
         };
+
+        // VisualSampleEntryFieldsを構築
         let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
             data_reference_index:
                 shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width: entry.width,
-            height: entry.height,
+            width: self.width,
+            height: self.height,
             horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
             vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
             frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
             compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
             depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
         };
+
+        // Avc1Boxを構築
         let avc1_box = shiguredo_mp4::boxes::Avc1Box {
             visual,
             avcc_box,
             unknown_boxes: Vec::new(),
         };
-        Mp4SampleEntry::from(shiguredo_mp4::boxes::SampleEntry::Avc1(avc1_box))
+
+        Ok(shiguredo_mp4::boxes::SampleEntry::Avc1(avc1_box))
     }
 }
