@@ -43,11 +43,11 @@ impl Mp4DemuxSample {
     pub fn new(
         sample: shiguredo_mp4::demux::Sample<'_>,
         track: &Mp4DemuxTrackInfo,
-        sample_entry: &Mp4SampleEntry,
+        sample_entry: &Box<Mp4SampleEntry>,
     ) -> Self {
         Self {
             track,
-            sample_entry,
+            sample_entry: &**sample_entry, // 途中でアドレスが変わらないように `Box` の参照先を渡す
             keyframe: sample.keyframe,
             timestamp: sample.timescaled_timestamp,
             duration: sample.timescaled_duration,
@@ -59,11 +59,11 @@ impl Mp4DemuxSample {
 
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
-    tracks: Vec<Mp4DemuxTrackInfo>,
+    tracks: Vec<Mp4DemuxTrackInfo>, // NOTE: sample_entries とは異なりサイズが途中で変わらないので `Box` は不要
     sample_entries: Vec<(
         shiguredo_mp4::boxes::SampleEntry,
         Mp4SampleEntryOwned,
-        Mp4SampleEntry,
+        Box<Mp4SampleEntry>, // アドレスが途中で変わらないように `Box` でラップする
     )>,
     last_error_string: Option<CString>,
 }
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                     ));
                     return Mp4Error::Unsupported;
                 };
-                let entry = entry_owned.to_mp4_sample_entry();
+                let entry = Box::new(entry_owned.to_mp4_sample_entry());
                 demuxer
                     .sample_entries
                     .push((sample.sample_entry.clone(), entry_owned, entry));
