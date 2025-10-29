@@ -3,17 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef enum Mp4TrackKind {
-  /**
-   * 音声トラック
-   */
-  Audio = 0,
-  /**
-   * 映像トラック
-   */
-  Video = 1,
-} Mp4TrackKind;
-
 typedef enum Mp4Error {
   Ok = 0,
   InvalidInput,
@@ -26,6 +15,17 @@ typedef enum Mp4Error {
   Unsupported,
   Other,
 } Mp4Error;
+
+typedef enum Mp4TrackKind {
+  /**
+   * 音声トラック
+   */
+  Audio = 0,
+  /**
+   * 映像トラック
+   */
+  Video = 1,
+} Mp4TrackKind;
 
 typedef enum Mp4SampleEntryKind {
   /**
@@ -156,8 +156,6 @@ typedef struct Mp4MuxSample {
   uint64_t data_offset;
   uint32_t data_size;
 } Mp4MuxSample;
-
-enum Mp4TrackKind foo(void);
 
 struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
 
