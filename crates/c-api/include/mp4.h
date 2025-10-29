@@ -131,10 +131,26 @@ typedef struct Mp4SampleEntryVp08 {
   uint8_t matrix_coefficients;
 } Mp4SampleEntryVp08;
 
+typedef struct Mp4SampleEntryVp09 {
+  uint16_t width;
+  uint16_t height;
+  uint8_t profile;
+  uint8_t level;
+  uint8_t bit_depth;
+  uint8_t chroma_subsampling;
+  bool video_full_range_flag;
+  uint8_t colour_primaries;
+  uint8_t transfer_characteristics;
+  uint8_t matrix_coefficients;
+  const uint8_t *codec_initialization_data;
+  uint32_t codec_initialization_data_size;
+} Mp4SampleEntryVp09;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
   struct Mp4SampleEntryHev1 hev1;
   struct Mp4SampleEntryVp08 vp08;
+  struct Mp4SampleEntryVp09 vp09;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {
