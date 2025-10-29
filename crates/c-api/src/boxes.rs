@@ -58,6 +58,10 @@ pub enum Mp4SampleEntryOwned {
     Opus {
         inner: shiguredo_mp4::boxes::OpusBox,
     },
+    Mp4a {
+        inner: shiguredo_mp4::boxes::Mp4aBox,
+        dec_specific_info: Vec<u8>,
+    },
 }
 
 impl Mp4SampleEntryOwned {
@@ -125,6 +129,19 @@ impl Mp4SampleEntryOwned {
                 Some(Self::Av01 { inner, config_obus })
             }
             shiguredo_mp4::boxes::SampleEntry::Opus(inner) => Some(Self::Opus { inner }),
+            shiguredo_mp4::boxes::SampleEntry::Mp4a(inner) => {
+                let dec_specific_info = inner
+                    .esds_box
+                    .es
+                    .dec_config_descr
+                    .dec_specific_info
+                    .payload
+                    .clone();
+                Some(Self::Mp4a {
+                    inner,
+                    dec_specific_info,
+                })
+            }
             _ => None,
         }
     }
@@ -303,6 +320,25 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { opus },
                 }
             }
+            Self::Mp4a {
+                inner,
+                dec_specific_info,
+            } => {
+                let mp4a = Mp4SampleEntryMp4a {
+                    channel_count: inner.audio.channelcount as u8,
+                    sample_rate: inner.audio.samplerate.integer,
+                    sample_size: inner.audio.samplesize,
+                    buffer_size_db: inner.esds_box.es.dec_config_descr.buffer_size_db.get(),
+                    max_bitrate: inner.esds_box.es.dec_config_descr.max_bitrate,
+                    avg_bitrate: inner.esds_box.es.dec_config_descr.avg_bitrate,
+                    dec_specific_info: dec_specific_info.as_ptr(),
+                    dec_specific_info_size: dec_specific_info.len() as u32,
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A,
+                    data: Mp4SampleEntryData { mp4a },
+                }
+            }
         }
     }
 }
@@ -315,7 +351,7 @@ pub union Mp4SampleEntryData {
     pub vp09: Mp4SampleEntryVp09,
     pub av01: Mp4SampleEntryAv01,
     pub opus: Mp4SampleEntryOpus,
-    //pub mp4a: Mp4SampleEntryMp4a,
+    pub mp4a: Mp4SampleEntryMp4a,
 }
 
 #[repr(C)]
@@ -344,6 +380,9 @@ impl Mp4SampleEntry {
             },
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS => unsafe {
                 self.data.opus.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A => unsafe {
+                self.data.mp4a.to_sample_entry()
             },
             _ => Err(Mp4Error::MP4_ERROR_INVALID_INPUT),
         }
@@ -764,5 +803,71 @@ impl Mp4SampleEntryOpus {
             unknown_boxes: Vec::new(),
         };
         Ok(shiguredo_mp4::boxes::SampleEntry::Opus(opus_box))
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryMp4a {
+    pub channel_count: u8,
+    pub sample_rate: u16,
+    pub sample_size: u16,
+    pub buffer_size_db: u32,
+    pub max_bitrate: u32,
+    pub avg_bitrate: u32,
+    pub dec_specific_info: *const u8,
+    pub dec_specific_info_size: u32,
+}
+
+impl Mp4SampleEntryMp4a {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        let dec_specific_info = if self.dec_specific_info_size > 0 {
+            if self.dec_specific_info.is_null() {
+                return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
+            }
+            unsafe {
+                std::slice::from_raw_parts(
+                    self.dec_specific_info,
+                    self.dec_specific_info_size as usize,
+                )
+                .to_vec()
+            }
+        } else {
+            Vec::new()
+        };
+
+        let esds_box = shiguredo_mp4::boxes::EsdsBox {
+            es: shiguredo_mp4::descriptors::EsDescriptor {
+                es_id: shiguredo_mp4::descriptors::EsDescriptor::MIN_ES_ID,
+                stream_priority: shiguredo_mp4::descriptors::EsDescriptor::LOWEST_STREAM_PRIORITY,
+                depends_on_es_id: None,
+                url_string: None,
+                ocr_es_id: None,
+                dec_config_descr: shiguredo_mp4::descriptors::DecoderConfigDescriptor {
+                    object_type_indication: shiguredo_mp4::descriptors::DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3,
+                    stream_type: shiguredo_mp4::descriptors::DecoderConfigDescriptor::STREAM_TYPE_AUDIO,
+                    up_stream: shiguredo_mp4::descriptors::DecoderConfigDescriptor::UP_STREAM_FALSE,
+                    buffer_size_db: Uint::new(self.buffer_size_db),
+                    max_bitrate: self.max_bitrate,
+                    avg_bitrate: self.avg_bitrate,
+                    dec_specific_info: shiguredo_mp4::descriptors::DecoderSpecificInfo {
+                        payload: dec_specific_info,
+                    },
+                },
+                sl_config_descr: shiguredo_mp4::descriptors::SlConfigDescriptor,
+            },
+        };
+        let mp4a_box = shiguredo_mp4::boxes::Mp4aBox {
+            audio: shiguredo_mp4::boxes::AudioSampleEntryFields {
+                data_reference_index:
+                    shiguredo_mp4::boxes::AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                channelcount: self.channel_count as u16,
+                samplesize: self.sample_size,
+                samplerate: shiguredo_mp4::FixedPointNumber::new(self.sample_rate, 0),
+            },
+            esds_box,
+            unknown_boxes: Vec::new(),
+        };
+        Ok(shiguredo_mp4::boxes::SampleEntry::Mp4a(mp4a_box))
     }
 }

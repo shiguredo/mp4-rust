@@ -173,6 +173,17 @@ typedef struct Mp4SampleEntryOpus {
   int16_t output_gain;
 } Mp4SampleEntryOpus;
 
+typedef struct Mp4SampleEntryMp4a {
+  uint8_t channel_count;
+  uint16_t sample_rate;
+  uint16_t sample_size;
+  uint32_t buffer_size_db;
+  uint32_t max_bitrate;
+  uint32_t avg_bitrate;
+  const uint8_t *dec_specific_info;
+  uint32_t dec_specific_info_size;
+} Mp4SampleEntryMp4a;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
   struct Mp4SampleEntryHev1 hev1;
@@ -180,6 +191,7 @@ typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryVp09 vp09;
   struct Mp4SampleEntryAv01 av01;
   struct Mp4SampleEntryOpus opus;
+  struct Mp4SampleEntryMp4a mp4a;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {
