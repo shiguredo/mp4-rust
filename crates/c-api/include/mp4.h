@@ -94,8 +94,28 @@ typedef struct Mp4SampleEntryAvc1 {
   uint8_t bit_depth_chroma_minus8;
 } Mp4SampleEntryAvc1;
 
+typedef struct Mp4SampleEntryHev1 {
+  uint16_t width;
+  uint16_t height;
+  uint8_t general_profile_space;
+  uint8_t general_tier_flag;
+  uint8_t general_profile_idc;
+  uint32_t general_profile_compatibility_flags;
+  uint64_t general_constraint_indicator_flags;
+  uint8_t general_level_idc;
+  uint8_t chroma_format_idc;
+  uint8_t bit_depth_luma_minus8;
+  uint8_t bit_depth_chroma_minus8;
+  uint32_t nalu_array_count;
+  const uint8_t *nalu_types;
+  const uint32_t *nalu_counts;
+  const uint8_t *const *nalu_data;
+  const uint32_t *nalu_sizes;
+} Mp4SampleEntryHev1;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
+  struct Mp4SampleEntryHev1 hev1;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {

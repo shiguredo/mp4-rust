@@ -29,6 +29,13 @@ pub enum Mp4SampleEntryOwned {
         pps_data: Vec<*const u8>,
         pps_sizes: Vec<u32>,
     },
+    Hev1 {
+        inner: shiguredo_mp4::boxes::Hev1Box,
+        nalu_types: Vec<u8>,
+        nalu_counts: Vec<u32>,
+        nalu_data: Vec<*const u8>,
+        nalu_sizes: Vec<u32>,
+    },
 }
 
 impl Mp4SampleEntryOwned {
@@ -57,6 +64,31 @@ impl Mp4SampleEntryOwned {
                     pps_sizes,
                 })
             }
+            shiguredo_mp4::boxes::SampleEntry::Hev1(inner) => {
+                let mut nalu_types = Vec::new();
+                let mut nalu_counts = Vec::new();
+                let mut nalu_data = Vec::new();
+                let mut nalu_sizes = Vec::new();
+
+                for array in &inner.hvcc_box.nalu_arrays {
+                    nalu_types.push(array.nal_unit_type.get());
+                    nalu_counts.push(array.nalus.len() as u32);
+
+                    for nalu in &array.nalus {
+                        nalu_data.push(nalu.as_ptr());
+                        nalu_sizes.push(nalu.len() as u32);
+                    }
+                }
+
+                Some(Self::Hev1 {
+                    inner,
+                    nalu_types,
+                    nalu_counts,
+                    nalu_data,
+                    nalu_sizes,
+                })
+            }
+
             _ => None,
         }
     }
@@ -109,6 +141,41 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { avc1 },
                 }
             }
+            Self::Hev1 {
+                inner,
+                nalu_types,
+                nalu_counts,
+                nalu_data,
+                nalu_sizes,
+            } => {
+                let hev1 = Mp4SampleEntryHev1 {
+                    width: inner.visual.width,
+                    height: inner.visual.height,
+                    general_profile_space: inner.hvcc_box.general_profile_space.get(),
+                    general_tier_flag: inner.hvcc_box.general_tier_flag.get(),
+                    general_profile_idc: inner.hvcc_box.general_profile_idc.get(),
+                    general_profile_compatibility_flags: inner
+                        .hvcc_box
+                        .general_profile_compatibility_flags,
+                    general_constraint_indicator_flags: inner
+                        .hvcc_box
+                        .general_constraint_indicator_flags
+                        .get(),
+                    general_level_idc: inner.hvcc_box.general_level_idc,
+                    chroma_format_idc: inner.hvcc_box.chroma_format_idc.get(),
+                    bit_depth_luma_minus8: inner.hvcc_box.bit_depth_luma_minus8.get(),
+                    bit_depth_chroma_minus8: inner.hvcc_box.bit_depth_chroma_minus8.get(),
+                    nalu_array_count: nalu_types.len() as u32,
+                    nalu_types: nalu_types.as_ptr(),
+                    nalu_counts: nalu_counts.as_ptr(),
+                    nalu_data: nalu_data.as_ptr(),
+                    nalu_sizes: nalu_sizes.as_ptr(),
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::Hev1,
+                    data: Mp4SampleEntryData { hev1 },
+                }
+            }
         }
     }
 }
@@ -116,7 +183,7 @@ impl Mp4SampleEntryOwned {
 #[repr(C)]
 pub union Mp4SampleEntryData {
     pub avc1: Mp4SampleEntryAvc1,
-    //pub hev1: Mp4SampleEntryHev1,
+    pub hev1: Mp4SampleEntryHev1,
     //pub vp08: Mp4SampleEntryVp08,
     //pub vp09: Mp4SampleEntryVp09,
     //pub av01: Mp4SampleEntryAv01,
@@ -134,6 +201,7 @@ impl Mp4SampleEntry {
     pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         match self.kind {
             Mp4SampleEntryKind::Avc1 => unsafe { self.data.avc1.to_sample_entry() },
+            Mp4SampleEntryKind::Hev1 => unsafe { self.data.hev1.to_sample_entry() },
             _ => Err(Mp4Error::InvalidInput),
         }
     }
@@ -247,5 +315,122 @@ impl Mp4SampleEntryAvc1 {
         };
 
         Ok(shiguredo_mp4::boxes::SampleEntry::Avc1(avc1_box))
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryHev1 {
+    pub width: u16,
+    pub height: u16,
+
+    pub general_profile_space: u8,
+    pub general_tier_flag: u8,
+    pub general_profile_idc: u8,
+    pub general_profile_compatibility_flags: u32,
+    pub general_constraint_indicator_flags: u64,
+    pub general_level_idc: u8,
+    pub chroma_format_idc: u8,
+    pub bit_depth_luma_minus8: u8,
+    pub bit_depth_chroma_minus8: u8,
+
+    pub nalu_array_count: u32,
+    pub nalu_types: *const u8,
+    pub nalu_counts: *const u32,
+    pub nalu_data: *const *const u8,
+    pub nalu_sizes: *const u32,
+}
+
+impl Mp4SampleEntryHev1 {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        // NALU 配列を構築
+        let mut nalu_arrays = Vec::new();
+        if self.nalu_array_count > 0 {
+            unsafe {
+                for i in 0..self.nalu_array_count as usize {
+                    let nalu_type = *self.nalu_types.add(i);
+                    let nalu_count = *self.nalu_counts.add(i);
+
+                    let mut nalus = Vec::new();
+                    for j in 0..nalu_count as usize {
+                        let nalu_index = self.nalu_data_index(i, j);
+                        let nalu_ptr = *self.nalu_data.add(nalu_index);
+                        let nalu_size = *self.nalu_sizes.add(nalu_index) as usize;
+
+                        if nalu_ptr.is_null() {
+                            return Err(Mp4Error::NullPointer);
+                        }
+                        nalus.push(std::slice::from_raw_parts(nalu_ptr, nalu_size).to_vec());
+                    }
+
+                    nalu_arrays.push(shiguredo_mp4::boxes::HvccNalUintArray {
+                        array_completeness: shiguredo_mp4::Uint::new(0), // 保守的なデフォルト値
+                        nal_unit_type: shiguredo_mp4::Uint::new(nalu_type),
+                        nalus,
+                    });
+                }
+            }
+        }
+
+        // ボックスを構築
+        let hvcc_box = shiguredo_mp4::boxes::HvccBox {
+            general_profile_space: shiguredo_mp4::Uint::new(self.general_profile_space),
+            general_tier_flag: shiguredo_mp4::Uint::new(self.general_tier_flag),
+            general_profile_idc: shiguredo_mp4::Uint::new(self.general_profile_idc),
+            general_profile_compatibility_flags: self.general_profile_compatibility_flags,
+            general_constraint_indicator_flags: shiguredo_mp4::Uint::new(
+                self.general_constraint_indicator_flags,
+            ),
+            general_level_idc: self.general_level_idc,
+            min_spatial_segmentation_idc: shiguredo_mp4::Uint::new(0),
+            parallelism_type: shiguredo_mp4::Uint::new(0),
+            chroma_format_idc: shiguredo_mp4::Uint::new(self.chroma_format_idc),
+            bit_depth_luma_minus8: shiguredo_mp4::Uint::new(self.bit_depth_luma_minus8),
+            bit_depth_chroma_minus8: shiguredo_mp4::Uint::new(self.bit_depth_chroma_minus8),
+            avg_frame_rate: 0,
+            constant_frame_rate: shiguredo_mp4::Uint::new(0),
+            num_temporal_layers: shiguredo_mp4::Uint::new(0),
+            temporal_id_nested: shiguredo_mp4::Uint::new(0),
+            length_size_minus_one: shiguredo_mp4::Uint::new(3), // デフォルトで 4 バイト NALU サイズ
+            nalu_arrays,
+        };
+        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
+            data_reference_index:
+                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width: self.width,
+            height: self.height,
+            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
+        };
+        let hev1_box = shiguredo_mp4::boxes::Hev1Box {
+            visual,
+            hvcc_box,
+            unknown_boxes: Vec::new(),
+        };
+
+        Ok(shiguredo_mp4::boxes::SampleEntry::Hev1(hev1_box))
+    }
+
+    fn nalu_data_index(&self, array_index: usize, nalu_index: usize) -> usize {
+        unsafe {
+            let mut index = 0;
+            // 指定された配列インデックスまでの NALU 数を合計する
+            for i in 0..array_index {
+                let count = *self.nalu_counts.add(i) as usize;
+                index += count;
+            }
+            // 現在の配列内でのインデックスを加算
+            index += nalu_index;
+            index
+        }
+    }
+}
+
+impl Mp4SampleEntryHev1 {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        todo!()
     }
 }
