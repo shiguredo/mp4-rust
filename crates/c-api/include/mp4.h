@@ -31,21 +31,21 @@ typedef struct Option_CString Option_CString;
 
 typedef struct Option_Mp4FileMuxer Option_Mp4FileMuxer;
 
-typedef struct Mp4TrackInfo {
+typedef struct Mp4DemuxTrackInfo {
   uint32_t track_id;
   enum Mp4TrackKind kind;
   uint64_t duration;
   uint32_t timescale;
-} Mp4TrackInfo;
+} Mp4DemuxTrackInfo;
 
-typedef struct Mp4Sample {
-  const struct Mp4TrackInfo *track;
+typedef struct Mp4DemuxSample {
+  const struct Mp4DemuxTrackInfo *track;
   bool keyframe;
   uint64_t timestamp;
   uint32_t duration;
   uint64_t data_offset;
   uintptr_t data_size;
-} Mp4Sample;
+} Mp4DemuxSample;
 
 typedef struct Mp4FileMuxer {
   Mp4FileMuxerOptions options;
@@ -71,11 +71,11 @@ enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
                                             uint32_t input_data_size);
 
 enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
-                                          const struct Mp4TrackInfo **out_tracks,
+                                          const struct Mp4DemuxTrackInfo **out_tracks,
                                           uint32_t *out_track_count);
 
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
-                                           struct Mp4Sample *out_sample);
+                                           struct Mp4DemuxSample *out_sample);
 
 uint32_t mp4_estimate_maximum_moov_box_size(uint32_t audio_sample_count,
                                             uint32_t video_sample_count);

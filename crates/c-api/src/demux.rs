@@ -4,14 +4,14 @@ use std::ffi::{CString, c_char};
 use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
 
 #[repr(C)]
-pub struct Mp4TrackInfo {
+pub struct Mp4DemuxTrackInfo {
     pub track_id: u32,
     pub kind: Mp4TrackKind,
     pub duration: u64,
     pub timescale: u32,
 }
 
-impl From<shiguredo_mp4::demux::TrackInfo> for Mp4TrackInfo {
+impl From<shiguredo_mp4::demux::TrackInfo> for Mp4DemuxTrackInfo {
     fn from(track_info: shiguredo_mp4::demux::TrackInfo) -> Self {
         Self {
             track_id: track_info.track_id,
@@ -23,8 +23,8 @@ impl From<shiguredo_mp4::demux::TrackInfo> for Mp4TrackInfo {
 }
 
 #[repr(C)]
-pub struct Mp4Sample {
-    pub track: *const Mp4TrackInfo,
+pub struct Mp4DemuxSample {
+    pub track: *const Mp4DemuxTrackInfo,
     // TODO: sample_entry,
     pub keyframe: bool,
     pub timestamp: u64,
@@ -33,8 +33,8 @@ pub struct Mp4Sample {
     pub data_size: usize,
 }
 
-impl Mp4Sample {
-    pub fn new(sample: shiguredo_mp4::demux::Sample<'_>, track: &Mp4TrackInfo) -> Self {
+impl Mp4DemuxSample {
+    pub fn new(sample: shiguredo_mp4::demux::Sample<'_>, track: &Mp4DemuxTrackInfo) -> Self {
         Self {
             track,
             keyframe: sample.keyframe,
@@ -48,7 +48,7 @@ impl Mp4Sample {
 
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
-    tracks: Vec<Mp4TrackInfo>,
+    tracks: Vec<Mp4DemuxTrackInfo>,
     last_error_string: Option<CString>,
 }
 
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     demuxer: *mut Mp4FileDemuxer,
-    out_tracks: *mut *const Mp4TrackInfo,
+    out_tracks: *mut *const Mp4DemuxTrackInfo,
     out_track_count: *mut u32,
 ) -> Mp4Error {
     if demuxer.is_null() {
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
     demuxer: *mut Mp4FileDemuxer,
-    out_sample: *mut Mp4Sample,
+    out_sample: *mut Mp4DemuxSample,
 ) -> Mp4Error {
     if demuxer.is_null() {
         return Mp4Error::NullPointer;
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
             };
 
             unsafe {
-                *out_sample = Mp4Sample::new(sample, track_info);
+                *out_sample = Mp4DemuxSample::new(sample, track_info);
             }
 
             Mp4Error::Ok
