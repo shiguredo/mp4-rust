@@ -1,7 +1,42 @@
 //! ../../../src/boxes.rs の（一部に対応する） C API を定義するためのモジュール
 
 #[repr(C)]
-pub struct Mp4SampleEntryH264 {
+pub enum Mp4SampleEntryKind {
+    /// AVC1 (H.264)
+    Avc1,
+    /// HEV1 (H.265/HEVC)
+    Hev1,
+    /// VP08 (VP8)
+    Vp08,
+    /// VP09 (VP9)
+    Vp09,
+    /// AV01 (AV1)
+    Av01,
+    /// Opus
+    Opus,
+    /// MP4A (AAC)
+    Mp4a,
+    /// Unknown
+    Unknown,
+}
+
+impl From<&crate::boxes::SampleEntry> for Mp4SampleEntryKind {
+    fn from(entry: &crate::boxes::SampleEntry) -> Self {
+        match entry {
+            crate::boxes::SampleEntry::Avc1(_) => Self::Avc1,
+            crate::boxes::SampleEntry::Hev1(_) => Self::Hev1,
+            crate::boxes::SampleEntry::Vp08(_) => Self::Vp08,
+            crate::boxes::SampleEntry::Vp09(_) => Self::Vp09,
+            crate::boxes::SampleEntry::Av01(_) => Self::Av01,
+            crate::boxes::SampleEntry::Opus(_) => Self::Opus,
+            crate::boxes::SampleEntry::Mp4a(_) => Self::Mp4a,
+            crate::boxes::SampleEntry::Unknown(_) => Self::Unknown,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct Mp4SampleEntryAvc1 {
     pub width: u32,
     pub height: u32,
 
