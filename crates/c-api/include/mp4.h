@@ -1,3 +1,5 @@
+/* Generated with cbindgen:0.29.2 */
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
