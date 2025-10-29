@@ -112,3 +112,5 @@ enum Mp4Error mp4_file_muxer_get_initial_boxes_bytes(struct Mp4FileMuxer *muxer,
 
 enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
                                            const struct Mp4MuxSample *sample);
+
+enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);

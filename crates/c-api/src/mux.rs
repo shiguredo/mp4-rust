@@ -218,6 +218,24 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     }
 }
 
-// memo:   pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp4Error {
+    if muxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let muxer = unsafe { &mut *muxer };
 
-// memo:   pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
+    let Some(inner) = &mut muxer.inner else {
+        muxer.set_last_error("[mp4_file_muxer_finalize] Muxer has not been initialized");
+        return Mp4Error::InvalidState;
+    };
+
+    if let Err(e) = inner.finalize() {
+        muxer.set_last_error(&format!(
+            "[mp4_file_muxer_finalize] Failed to finalize muxer: {e}"
+        ));
+        e.into()
+    } else {
+        Mp4Error::Ok
+    }
+}
