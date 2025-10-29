@@ -204,7 +204,9 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     let muxer = unsafe { &mut *muxer };
 
     if muxer.next_output_index < muxer.output_list.len() {
-        // TODO: set last error
+        muxer.set_last_error(
+            "[mp4_file_muxer_append_sample] Output required before appending more samples",
+        );
         return Mp4Error::OutputRequired;
     }
 
@@ -253,7 +255,7 @@ pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp
     let muxer = unsafe { &mut *muxer };
 
     if muxer.next_output_index < muxer.output_list.len() {
-        // TODO: set last error
+        muxer.set_last_error("[mp4_file_muxer_finalize] Output required before finalizing");
         return Mp4Error::OutputRequired;
     }
 
