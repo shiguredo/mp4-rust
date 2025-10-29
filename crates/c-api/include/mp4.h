@@ -164,12 +164,22 @@ typedef struct Mp4SampleEntryAv01 {
   uint32_t config_obus_size;
 } Mp4SampleEntryAv01;
 
+typedef struct Mp4SampleEntryOpus {
+  uint8_t channel_count;
+  uint16_t sample_rate;
+  uint16_t sample_size;
+  uint16_t pre_skip;
+  uint32_t input_sample_rate;
+  int16_t output_gain;
+} Mp4SampleEntryOpus;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
   struct Mp4SampleEntryHev1 hev1;
   struct Mp4SampleEntryVp08 vp08;
   struct Mp4SampleEntryVp09 vp09;
   struct Mp4SampleEntryAv01 av01;
+  struct Mp4SampleEntryOpus opus;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {

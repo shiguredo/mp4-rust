@@ -55,6 +55,9 @@ pub enum Mp4SampleEntryOwned {
         inner: shiguredo_mp4::boxes::Av01Box,
         config_obus: Vec<u8>,
     },
+    Opus {
+        inner: shiguredo_mp4::boxes::OpusBox,
+    },
 }
 
 impl Mp4SampleEntryOwned {
@@ -121,6 +124,7 @@ impl Mp4SampleEntryOwned {
                 let config_obus = inner.av1c_box.config_obus.clone();
                 Some(Self::Av01 { inner, config_obus })
             }
+            shiguredo_mp4::boxes::SampleEntry::Opus(inner) => Some(Self::Opus { inner }),
             _ => None,
         }
     }
@@ -285,6 +289,20 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { av01 },
                 }
             }
+            Self::Opus { inner } => {
+                let opus = Mp4SampleEntryOpus {
+                    channel_count: inner.audio.channelcount as u8,
+                    sample_rate: inner.audio.samplerate.integer,
+                    sample_size: inner.audio.samplesize,
+                    pre_skip: inner.dops_box.pre_skip,
+                    input_sample_rate: inner.dops_box.input_sample_rate,
+                    output_gain: inner.dops_box.output_gain,
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS,
+                    data: Mp4SampleEntryData { opus },
+                }
+            }
         }
     }
 }
@@ -296,7 +314,7 @@ pub union Mp4SampleEntryData {
     pub vp08: Mp4SampleEntryVp08,
     pub vp09: Mp4SampleEntryVp09,
     pub av01: Mp4SampleEntryAv01,
-    //pub opus: Mp4SampleEntryOpus,
+    pub opus: Mp4SampleEntryOpus,
     //pub mp4a: Mp4SampleEntryMp4a,
 }
 
@@ -323,6 +341,9 @@ impl Mp4SampleEntry {
             },
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01 => unsafe {
                 self.data.av01.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS => unsafe {
+                self.data.opus.to_sample_entry()
             },
             _ => Err(Mp4Error::MP4_ERROR_INVALID_INPUT),
         }
@@ -709,5 +730,39 @@ fn create_visual_sample_entry_fields(
         frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
         compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
         depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryOpus {
+    pub channel_count: u8,
+    pub sample_rate: u16,
+    pub sample_size: u16,
+    pub pre_skip: u16,
+    pub input_sample_rate: u32,
+    pub output_gain: i16,
+}
+
+impl Mp4SampleEntryOpus {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        let dops_box = shiguredo_mp4::boxes::DopsBox {
+            output_channel_count: self.channel_count,
+            pre_skip: self.pre_skip,
+            input_sample_rate: self.input_sample_rate,
+            output_gain: self.output_gain,
+        };
+        let opus_box = shiguredo_mp4::boxes::OpusBox {
+            audio: shiguredo_mp4::boxes::AudioSampleEntryFields {
+                data_reference_index:
+                    shiguredo_mp4::boxes::AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                channelcount: self.channel_count as u16,
+                samplesize: self.sample_size,
+                samplerate: shiguredo_mp4::FixedPointNumber::new(self.sample_rate, 0),
+            },
+            dops_box,
+            unknown_boxes: Vec::new(),
+        };
+        Ok(shiguredo_mp4::boxes::SampleEntry::Opus(opus_box))
     }
 }
