@@ -53,6 +53,19 @@ typedef struct Mp4FileMuxer {
   struct Option_CString last_error_string;
 } Mp4FileMuxer;
 
+typedef struct Mp4SampleEntry {
+  uint8_t _opaque[0];
+} Mp4SampleEntry;
+
+typedef struct Mp4MuxSample {
+  enum Mp4TrackKind track_kind;
+  const struct Mp4SampleEntry *sample_entry;
+  bool keyframe;
+  uint64_t duration_micros;
+  uint64_t data_offset;
+  uint32_t data_size;
+} Mp4MuxSample;
+
 enum Mp4TrackKind foo(void);
 
 struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
@@ -96,3 +109,6 @@ enum Mp4Error mp4_file_muxer_initialize(struct Mp4FileMuxer *muxer);
 enum Mp4Error mp4_file_muxer_get_initial_boxes_bytes(struct Mp4FileMuxer *muxer,
                                                      const uint8_t **out_bytes,
                                                      uint32_t *out_size);
+
+enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
+                                           const struct Mp4MuxSample *sample);

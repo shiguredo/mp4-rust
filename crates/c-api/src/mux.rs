@@ -4,7 +4,24 @@ use std::{
     time::Duration,
 };
 
-use crate::error::Mp4Error;
+use crate::{basic_types::Mp4TrackKind, error::Mp4Error};
+
+#[repr(C)]
+pub struct Mp4MuxSample {
+    pub track_kind: Mp4TrackKind,
+    pub sample_entry: *const Mp4SampleEntry,
+    pub keyframe: bool,
+    pub duration_micros: u64,
+    pub data_offset: u64,
+    pub data_size: u32,
+}
+
+#[repr(C)]
+pub struct Mp4SampleEntry {
+    // This would contain the sample entry data
+    // For now, we'll use an opaque representation
+    _opaque: [u8; 0],
+}
 
 #[repr(C)]
 pub struct Mp4FileMuxer {
@@ -154,7 +171,52 @@ pub unsafe extern "C" fn mp4_file_muxer_get_initial_boxes_bytes(
     Mp4Error::Ok
 }
 
-// TODO: Add    pub fn append_sample(&mut self, sample: &Sample) -> Result<(), MuxError> {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_muxer_append_sample(
+    muxer: *mut Mp4FileMuxer,
+    sample: *const Mp4MuxSample,
+) -> Mp4Error {
+    if muxer.is_null() {
+        return Mp4Error::NullPointer;
+    }
+    let muxer = unsafe { &mut *muxer };
+
+    if sample.is_null() {
+        muxer.set_last_error("[mp4_file_muxer_append_sample] sample is null");
+        return Mp4Error::NullPointer;
+    }
+    let sample = unsafe { &*sample };
+
+    let duration = Duration::from_micros(sample.duration_micros);
+    let sample_entry = if sample.sample_entry.is_null() {
+        None
+    } else {
+        None // TODO: Implement conversion
+    };
+
+    let Some(inner) = &mut muxer.inner else {
+        muxer.set_last_error("[mp4_file_muxer_append_sample] Muxer has not been initialized");
+        return Mp4Error::InvalidState;
+    };
+
+    let sample = shiguredo_mp4::mux::Sample {
+        track_kind: sample.track_kind.into(),
+        sample_entry,
+        keyframe: sample.keyframe,
+        duration,
+        data_offset: sample.data_offset,
+        data_size: sample.data_size as usize,
+    };
+
+    if let Err(e) = inner.append_sample(&sample) {
+        muxer.set_last_error(&format!(
+            "[mp4_file_muxer_append_sample] Failed to append sample: {e}"
+        ));
+        e.into()
+    } else {
+        Mp4Error::Ok
+    }
+}
 
 // memo:   pub fn finalize(&mut self) -> Result<&FinalizedBoxes, MuxError> {
 

@@ -6,6 +6,7 @@ pub extern "C" fn foo() -> Mp4TrackKind {
     Mp4TrackKind::Audio
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub enum Mp4TrackKind {
     /// 音声トラック
@@ -20,6 +21,15 @@ impl From<TrackKind> for Mp4TrackKind {
         match kind {
             TrackKind::Audio => Self::Audio,
             TrackKind::Video => Self::Video,
+        }
+    }
+}
+
+impl From<Mp4TrackKind> for TrackKind {
+    fn from(kind: Mp4TrackKind) -> Self {
+        match kind {
+            Mp4TrackKind::Audio => Self::Audio,
+            Mp4TrackKind::Video => Self::Video,
         }
     }
 }
