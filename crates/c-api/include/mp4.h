@@ -146,11 +146,30 @@ typedef struct Mp4SampleEntryVp09 {
   uint32_t codec_initialization_data_size;
 } Mp4SampleEntryVp09;
 
+typedef struct Mp4SampleEntryAv01 {
+  uint16_t width;
+  uint16_t height;
+  uint8_t seq_profile;
+  uint8_t seq_level_idx_0;
+  uint8_t seq_tier_0;
+  uint8_t high_bitdepth;
+  uint8_t twelve_bit;
+  uint8_t monochrome;
+  uint8_t chroma_subsampling_x;
+  uint8_t chroma_subsampling_y;
+  uint8_t chroma_sample_position;
+  bool initial_presentation_delay_present;
+  uint8_t initial_presentation_delay_minus_one;
+  const uint8_t *config_obus;
+  uint32_t config_obus_size;
+} Mp4SampleEntryAv01;
+
 typedef union Mp4SampleEntryData {
   struct Mp4SampleEntryAvc1 avc1;
   struct Mp4SampleEntryHev1 hev1;
   struct Mp4SampleEntryVp08 vp08;
   struct Mp4SampleEntryVp09 vp09;
+  struct Mp4SampleEntryAv01 av01;
 } Mp4SampleEntryData;
 
 typedef struct Mp4SampleEntry {

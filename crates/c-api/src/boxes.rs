@@ -3,6 +3,7 @@ use shiguredo_mp4::Uint;
 
 use crate::error::Mp4Error;
 
+// TODO: consider to use SCREMAING_UPPER_CASE for C convention
 #[repr(C)]
 pub enum Mp4SampleEntryKind {
     /// AVC1 (H.264)
@@ -43,6 +44,10 @@ pub enum Mp4SampleEntryOwned {
         inner: shiguredo_mp4::boxes::Vp09Box,
         codec_init_data: *const u8,
         codec_init_size: u32,
+    },
+    Av01 {
+        inner: shiguredo_mp4::boxes::Av01Box,
+        config_obus: Vec<u8>,
     },
 }
 
@@ -105,6 +110,10 @@ impl Mp4SampleEntryOwned {
                     codec_init_data,
                     codec_init_size,
                 })
+            }
+            shiguredo_mp4::boxes::SampleEntry::Av01(inner) => {
+                let config_obus = inner.av1c_box.config_obus.clone();
+                Some(Self::Av01 { inner, config_obus })
             }
             _ => None,
         }
@@ -240,6 +249,36 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { vp09 },
                 }
             }
+            Self::Av01 { inner, config_obus } => {
+                let av01 = Mp4SampleEntryAv01 {
+                    width: inner.visual.width,
+                    height: inner.visual.height,
+                    seq_profile: inner.av1c_box.seq_profile.get(),
+                    seq_level_idx_0: inner.av1c_box.seq_level_idx_0.get(),
+                    seq_tier_0: inner.av1c_box.seq_tier_0.get(),
+                    high_bitdepth: inner.av1c_box.high_bitdepth.get(),
+                    twelve_bit: inner.av1c_box.twelve_bit.get(),
+                    monochrome: inner.av1c_box.monochrome.get(),
+                    chroma_subsampling_x: inner.av1c_box.chroma_subsampling_x.get(),
+                    chroma_subsampling_y: inner.av1c_box.chroma_subsampling_y.get(),
+                    chroma_sample_position: inner.av1c_box.chroma_sample_position.get(),
+                    initial_presentation_delay_present: inner
+                        .av1c_box
+                        .initial_presentation_delay_minus_one
+                        .is_some(),
+                    initial_presentation_delay_minus_one: inner
+                        .av1c_box
+                        .initial_presentation_delay_minus_one
+                        .map(|v| v.get())
+                        .unwrap_or(0),
+                    config_obus: config_obus.as_ptr(),
+                    config_obus_size: config_obus.len() as u32,
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::Av01,
+                    data: Mp4SampleEntryData { av01 },
+                }
+            }
         }
     }
 }
@@ -250,7 +289,7 @@ pub union Mp4SampleEntryData {
     pub hev1: Mp4SampleEntryHev1,
     pub vp08: Mp4SampleEntryVp08,
     pub vp09: Mp4SampleEntryVp09,
-    //pub av01: Mp4SampleEntryAv01,
+    pub av01: Mp4SampleEntryAv01,
     //pub opus: Mp4SampleEntryOpus,
     //pub mp4a: Mp4SampleEntryMp4a,
 }
@@ -268,6 +307,7 @@ impl Mp4SampleEntry {
             Mp4SampleEntryKind::Hev1 => unsafe { self.data.hev1.to_sample_entry() },
             Mp4SampleEntryKind::Vp08 => unsafe { self.data.vp08.to_sample_entry() },
             Mp4SampleEntryKind::Vp09 => unsafe { self.data.vp09.to_sample_entry() },
+            Mp4SampleEntryKind::Av01 => unsafe { self.data.av01.to_sample_entry() },
             _ => Err(Mp4Error::InvalidInput),
         }
     }
@@ -363,19 +403,8 @@ impl Mp4SampleEntryAvc1 {
             bit_depth_chroma_minus8,
             sps_ext_list: Vec::new(),
         };
-        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
-            data_reference_index:
-                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width: self.width,
-            height: self.height,
-            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
-            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
-        };
         let avc1_box = shiguredo_mp4::boxes::Avc1Box {
-            visual,
+            visual: create_visual_sample_entry_fields(self.width, self.height),
             avcc_box,
             unknown_boxes: Vec::new(),
         };
@@ -471,19 +500,8 @@ impl Mp4SampleEntryHev1 {
             length_size_minus_one: shiguredo_mp4::Uint::new(self.length_size_minus_one),
             nalu_arrays,
         };
-        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
-            data_reference_index:
-                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width: self.width,
-            height: self.height,
-            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
-            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
-        };
         let hev1_box = shiguredo_mp4::boxes::Hev1Box {
-            visual,
+            visual: create_visual_sample_entry_fields(self.width, self.height),
             hvcc_box,
             unknown_boxes: Vec::new(),
         };
@@ -535,19 +553,8 @@ impl Mp4SampleEntryVp08 {
             level: 0,
             codec_initialization_data: Vec::new(),
         };
-        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
-            data_reference_index:
-                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width: self.width,
-            height: self.height,
-            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
-            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
-        };
         let vp08_box = shiguredo_mp4::boxes::Vp08Box {
-            visual,
+            visual: create_visual_sample_entry_fields(self.width, self.height),
             vpcc_box,
             unknown_boxes: Vec::new(),
         };
@@ -600,22 +607,91 @@ impl Mp4SampleEntryVp09 {
             matrix_coefficients: self.matrix_coefficients,
             codec_initialization_data,
         };
-        let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
-            data_reference_index:
-                shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width: self.width,
-            height: self.height,
-            horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-            vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-            frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-            compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
-            depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
-        };
         let vp09_box = shiguredo_mp4::boxes::Vp09Box {
-            visual,
+            visual: create_visual_sample_entry_fields(self.width, self.height),
             vpcc_box,
             unknown_boxes: Vec::new(),
         };
         Ok(shiguredo_mp4::boxes::SampleEntry::Vp09(vp09_box))
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryAv01 {
+    pub width: u16,
+    pub height: u16,
+    pub seq_profile: u8,
+    pub seq_level_idx_0: u8,
+    pub seq_tier_0: u8,
+    pub high_bitdepth: u8,
+    pub twelve_bit: u8,
+    pub monochrome: u8,
+    pub chroma_subsampling_x: u8,
+    pub chroma_subsampling_y: u8,
+    pub chroma_sample_position: u8,
+    pub initial_presentation_delay_present: bool,
+    pub initial_presentation_delay_minus_one: u8,
+    pub config_obus: *const u8,
+    pub config_obus_size: u32,
+}
+
+impl Mp4SampleEntryAv01 {
+    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        let config_obus = if self.config_obus_size > 0 {
+            if self.config_obus.is_null() {
+                return Err(Mp4Error::NullPointer);
+            }
+            unsafe {
+                std::slice::from_raw_parts(self.config_obus, self.config_obus_size as usize)
+                    .to_vec()
+            }
+        } else {
+            Vec::new()
+        };
+
+        let initial_presentation_delay_minus_one = self
+            .initial_presentation_delay_present
+            .then_some(shiguredo_mp4::Uint::new(
+                self.initial_presentation_delay_minus_one,
+            ));
+
+        let av1c_box = shiguredo_mp4::boxes::Av1cBox {
+            seq_profile: shiguredo_mp4::Uint::new(self.seq_profile),
+            seq_level_idx_0: shiguredo_mp4::Uint::new(self.seq_level_idx_0),
+            seq_tier_0: shiguredo_mp4::Uint::new(self.seq_tier_0),
+            high_bitdepth: shiguredo_mp4::Uint::new(self.high_bitdepth),
+            twelve_bit: shiguredo_mp4::Uint::new(self.twelve_bit),
+            monochrome: shiguredo_mp4::Uint::new(self.monochrome),
+            chroma_subsampling_x: shiguredo_mp4::Uint::new(self.chroma_subsampling_x),
+            chroma_subsampling_y: shiguredo_mp4::Uint::new(self.chroma_subsampling_y),
+            chroma_sample_position: shiguredo_mp4::Uint::new(self.chroma_sample_position),
+            initial_presentation_delay_minus_one,
+            config_obus,
+        };
+        let av01_box = shiguredo_mp4::boxes::Av01Box {
+            visual: create_visual_sample_entry_fields(self.width, self.height),
+            av1c_box,
+            unknown_boxes: Vec::new(),
+        };
+
+        Ok(shiguredo_mp4::boxes::SampleEntry::Av01(av01_box))
+    }
+}
+
+fn create_visual_sample_entry_fields(
+    width: u16,
+    height: u16,
+) -> shiguredo_mp4::boxes::VisualSampleEntryFields {
+    shiguredo_mp4::boxes::VisualSampleEntryFields {
+        data_reference_index:
+            shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+        width,
+        height,
+        horizresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+        vertresolution: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+        frame_count: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+        compressorname: shiguredo_mp4::boxes::VisualSampleEntryFields::NULL_COMPRESSORNAME,
+        depth: shiguredo_mp4::boxes::VisualSampleEntryFields::DEFAULT_DEPTH,
     }
 }
