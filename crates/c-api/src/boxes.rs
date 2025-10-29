@@ -165,6 +165,13 @@ impl Mp4SampleEntryOwned {
                     chroma_format_idc: inner.hvcc_box.chroma_format_idc.get(),
                     bit_depth_luma_minus8: inner.hvcc_box.bit_depth_luma_minus8.get(),
                     bit_depth_chroma_minus8: inner.hvcc_box.bit_depth_chroma_minus8.get(),
+                    min_spatial_segmentation_idc: inner.hvcc_box.min_spatial_segmentation_idc.get(),
+                    parallelism_type: inner.hvcc_box.parallelism_type.get(),
+                    avg_frame_rate: inner.hvcc_box.avg_frame_rate,
+                    constant_frame_rate: inner.hvcc_box.constant_frame_rate.get(),
+                    num_temporal_layers: inner.hvcc_box.num_temporal_layers.get(),
+                    temporal_id_nested: inner.hvcc_box.temporal_id_nested.get(),
+                    length_size_minus_one: inner.hvcc_box.length_size_minus_one.get(),
                     nalu_array_count: nalu_types.len() as u32,
                     nalu_types: nalu_types.as_ptr(),
                     nalu_counts: nalu_counts.as_ptr(),
@@ -333,6 +340,13 @@ pub struct Mp4SampleEntryHev1 {
     pub chroma_format_idc: u8,
     pub bit_depth_luma_minus8: u8,
     pub bit_depth_chroma_minus8: u8,
+    pub min_spatial_segmentation_idc: u16,
+    pub parallelism_type: u8,
+    pub avg_frame_rate: u16,
+    pub constant_frame_rate: u8,
+    pub num_temporal_layers: u8,
+    pub temporal_id_nested: u8,
+    pub length_size_minus_one: u8,
 
     pub nalu_array_count: u32,
     pub nalu_types: *const u8,
@@ -364,7 +378,9 @@ impl Mp4SampleEntryHev1 {
                     }
 
                     nalu_arrays.push(shiguredo_mp4::boxes::HvccNalUintArray {
-                        array_completeness: shiguredo_mp4::Uint::new(0), // 保守的なデフォルト値
+                        // 保守的な固定値: この NALU 型のすべてのインスタンスが配列に含まれていない可能性を示す
+                        array_completeness: shiguredo_mp4::Uint::new(0),
+
                         nal_unit_type: shiguredo_mp4::Uint::new(nalu_type),
                         nalus,
                     });
@@ -382,16 +398,18 @@ impl Mp4SampleEntryHev1 {
                 self.general_constraint_indicator_flags,
             ),
             general_level_idc: self.general_level_idc,
-            min_spatial_segmentation_idc: shiguredo_mp4::Uint::new(0),
-            parallelism_type: shiguredo_mp4::Uint::new(0),
+            min_spatial_segmentation_idc: shiguredo_mp4::Uint::new(
+                self.min_spatial_segmentation_idc,
+            ),
+            parallelism_type: shiguredo_mp4::Uint::new(self.parallelism_type),
             chroma_format_idc: shiguredo_mp4::Uint::new(self.chroma_format_idc),
             bit_depth_luma_minus8: shiguredo_mp4::Uint::new(self.bit_depth_luma_minus8),
             bit_depth_chroma_minus8: shiguredo_mp4::Uint::new(self.bit_depth_chroma_minus8),
-            avg_frame_rate: 0,
-            constant_frame_rate: shiguredo_mp4::Uint::new(0),
-            num_temporal_layers: shiguredo_mp4::Uint::new(0),
-            temporal_id_nested: shiguredo_mp4::Uint::new(0),
-            length_size_minus_one: shiguredo_mp4::Uint::new(3), // デフォルトで 4 バイト NALU サイズ
+            avg_frame_rate: self.avg_frame_rate,
+            constant_frame_rate: shiguredo_mp4::Uint::new(self.constant_frame_rate),
+            num_temporal_layers: shiguredo_mp4::Uint::new(self.num_temporal_layers),
+            temporal_id_nested: shiguredo_mp4::Uint::new(self.temporal_id_nested),
+            length_size_minus_one: shiguredo_mp4::Uint::new(self.length_size_minus_one),
             nalu_arrays,
         };
         let visual = shiguredo_mp4::boxes::VisualSampleEntryFields {
@@ -426,11 +444,5 @@ impl Mp4SampleEntryHev1 {
             index += nalu_index;
             index
         }
-    }
-}
-
-impl Mp4SampleEntryHev1 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
-        todo!()
     }
 }

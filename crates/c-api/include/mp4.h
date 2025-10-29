@@ -106,6 +106,13 @@ typedef struct Mp4SampleEntryHev1 {
   uint8_t chroma_format_idc;
   uint8_t bit_depth_luma_minus8;
   uint8_t bit_depth_chroma_minus8;
+  uint16_t min_spatial_segmentation_idc;
+  uint8_t parallelism_type;
+  uint16_t avg_frame_rate;
+  uint8_t constant_frame_rate;
+  uint8_t num_temporal_layers;
+  uint8_t temporal_id_nested;
+  uint8_t length_size_minus_one;
   uint32_t nalu_array_count;
   const uint8_t *nalu_types;
   const uint32_t *nalu_counts;
