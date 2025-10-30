@@ -288,10 +288,10 @@ pub extern "C" fn mp4_estimate_maximum_moov_box_size(
 ///
 /// # 関連関数
 ///
-/// - [`mp4_file_muxer_free()`]: インスタンスを破棄してリソースを解放する
-/// - [`mp4_file_muxer_initialize()`]: マルチプレックス処理を初期化する
-/// - [`mp4_file_muxer_set_reserved_moov_box_size()`]: faststart 用に moov ボックスサイズを設定する
-/// - [`mp4_file_muxer_set_creation_timestamp()`]: ファイル作成時刻を設定する
+/// - `mp4_file_muxer_free()`: インスタンスを破棄してリソースを解放する
+/// - `mp4_file_muxer_initialize()`: マルチプレックス処理を初期化する
+/// - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に moov ボックスサイズを設定する
+/// - `mp4_file_muxer_set_creation_timestamp()`: ファイル作成時刻を設定する
 ///
 /// # 使用例
 ///
@@ -363,17 +363,49 @@ pub unsafe extern "C" fn mp4_file_muxer_free(muxer: *mut Mp4FileMuxer) {
     }
 }
 
+/// `Mp4FileMuxer` で最後に発生したエラーのメッセージを取得する
+///
+/// このメソッドは、マルチプレックス処理中に発生した最後のエラーのメッセージ（NULL 終端）を返す
+///
+/// エラーが発生していない場合は、空文字列へのポインタを返す
+///
+/// # 引数
+///
+/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、NULL 終端の空文字列へのポインタを返す
+///
+/// # 戻り値
+///
+/// - メッセージが存在する場合: NULL 終端のエラーメッセージへのポインタ
+/// - メッセージが存在しない場合: NULL 終端の空文字列へのポインタ
+/// - `muxer` 引数が NULL の場合: NULL 終端の空文字列へのポインタ
+///
+/// # 使用例
+///
+/// ```c
+/// Mp4FileMuxer *muxer = mp4_file_muxer_new();
+///
+/// Mp4Error ret = mp4_file_muxer_initialize(muxer);
+///
+/// // エラーが発生した場合、メッセージを取得
+/// if (ret != MP4_ERROR_OK) {
+///     const char *error_msg = mp4_file_muxer_get_last_error(muxer);
+///     fprintf(stderr, "エラー: %s\n", error_msg);
+/// }
+///
+/// mp4_file_muxer_free(muxer);
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
     muxer: *const Mp4FileMuxer,
 ) -> *const c_char {
     if muxer.is_null() {
-        return c"Invalid muxer: null pointer".as_ptr();
+        return c"".as_ptr();
     }
 
     let muxer = unsafe { &*muxer.cast::<Mp4FileMuxerImpl>() };
     let Some(e) = &muxer.last_error_string else {
-        return std::ptr::null();
+        return c"".as_ptr();
     };
     e.as_ptr()
 }
