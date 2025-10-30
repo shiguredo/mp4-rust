@@ -150,7 +150,11 @@ impl Mp4DemuxSample {
 /// // トラック情報を取得
 /// const Mp4DemuxTrackInfo *tracks;
 /// uint32_t track_count;
-/// mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+/// let ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+/// if (ret == MP4_ERROR_OK) {
+///     // トラック情報を処理
+///     // ...
+/// }
 ///
 /// // サンプルを取得
 /// Mp4DemuxSample sample;
