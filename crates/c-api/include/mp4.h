@@ -661,10 +661,7 @@ typedef struct Mp4DemuxSample {
 } Mp4DemuxSample;
 
 /**
- * MP4 ファイルにマルチプレックスするメディアサンプル
- *
- * MP4 ファイルに追加するサンプル（フレーム単位の音声または映像データ）の
- * メタデータと位置情報を保持する構造体
+ * MP4 ファイルに追加（マルチプレックス）するメディアサンプルを表す構造体
  *
  * # 使用例
  *
@@ -674,7 +671,7 @@ typedef struct Mp4DemuxSample {
  *     .track_kind = MP4_TRACK_KIND_VIDEO,
  *     .sample_entry = &avc1_entry,
  *     .keyframe = true,
- *     .duration_micros = 33333,  // 33.333 ms (30 fps の場合) // TODO: キリのいい値にする
+ *     .duration_micros = 33333,  // 33.333 ms (30 fps の場合)
  *     .data_offset = 1024,
  *     .data_size = 4096,
  * };
