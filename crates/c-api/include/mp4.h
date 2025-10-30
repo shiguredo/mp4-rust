@@ -742,6 +742,65 @@ void mp4_file_demuxer_free(struct Mp4FileDemuxer *demuxer);
  */
 const char *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demuxer);
 
+/**
+ * `Mp4FileDemuxer` で次の処理を進めるために必要な I/O の位置とサイズを取得する
+ *
+ * この関数は、処理を進めるために必要な I/O がない場合には `out_required_input_size` に 0 を設定して返し、
+ * それ以外の場合は、ファイルから読み込む必要があるデータの位置とサイズを出力引数に設定して返す
+ *
+ * この関数から取得した位置とサイズの情報をもとに、呼び出し元がファイルなどからデータを読み込み、
+ * `mp4_file_demuxer_handle_input()` に渡す必要がある
+ *
+ * なお、現在の `Mp4FileDemuxer` の実装は fragmented MP4 には対応していないため、
+ * サンプルの取得に必要なメタデータ（moovボックス）の読み込み（初期化）が終わったら、
+ * 以後はこの関数が追加の入力データを要求することはない
+ *
+ * # 引数
+ *
+ * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_required_input_position`: 必要なデータの開始位置（バイト単位）を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_required_input_size`: 必要なデータのサイズ（バイト単位）を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *   - なお、ここに設定されるサイズはあくまでもヒントであり、厳密に一致したサイズのデータを提供する必要はない
+ *     - 通常は、より大きな範囲のデータを一度に渡した方が効率がいい
+ *   - 0 が設定された場合は、これ以上の入力データが不要であることを意味する
+ *   - -1 が設定された場合は、ファイルの末尾までのデータが必要であることを意味する
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常に処理された
+ * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ *
+ * # 使用例
+ *
+ * ```c
+ * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+ * FILE *fp = fopen("sample.mp4", "rb");
+ * uint8_t buffer[4096];  // NOTE: 実際には必要なサイズを動的に確保すべき
+ *
+ * // 初期化が完了するまでループ
+ * while (true) {
+ *     uint64_t required_pos;
+ *     int32_t required_size;
+ *     mp4_file_demuxer_get_required_input(demuxer, &required_pos, &required_size);
+ *     if (required_size == 0) break; // 初期化完了
+ *
+ *     // ファイルから必要なデータを読み込む
+ *     //
+ *     // NOTE: `required_size == -1` の場合には、実際にはファイル末尾までを読み込む必要がある
+ *     size_t read_size = (required_size > 0) ? required_size : sizeof(buffer);
+ *     fseek(fp, required_pos, SEEK_SET);
+ *     size_t bytes_read = fread(buffer, 1, read_size, fp);
+ *
+ *     // demuxer にデータを供給
+ *     mp4_file_demuxer_handle_input(demuxer, required_pos, buffer, bytes_read);
+ * }
+ * ```
+ */
 enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer,
                                                   uint64_t *out_required_input_position,
                                                   int32_t *out_required_input_size);
