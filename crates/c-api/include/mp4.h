@@ -660,6 +660,10 @@ typedef struct Mp4DemuxSample {
   uintptr_t data_size;
 } Mp4DemuxSample;
 
+typedef struct Mp4FileMuxer {
+  uint8_t _private[0];
+} Mp4FileMuxer;
+
 /**
  * MP4 ファイルに追加（マルチプレックス）するメディアサンプルを表す構造体
  *
