@@ -1,4 +1,4 @@
-// #![no_std]
+#![expect(clippy::missing_safety_doc)]
 pub mod basic_types;
 pub mod boxes;
 pub mod demux;

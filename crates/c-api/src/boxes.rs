@@ -361,7 +361,7 @@ pub struct Mp4SampleEntry {
 }
 
 impl Mp4SampleEntry {
-    pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    pub fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         match self.kind {
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1 => unsafe {
                 self.data.avc1.to_sample_entry()
@@ -418,7 +418,7 @@ pub struct Mp4SampleEntryAvc1 {
 }
 
 impl Mp4SampleEntryAvc1 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         // SPS / PPS リストをメモリから読み込む
         let mut sps_list = Vec::new();
         if self.sps_data.is_null() {
@@ -519,7 +519,7 @@ pub struct Mp4SampleEntryHev1 {
 }
 
 impl Mp4SampleEntryHev1 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         // NALU 配列を構築
         let mut nalu_arrays = Vec::new();
         if self.nalu_array_count > 0 {
@@ -614,7 +614,7 @@ pub struct Mp4SampleEntryVp08 {
 }
 
 impl Mp4SampleEntryVp08 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let vpcc_box = shiguredo_mp4::boxes::VpccBox {
             bit_depth: shiguredo_mp4::Uint::new(self.bit_depth),
             chroma_subsampling: shiguredo_mp4::Uint::new(self.chroma_subsampling),
@@ -655,7 +655,7 @@ pub struct Mp4SampleEntryVp09 {
 }
 
 impl Mp4SampleEntryVp09 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let codec_initialization_data = if self.codec_initialization_data_size > 0 {
             if self.codec_initialization_data.is_null() {
                 return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
@@ -712,7 +712,7 @@ pub struct Mp4SampleEntryAv01 {
 }
 
 impl Mp4SampleEntryAv01 {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let config_obus = if self.config_obus_size > 0 {
             if self.config_obus.is_null() {
                 return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
@@ -783,7 +783,7 @@ pub struct Mp4SampleEntryOpus {
 }
 
 impl Mp4SampleEntryOpus {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let dops_box = shiguredo_mp4::boxes::DopsBox {
             output_channel_count: self.channel_count,
             pre_skip: self.pre_skip,
@@ -819,7 +819,7 @@ pub struct Mp4SampleEntryMp4a {
 }
 
 impl Mp4SampleEntryMp4a {
-    fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         let dec_specific_info = if self.dec_specific_info_size > 0 {
             if self.dec_specific_info.is_null() {
                 return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
