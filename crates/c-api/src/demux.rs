@@ -120,6 +120,7 @@ impl Mp4DemuxSample {
 ///
 /// # 関連関数
 ///
+/// この構造体は、直接ではなく、以下の関数を通して操作する必要がある:
 /// - `mp4_file_demuxer_new()`: `Mp4FileDemuxer` インスタンスを生成する
 /// - `mp4_file_demuxer_free()`: リソースを解放する
 /// - `mp4_file_demuxer_get_required_input()`: 次の処理に必要な入力データの位置とサイズを取得する
