@@ -410,6 +410,55 @@ pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
     e.as_ptr()
 }
 
+/// MP4 ファイルの moov ボックスの事前確保サイズを設定する
+///
+/// この関数は、faststart 形式での MP4 ファイル構築時に、
+/// ファイルの先頭付近に配置する moov ボックス用の領域を事前に確保するサイズを指定する
+///
+/// # faststart 形式について
+///
+/// faststart とは、MP4 ファイルの再生に必要なメタデータを含む moov ボックスを
+/// ファイルの先頭付近に配置する形式である
+///
+/// これにより、動画プレイヤーが再生を開始する際に、ファイル末尾へのシークを行ったり、
+/// ファイル全体をロードする必要がなくなり、再生開始までの時間が短くなることが期待できる
+///
+/// なお、実際の moov ボックスのサイズがここで指定した値よりも大きい場合は、
+/// moov ボックスはファイル末尾に配置され、faststart 形式は無効になる
+///
+/// # 引数
+///
+/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+/// - `size`: 事前確保する moov ボックスのサイズ（バイト単位）
+///   - 0 を指定すると faststart は無効になる（デフォルト動作）
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常に設定された
+/// - `MP4_ERROR_NULL_POINTER`: `muxer` が NULL である
+///
+/// # 注意
+///
+/// この関数の呼び出しは `mp4_file_muxer_initialize()` の前に行う必要があり、
+/// 初期化後の呼び出しは効果がない
+///
+/// # 関連関数
+///
+/// - `mp4_estimate_maximum_moov_box_size()`: 必要な moov ボックスサイズを見積もるために使える関数
+///
+/// # 使用例
+///
+/// ```c
+/// Mp4FileMuxer *muxer = mp4_file_muxer_new();
+///
+/// // 見積もり値を使用して moov ボックスサイズを設定
+/// uint32_t estimated_size = mp4_estimate_maximum_moov_box_size(100, 3000);
+/// mp4_file_muxer_set_reserved_moov_box_size(muxer, estimated_size);
+///
+/// // マルチプレックス処理を初期化
+/// mp4_file_muxer_initialize(muxer);
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_set_reserved_moov_box_size(
     muxer: *mut Mp4FileMuxer,
@@ -425,18 +474,38 @@ pub unsafe extern "C" fn mp4_file_muxer_set_reserved_moov_box_size(
     Mp4Error::MP4_ERROR_OK
 }
 
+/// MP4 ファイル作成時刻を設定する
+///
+/// この関数は、構築される MP4 ファイル内のメタデータ（mvhd ボックスおよび tkhd ボックス）に
+/// 記録されるファイル作成時刻を指定する
+///
+/// # 引数
+///
+/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+/// - `timestamp_secs`: ファイル作成時刻（秒単位）
+///   - UNIX エポック（1970年1月1日 00:00:00 UTC）からの経過時間を指定する
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常に設定された
+/// - `MP4_ERROR_NULL_POINTER`: `muxer` が NULL である
+///
+/// # 注意
+///
+/// この関数の呼び出しは `mp4_file_muxer_initialize()` の前に行う必要があり、
+/// 初期化後の呼び出しは効果がない
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_set_creation_timestamp(
     muxer: *mut Mp4FileMuxer,
-    timestamp_micros: u64,
+    timestamp_secs: u64,
 ) -> Mp4Error {
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
-    let timestamp = Duration::from_micros(timestamp_micros);
-    muxer.options.creation_timestamp = timestamp;
+    muxer.options.creation_timestamp = Duration::from_secs(timestamp_secs);
 
     Mp4Error::MP4_ERROR_OK
 }
