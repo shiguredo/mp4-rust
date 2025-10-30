@@ -94,7 +94,10 @@ pub struct Mp4FileMuxer {
     _private: [u8; 0],
 }
 
-// 実装用の内部構造体
+// [NOTE]
+// この構造体を直接公開関数で参照すると cbindgen が、
+// 隠蔽したい内部フィールドまで C のヘッダーファイルに含めてしまうので、
+// 公開用には Mp4FileMuxer を用意して、実際の実装はこちらで行っている
 struct Mp4FileMuxerImpl {
     options: shiguredo_mp4::mux::Mp4FileMuxerOptions,
     inner: Option<shiguredo_mp4::mux::Mp4FileMuxer>,
@@ -109,6 +112,26 @@ impl Mp4FileMuxerImpl {
     }
 }
 
+/// 構築する MP4 ファイルの moov ボックスの最大サイズを見積もる
+///
+/// この関数を使うことで `mp4_file_muxer_set_reserved_moov_box_size()` で指定する値を簡易的に決定することができる
+///
+/// # 引数
+///
+/// - `audio_sample_count`: 音声トラック内の予想サンプル数
+/// - `video_sample_count`: 映像トラック内の予想サンプル数
+///
+/// # 戻り値
+///
+/// moov ボックスに必要な最大バイト数を返す
+///
+/// # 使用例
+///
+/// ```c
+/// // 音声 1000 サンプル、映像 3000 フレームの場合
+/// uint32_t required_size = mp4_estimate_maximum_moov_box_size(1000, 3000);
+/// mp4_file_muxer_set_reserved_moov_box_size(muxer, required_size);
+/// ```
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_estimate_maximum_moov_box_size(
     audio_sample_count: u32,

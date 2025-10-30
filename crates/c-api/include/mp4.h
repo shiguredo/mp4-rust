@@ -1028,6 +1028,28 @@ enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4DemuxSample *out_sample);
 
+/**
+ * 構築する MP4 ファイルの moov ボックスの最大サイズを見積もる
+ *
+ * この関数を使うことで `mp4_file_muxer_set_reserved_moov_box_size()` で指定する値を簡易的に決定することができる
+ *
+ * # 引数
+ *
+ * - `audio_sample_count`: 音声トラック内の予想サンプル数
+ * - `video_sample_count`: 映像トラック内の予想サンプル数
+ *
+ * # 戻り値
+ *
+ * moov ボックスに必要な最大バイト数を返す
+ *
+ * # 使用例
+ *
+ * ```c
+ * // 音声 1000 サンプル、映像 3000 フレームの場合
+ * uint32_t required_size = mp4_estimate_maximum_moov_box_size(1000, 3000);
+ * mp4_file_muxer_set_reserved_moov_box_size(muxer, required_size);
+ * ```
+ */
 uint32_t mp4_estimate_maximum_moov_box_size(uint32_t audio_sample_count,
                                             uint32_t video_sample_count);
 
