@@ -195,6 +195,25 @@ impl Mp4FileDemuxerImpl {
     }
 }
 
+/// 新しい `Mp4FileDemuxer` インスタンスを作成して、それへのポインタを返す
+///
+/// この関数が返したポインタは、使用後に `mp4_file_demuxer_free()` で破棄する必要がある
+///
+/// # 使用例
+///
+/// ```c
+/// // Mp4FileDemuxer インスタンスを生成
+/// Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+/// if (demuxer == NULL) {
+///     fprintf(stderr, "Failed to create demuxer\n");
+///     return;
+/// }
+///
+/// // 処理を実行...
+///
+/// // リソース解放
+/// mp4_file_demuxer_free(demuxer);
+/// ```
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
     let impl_data = Box::new(Mp4FileDemuxerImpl {
@@ -203,7 +222,7 @@ pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
         sample_entries: Vec::new(),
         last_error_string: None,
     });
-    Box::into_raw(impl_data) as *mut Mp4FileDemuxer
+    Box::into_raw(impl_data).cast()
 }
 
 #[unsafe(no_mangle)]

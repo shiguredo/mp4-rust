@@ -137,7 +137,11 @@ typedef enum Mp4SampleEntryKind {
  * // トラック情報を取得
  * const Mp4DemuxTrackInfo *tracks;
  * uint32_t track_count;
- * mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+ * let ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+ * if (ret == MP4_ERROR_OK) {
+ *     // トラック情報を処理
+ *     // ...
+ * }
  *
  * // サンプルを取得
  * Mp4DemuxSample sample;
@@ -189,7 +193,7 @@ typedef struct Mp4DemuxTrackInfo {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * SPS / PPS リストへのアクセス例:
  * ```c
@@ -243,7 +247,7 @@ typedef struct Mp4SampleEntryAvc1 {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * NALU リストへのアクセス例:
  * ```c
@@ -303,7 +307,7 @@ typedef struct Mp4SampleEntryHev1 {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * 基本的な使用例:
  * ```c
@@ -337,7 +341,7 @@ typedef struct Mp4SampleEntryVp08 {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * 基本的な使用例:
  * ```c
@@ -383,7 +387,7 @@ typedef struct Mp4SampleEntryVp09 {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * 基本的な使用例:
  * ```c
@@ -432,7 +436,7 @@ typedef struct Mp4SampleEntryAv01 {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * 基本的な使用例:
  * ```c
@@ -466,7 +470,7 @@ typedef struct Mp4SampleEntryOpus {
  *
  * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
  *
- * # Examples
+ * # 使用例
  *
  * 基本的な使用例:
  * ```c
@@ -666,6 +670,27 @@ typedef struct Mp4MuxSample {
   uint32_t data_size;
 } Mp4MuxSample;
 
+/**
+ * 新しい `Mp4FileDemuxer` インスタンスを作成して、それへのポインタを返す
+ *
+ * この関数が返したポインタは、使用後に `mp4_file_demuxer_free()` で破棄する必要がある
+ *
+ * # 使用例
+ *
+ * ```c
+ * // Mp4FileDemuxer インスタンスを生成
+ * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+ * if (demuxer == NULL) {
+ *     fprintf(stderr, "Failed to create demuxer\n");
+ *     return;
+ * }
+ *
+ * // 処理を実行...
+ *
+ * // リソース解放
+ * mp4_file_demuxer_free(demuxer);
+ * ```
+ */
 struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
 
 void mp4_file_demuxer_free(struct Mp4FileDemuxer *demuxer);
