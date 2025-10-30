@@ -1,6 +1,7 @@
 //! ../../../src/basic_types.rs の C API を定義するためのモジュール
 use shiguredo_mp4::TrackKind;
 
+/// MP4 ファイル内のトラックの種類を表す列挙型
 #[derive(Clone, Copy)]
 #[repr(C)]
 #[expect(non_camel_case_types)]

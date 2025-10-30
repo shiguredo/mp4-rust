@@ -3,6 +3,9 @@ use shiguredo_mp4::Uint;
 
 use crate::error::Mp4Error;
 
+/// サンプルエントリーの種類を表す列挙型
+///
+/// MP4 ファイル内で使用されるコーデックの種類を識別するために使用される
 #[repr(C)]
 #[expect(non_camel_case_types)]
 pub enum Mp4SampleEntryKind {
@@ -343,20 +346,81 @@ impl Mp4SampleEntryOwned {
     }
 }
 
+/// MP4 サンプルエントリーの詳細データを格納するユニオン型
+///
+/// このユニオン型は、`Mp4SampleEntry` の `kind` フィールドで指定されたコーデック種別に応じて、
+/// 対応する構造体へのアクセスを提供する
 #[repr(C)]
 pub union Mp4SampleEntryData {
+    /// AVC1（H.264）コーデック用のサンプルエントリー
     pub avc1: Mp4SampleEntryAvc1,
+
+    /// HEV1（H.265/HEVC）コーデック用のサンプルエントリー
     pub hev1: Mp4SampleEntryHev1,
+
+    /// VP08（VP8）コーデック用のサンプルエントリー
     pub vp08: Mp4SampleEntryVp08,
+
+    /// VP09（VP9）コーデック用のサンプルエントリー
     pub vp09: Mp4SampleEntryVp09,
+
+    /// AV01（AV1）コーデック用のサンプルエントリー
     pub av01: Mp4SampleEntryAv01,
+
+    /// Opus 音声コーデック用のサンプルエントリー
     pub opus: Mp4SampleEntryOpus,
+
+    /// MP4A（AAC）音声コーデック用のサンプルエントリー
     pub mp4a: Mp4SampleEntryMp4a,
 }
 
+/// MP4 サンプルエントリー
+///
+/// MP4 ファイル内で使用されるメディアサンプル（フレーム単位の音声または映像データ）の
+/// 詳細情報を保持する構造体
+///
+/// 各サンプルはコーデック種別ごとに異なる詳細情報を持つため、
+/// この構造体は `kind` フィールドでコーデック種別を識別し、
+/// `data` ユニオンフィールドで対応するコーデック固有の詳細情報にアクセスする設計となっている
+///
+/// # サンプルエントリーとは
+///
+/// サンプルエントリー（Sample Entry）は、MP4 ファイル形式において、
+/// メディアサンプル（動画フレームや音声フレーム）の属性情報を定義するメタデータである
+///
+/// MP4 ファイルの各トラック内には、使用されるすべての異なるコーデック設定に対応する
+/// サンプルエントリーが格納される
+///
+/// サンプルデータ自体はこのサンプルエントリーを参照することで、
+/// どのコーデックを使用し、どのような属性を持つかが定義される
+///
+/// # 使用例
+///
+/// ```c
+/// // AVC1（H.264）コーデック用のサンプルエントリーを作成し、
+/// // その詳細情報にアクセスする例
+/// Mp4SampleEntry entry = /* ... */;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_AVC1) {
+///     Mp4SampleEntryAvc1 *avc1 = &entry.data.avc1;
+///     printf("解像度: %dx%d\n", avc1->width, avc1->height);
+///     printf("プロファイル: %d\n", avc1->avc_profile_indication);
+/// }
+/// ```
 #[repr(C)]
 pub struct Mp4SampleEntry {
+    /// このサンプルエントリーで使用されているコーデックの種別
+    ///
+    /// この値によって、`data` ユニオンフィールド内のどのメンバーが有効であるかが決まる
+    ///
+    /// 例えば、`kind` が `MP4_SAMPLE_ENTRY_KIND_AVC1` である場合、
+    /// `data.avc1` メンバーにアクセス可能であり、その他のメンバーはアクセス不可となる
     pub kind: Mp4SampleEntryKind,
+
+    /// コーデック種別に応じた詳細情報を保持するユニオン
+    ///
+    /// `kind` で指定されたメンバー以外にアクセスすると未定義動作となるため、
+    /// 必ず事前に `kind` フィールドを確認してからアクセスすること
     pub data: Mp4SampleEntryData,
 }
 
