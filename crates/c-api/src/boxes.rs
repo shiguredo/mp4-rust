@@ -452,31 +452,56 @@ impl Mp4SampleEntry {
     }
 }
 
+/// AVC1（H.264）コーデック用のサンプルエントリー
+///
+/// H.264 ビデオコーデックの詳細情報を保持する構造体で、
+/// 解像度、プロファイル、レベル、SPS/PPS パラメータセットなどの情報が含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// SPS / PPS リストへのアクセス例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_AVC1) {
+///     Mp4SampleEntryAvc1 *avc1 = &entry.data.avc1;
+///
+///     // すべての SPS パラメータセットを処理
+///     for (uint32_t i = 0; i < avc1->sps_count; i++) {
+///         const uint8_t *sps_data = avc1->sps_data[i];
+///         uint32_t sps_size = avc1->sps_sizes[i];
+///         // SPS データを処理...
+///     }
+///
+///     // すべての PPS パラメータセットを処理
+///     for (uint32_t i = 0; i < avc1->pps_count; i++) {
+///         const uint8_t *pps_data = avc1->pps_data[i];
+///         uint32_t pps_size = avc1->pps_sizes[i];
+///         // PPS データを処理...
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryAvc1 {
     pub width: u16,
     pub height: u16,
-
     pub avc_profile_indication: u8,
     pub profile_compatibility: u8,
     pub avc_level_indication: u8,
     pub length_size_minus_one: u8,
-
     pub sps_data: *const *const u8,
     pub sps_sizes: *const u32,
     pub sps_count: u32,
-
     pub pps_data: *const *const u8,
     pub pps_sizes: *const u32,
     pub pps_count: u32,
-
     pub is_chroma_format_present: bool,
     pub chroma_format: u8,
-
     pub is_bit_depth_luma_minus8_present: bool,
     pub bit_depth_luma_minus8: u8,
-
     pub is_bit_depth_chroma_minus8_present: bool,
     pub bit_depth_chroma_minus8: u8,
 }
@@ -552,12 +577,43 @@ impl Mp4SampleEntryAvc1 {
     }
 }
 
+/// HEV1（H.265/HEVC）コーデック用のサンプルエントリー
+///
+/// H.265 ビデオコーデックの詳細情報を保持する構造体で、
+/// 解像度、プロファイル、レベル、NALU パラメータセットなどの情報が含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// NALU リストへのアクセス例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_HEV1) {
+///     Mp4SampleEntryHev1 *hev1 = &entry.data.hev1;
+///
+///     // すべての NALU 配列を処理
+///     uint32_t nalu_index = 0;
+///     for (uint32_t i = 0; i < hev1->nalu_array_count; i++) {
+///         uint8_t nalu_type = hev1->nalu_types[i];
+///         uint32_t nalu_count = hev1->nalu_counts[i];
+///
+///         // この NALU タイプのすべてのユニットを処理
+///         for (uint32_t j = 0; j < nalu_count; j++) {
+///             const uint8_t *nalu_data = hev1->nalu_data[nalu_index];
+///             uint32_t nalu_size = hev1->nalu_sizes[nalu_index];
+///             // NALU データを処理...
+///             nalu_index++;
+///         }
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryHev1 {
     pub width: u16,
     pub height: u16,
-
     pub general_profile_space: u8,
     pub general_tier_flag: u8,
     pub general_profile_idc: u8,
@@ -574,7 +630,6 @@ pub struct Mp4SampleEntryHev1 {
     pub num_temporal_layers: u8,
     pub temporal_id_nested: u8,
     pub length_size_minus_one: u8,
-
     pub nalu_array_count: u32,
     pub nalu_types: *const u8,
     pub nalu_counts: *const u32,
@@ -663,6 +718,26 @@ impl Mp4SampleEntryHev1 {
     }
 }
 
+/// VP08（VP8）コーデック用のサンプルエントリー
+///
+/// VP8 ビデオコーデックの詳細情報を保持する構造体で、
+/// 解像度、ビット深度、色彩空間情報などが含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// 基本的な使用例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_VP08) {
+///     Mp4SampleEntryVp08 *vp08 = &entry.data.vp08;
+///     printf("解像度: %dx%d\n", vp08->width, vp08->height);
+///     printf("ビット深度: %d\n", vp08->bit_depth);
+///     printf("フルレンジ: %s\n", vp08->video_full_range_flag ? "有効" : "無効");
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryVp08 {
@@ -701,6 +776,35 @@ impl Mp4SampleEntryVp08 {
     }
 }
 
+/// VP09（VP9）コーデック用のサンプルエントリー
+///
+/// VP9 ビデオコーデックの詳細情報を保持する構造体で、
+/// 解像度、プロファイル、レベル、ビット深度、色彩空間情報、
+/// およびコーデック初期化データなどが含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// 基本的な使用例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_VP09) {
+///     Mp4SampleEntryVp09 *vp09 = &entry.data.vp09;
+///     printf("解像度: %dx%d\n", vp09->width, vp09->height);
+///     printf("プロファイル: %d\n", vp09->profile);
+///     printf("レベル: %d\n", vp09->level);
+///     printf("ビット深度: %d\n", vp09->bit_depth);
+///
+///     // コーデック初期化データにアクセス
+///     if (vp09->codec_initialization_data_size > 0) {
+///         const uint8_t *init_data = vp09->codec_initialization_data;
+///         uint32_t init_size = vp09->codec_initialization_data_size;
+///         // 初期化データを処理...
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryVp09 {
@@ -755,6 +859,35 @@ impl Mp4SampleEntryVp09 {
     }
 }
 
+/// AV01（AV1）コーデック用のサンプルエントリー
+///
+/// AV1 ビデオコーデックの詳細情報を保持する構造体で、
+/// 解像度、プロファイル、レベル、ビット深度、色彩空間情報、
+/// およびコーデック設定 OBU（Open Bitstream Unit）などが含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// 基本的な使用例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_AV01) {
+///     Mp4SampleEntryAv01 *av01 = &entry.data.av01;
+///     printf("解像度: %dx%d\n", av01->width, av01->height);
+///     printf("プロファイル: %d\n", av01->seq_profile);
+///     printf("レベル: %d\n", av01->seq_level_idx_0);
+///     printf("ビット深度: %s\n", av01->high_bitdepth ? "10-12bit" : "8bit");
+///
+///     // コーデック設定 OBU にアクセス
+///     if (av01->config_obus_size > 0) {
+///         const uint8_t *config_data = av01->config_obus;
+///         uint32_t config_size = av01->config_obus_size;
+///         // 設定 OBU を処理...
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryAv01 {
@@ -835,6 +968,29 @@ fn create_visual_sample_entry_fields(
     }
 }
 
+/// Opus 音声コーデック用のサンプルエントリー
+///
+/// Opus 音声コーデックの詳細情報を保持する構造体で、
+/// チャンネル数、サンプルレート、サンプルサイズ、
+/// およびOpus固有のパラメータなどが含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// 基本的な使用例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_OPUS) {
+///     Mp4SampleEntryOpus *opus = &entry.data.opus;
+///     printf("チャンネル数: %d\n", opus->channel_count);
+///     printf("サンプルレート: %d Hz\n", opus->sample_rate);
+///     printf("プリスキップ: %d サンプル\n", opus->pre_skip);
+///     printf("入力サンプルレート: %d Hz\n", opus->input_sample_rate);
+///     printf("出力ゲイン: %d dB\n", opus->output_gain);
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryOpus {
@@ -869,6 +1025,36 @@ impl Mp4SampleEntryOpus {
     }
 }
 
+/// MP4A（AAC）音声コーデック用のサンプルエントリー
+///
+/// AAC 音声コーデックの詳細情報を保持する構造体で、
+/// チャンネル数、サンプルレート、サンプルサイズ、バッファサイズ、ビットレート情報、
+/// およびデコーダ固有情報などが含まれる
+///
+/// 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+///
+/// # Examples
+///
+/// 基本的な使用例:
+/// ```c
+/// Mp4SampleEntry entry = // ...;
+///
+/// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_MP4A) {
+///     Mp4SampleEntryMp4a *mp4a = &entry.data.mp4a;
+///     printf("チャンネル数: %d\n", mp4a->channel_count);
+///     printf("サンプルレート: %d Hz\n", mp4a->sample_rate);
+///     printf("サンプルサイズ: %d bits\n", mp4a->sample_size);
+///     printf("最大ビットレート: %d bps\n", mp4a->max_bitrate);
+///     printf("平均ビットレート: %d bps\n", mp4a->avg_bitrate);
+///
+///     // デコーダ固有情報にアクセス
+///     if (mp4a->dec_specific_info_size > 0) {
+///         const uint8_t *dec_info = mp4a->dec_specific_info;
+///         uint32_t dec_info_size = mp4a->dec_specific_info_size;
+///         // デコーダ固有情報を処理...
+///     }
+/// }
+/// ```
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Mp4SampleEntryMp4a {
