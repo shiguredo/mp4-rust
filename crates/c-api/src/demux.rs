@@ -245,7 +245,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
 ///
 /// この関数は、デマルチプレックス処理中に発生した最後のエラーのメッセージ（NULL 終端）を返す
 ///
-/// エラーが発生していない場合は NULL ポインタを返す
+/// エラーが発生していない場合は、空文字列へのポインタを返す
 ///
 /// # 引数
 ///
@@ -255,8 +255,8 @@ pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
 ///
 ///
 /// - メッセージが存在する場合: NULL 終端のエラーメッセージへのポインタ
-/// - メッセージが存在しない場合: NULL ポインタ
-/// - `demuxer` 引数が NULL の場合: NULL ポインタ
+/// - メッセージが存在しない場合: NULL 終端の空文字列へのポインタ
+/// - `demuxer` 引数が NULL の場合: NULL 終端の空文字列へのポインタ
 ///
 /// # 使用例
 ///
@@ -268,9 +268,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
 /// // エラーが発生した場合、メッセージを取得
 /// if (ret != MP4_ERROR_OK) {
 ///     const char *error_msg = mp4_file_demuxer_get_last_error(demuxer);
-///     if (error_msg != NULL) {
-///         fprintf(stderr, "エラー: %s\n", error_msg);
-///     }
+///     fprintf(stderr, "エラー: %s\n", error_msg);
 /// }
 /// ```
 #[unsafe(no_mangle)]
@@ -278,12 +276,12 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
     demuxer: *const Mp4FileDemuxer,
 ) -> *const c_char {
     if demuxer.is_null() {
-        return core::ptr::null();
+        return c"".as_ptr();
     }
 
     let demuxer = unsafe { &*demuxer.cast::<Mp4FileDemuxerImpl>() };
     let Some(e) = &demuxer.last_error_string else {
-        return core::ptr::null();
+        return c"".as_ptr();
     };
     e.as_ptr()
 }
@@ -480,7 +478,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
 ///                tracks[i].duration, tracks[i].timescale);
 ///     }
 /// } else {
-// TODO: 
+// TODO:
 ///     fprintf(stderr, "Error: %d\n", ret);
 /// }
 /// ```
