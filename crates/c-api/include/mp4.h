@@ -283,7 +283,7 @@ typedef union Mp4SampleEntryData {
  * ```c
  * // AVC1（H.264）コーデック用のサンプルエントリーを作成し、
  * // その詳細情報にアクセスする例
- * Mp4SampleEntry entry = /* ... */;
+ * Mp4SampleEntry entry = // ...;
  *
  * if (entry.kind == MP4_SAMPLE_ENTRY_KIND_AVC1) {
  *     Mp4SampleEntryAvc1 *avc1 = &entry.data.avc1;
