@@ -3,8 +3,8 @@
 
 /* Generated with cbindgen:0.29.2 */
 
-#include <stdbool>
-#include <stdint>
+#include <stdbool.h>
+#include <stdint.h>
 
 typedef enum Mp4Error {
   MP4_ERROR_OK = 0,
@@ -60,12 +60,6 @@ typedef enum Mp4SampleEntryKind {
    */
   MP4_SAMPLE_ENTRY_KIND_MP4A,
 } Mp4SampleEntryKind;
-
-typedef struct Option_CString Option_CString;
-
-typedef struct Option_Mp4FileMuxer Option_Mp4FileMuxer;
-
-typedef struct Vec_Output Vec_Output;
 
 typedef struct Mp4DemuxTrackInfo {
   uint32_t track_id;
