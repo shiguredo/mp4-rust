@@ -382,6 +382,34 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
     Mp4Error::MP4_ERROR_OK
 }
 
+/// `Mp4FileDemuxer` にファイルデータを入力として供給し、デマルチプレックス処理を進める
+///
+/// この関数は、`mp4_file_demuxer_get_required_input()` で取得した位置に対応するファイルデータを
+/// 受け取り、デマルチプレックス処理を進める
+///
+/// なお、この関数はデータの部分的な消費を行わないため、呼び出し元が必要なデータを一度に全て渡す必要がある
+/// （固定長のバッファを使って複数回に分けてデータを供給することはできない）
+///
+/// # 引数
+///
+/// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// - `input_position`: 入力データがファイル内で始まる位置（バイト単位）
+///   - `mp4_file_demuxer_get_required_input()` で取得した位置と一致していることが期待される
+///
+/// - `input_data`: ファイルデータのバッファへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// - `input_data_size`: 入力データのサイズ（バイト単位）
+///   - 0 以上の値を指定する必要がある
+///   - `mp4_file_demuxer_get_required_input()` で取得したサイズより大きいサイズを指定することは問題ない
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常に入力データが受け取られた
+///   - この場合でも `mp4_file_demuxer_get_required_input()` を使って、追加の入力が必要かどうかを確認する必要がある
+/// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     demuxer: *mut Mp4FileDemuxer,
@@ -409,6 +437,53 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     Mp4Error::MP4_ERROR_OK
 }
 
+/// MP4 ファイル内に含まれるすべてのメディアトラック（音声および映像）の情報を取得する
+///
+/// # 引数
+///
+/// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// - `out_tracks`: 取得したトラック情報の配列へのポインタを受け取るポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///   - このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
+///
+/// - `out_track_count`: トラック情報の個数を受け取るポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///   - MP4 ファイルにトラックが含まれていない場合は 0 が設定される
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常にトラック情報が取得された
+/// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+/// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+/// - `MP4_ERROR_INVALID_DATA`: MP4 ファイルが破損しているか無効な形式である
+///
+/// # 使用例
+///
+/// ```c
+/// Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+///
+/// // ファイルデータを供給（省略）...
+///
+/// // トラック情報を取得
+/// const Mp4DemuxTrackInfo *tracks;
+/// uint32_t track_count;
+/// Mp4Error ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+///
+/// if (ret == MP4_ERROR_OK) {
+///     printf("Found %u tracks\n", track_count);
+///     for (uint32_t i = 0; i < track_count; i++) {
+///         printf("Track %u: ID=%u, Kind=%d, Duration=%lu, Timescale=%u\n",
+///                i, tracks[i].track_id, tracks[i].kind,
+///                tracks[i].duration, tracks[i].timescale);
+///     }
+/// } else {
+// TODO: 
+///     fprintf(stderr, "Error: %d\n", ret);
+/// }
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     demuxer: *mut Mp4FileDemuxer,
