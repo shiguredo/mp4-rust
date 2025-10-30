@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ファイルデータを段階的に読み込み、デマルチプレックス処理を進める
+    // ファイルデータを読み込み、デマルチプレックス処理を進める
     while (true) {
         uint64_t required_position;
         int32_t required_size;

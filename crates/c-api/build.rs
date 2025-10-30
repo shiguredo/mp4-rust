@@ -1,8 +1,6 @@
 fn main() {
-    let crate_dir =
-        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR env var not set");
     cbindgen::Builder::new()
-        .with_crate(crate_dir)
+        .with_crate(env!("CARGO_MANIFEST_DIR"))
         .with_language(cbindgen::Language::C)
         .with_include_version(true)
         .with_include_guard("SHIGUREDO_MP4_H")
