@@ -6,13 +6,66 @@ use std::{
 
 use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
 
+/// MP4 ファイルにマルチプレックスするメディアサンプル
+///
+/// MP4 ファイルに追加するサンプル（フレーム単位の音声または映像データ）の
+/// メタデータと位置情報を保持する構造体
+///
+/// # 使用例
+///
+/// ```c
+/// // H.264 ビデオサンプルを作成
+/// Mp4MuxSample video_sample = {
+///     .track_kind = MP4_TRACK_KIND_VIDEO,
+///     .sample_entry = &avc1_entry,
+///     .keyframe = true,
+///     .duration_micros = 33333,  // 33.333 ms (30 fps の場合) // TODO: キリのいい値にする
+///     .data_offset = 1024,
+///     .data_size = 4096,
+/// };
+///
+/// // Opus 音声サンプルを作成
+/// Mp4MuxSample audio_sample = {
+///     .track_kind = MP4_TRACK_KIND_AUDIO,
+///     .sample_entry = &opus_entry,
+///     .keyframe = true,  // 音声では通常は常に true
+///     .duration_micros = 20000,  // 20 ms
+///     .data_offset = 5120,
+///     .data_size = 256,
+/// };
+/// ```
 #[repr(C)]
 pub struct Mp4MuxSample {
+    /// サンプルが属するトラックの種別
     pub track_kind: Mp4TrackKind,
+
+    /// サンプルの詳細情報（コーデック種別など）へのポインタ
+    ///
+    /// 最初のサンプルでは必須
+    ///
+    /// 以降は省略可能で、NULL が渡された場合は前のサンプルと同じ値が使用される
     pub sample_entry: *const Mp4SampleEntry,
+
+    /// キーフレームであるかどうか
+    ///
+    /// `true` の場合、このサンプルはキーフレームであり、
+    /// このポイントから復号（再生）を開始できることを意味する
     pub keyframe: bool,
+
+    /// サンプルの尺（マイクロ秒単位）
+    ///
+    /// TODO: more docs from rust version
+    ///
+    /// # 時間単位について
+    ///
+    /// MP4 ファイル自体の仕様では、任意の時間単位が指定できるが
+    /// `Mp4FileMuxer` では、簡単のためにマイクロ秒固定となっている
     pub duration_micros: u64,
+
+    /// 出力ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
+
+    /// サンプルデータのサイズ（バイト単位）
     pub data_size: u32,
 }
 

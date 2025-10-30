@@ -660,12 +660,74 @@ typedef struct Mp4DemuxSample {
   uintptr_t data_size;
 } Mp4DemuxSample;
 
+/**
+ * MP4 ファイルにマルチプレックスするメディアサンプル
+ *
+ * MP4 ファイルに追加するサンプル（フレーム単位の音声または映像データ）の
+ * メタデータと位置情報を保持する構造体
+ *
+ * # 使用例
+ *
+ * ```c
+ * // H.264 ビデオサンプルを作成
+ * Mp4MuxSample video_sample = {
+ *     .track_kind = MP4_TRACK_KIND_VIDEO,
+ *     .sample_entry = &avc1_entry,
+ *     .keyframe = true,
+ *     .duration_micros = 33333,  // 33.333 ms (30 fps の場合) // TODO: キリのいい値にする
+ *     .data_offset = 1024,
+ *     .data_size = 4096,
+ * };
+ *
+ * // Opus 音声サンプルを作成
+ * Mp4MuxSample audio_sample = {
+ *     .track_kind = MP4_TRACK_KIND_AUDIO,
+ *     .sample_entry = &opus_entry,
+ *     .keyframe = true,  // 音声では通常は常に true
+ *     .duration_micros = 20000,  // 20 ms
+ *     .data_offset = 5120,
+ *     .data_size = 256,
+ * };
+ * ```
+ */
 typedef struct Mp4MuxSample {
+  /**
+   * サンプルが属するトラックの種別
+   */
   enum Mp4TrackKind track_kind;
+  /**
+   * サンプルの詳細情報（コーデック種別など）へのポインタ
+   *
+   * 最初のサンプルでは必須
+   *
+   * 以降は省略可能で、NULL が渡された場合は前のサンプルと同じ値が使用される
+   */
   const struct Mp4SampleEntry *sample_entry;
+  /**
+   * キーフレームであるかどうか
+   *
+   * `true` の場合、このサンプルはキーフレームであり、
+   * このポイントから復号（再生）を開始できることを意味する
+   */
   bool keyframe;
+  /**
+   * サンプルの尺（マイクロ秒単位）
+   *
+   * TODO: more docs from rust version
+   *
+   * # 時間単位について
+   *
+   * MP4 ファイル自体の仕様では、任意の時間単位が指定できるが
+   * `Mp4FileMuxer` では、簡単のためにマイクロ秒固定となっている
+   */
   uint64_t duration_micros;
+  /**
+   * 出力ファイル内におけるサンプルデータの開始位置（バイト単位）
+   */
   uint64_t data_offset;
+  /**
+   * サンプルデータのサイズ（バイト単位）
+   */
   uint32_t data_size;
 } Mp4MuxSample;
 
