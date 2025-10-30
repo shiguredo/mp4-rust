@@ -137,7 +137,7 @@ typedef enum Mp4SampleEntryKind {
  * // トラック情報を取得
  * const Mp4DemuxTrackInfo *tracks;
  * uint32_t track_count;
- * let ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+ * Mp4Error ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
  * if (ret == MP4_ERROR_OK) {
  *     // トラック情報を処理
  *     // ...
@@ -693,8 +693,53 @@ typedef struct Mp4MuxSample {
  */
 struct Mp4FileDemuxer *mp4_file_demuxer_new(void);
 
+/**
+ * `Mp4FileDemuxer` インスタンスを破棄して、割り当てられたリソースを解放する
+ *
+ * この関数は、`mp4_file_demuxer_new()` で作成された `Mp4FileDemuxer` インスタンスを破棄し、
+ * その内部で割り当てられたすべてのメモリを解放する。
+ *
+ * # 引数
+ *
+ * - `demuxer`: 破棄する `Mp4FileDemuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、この関数は何もしない
+ */
 void mp4_file_demuxer_free(struct Mp4FileDemuxer *demuxer);
 
+/**
+ * `Mp4FileDemuxer` で最後に発生したエラーのメッセージを取得する
+ *
+ * この関数は、デマルチプレックス処理中に発生した最後のエラーのメッセージ（NULL 終端）を返す
+ *
+ * エラーが発生していない場合は NULL ポインタを返す
+ *
+ * # 引数
+ *
+ * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+ *
+ * # 戻り値
+ *
+ *
+ * - メッセージが存在する場合: NULL 終端のエラーメッセージへのポインタ
+ * - メッセージが存在しない場合: NULL ポインタ
+ * - `demuxer` 引数が NULL の場合: NULL ポインタ
+ *
+ * # 使用例
+ *
+ * ```c
+ * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+ *
+ * Mp4Error ret = // なんらかの処理;
+ *
+ * // エラーが発生した場合、メッセージを取得
+ * if (ret != MP4_ERROR_OK) {
+ *     const char *error_msg = mp4_file_demuxer_get_last_error(demuxer);
+ *     if (error_msg != NULL) {
+ *         fprintf(stderr, "エラー: %s\n", error_msg);
+ *     }
+ * }
+ * ```
+ */
 const char *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demuxer);
 
 enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer,

@@ -77,7 +77,7 @@ pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
 
     let muxer = unsafe { &*muxer };
     let Some(e) = &muxer.last_error_string else {
-        return core::ptr::null();
+        return std::ptr::null();
     };
     e.as_ptr()
 }
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn mp4_file_muxer_next_output(
         unsafe {
             *out_output_offset = 0;
             *out_output_size = 0;
-            *out_output_data = core::ptr::null_mut();
+            *out_output_data = std::ptr::null_mut();
         }
     }
 
