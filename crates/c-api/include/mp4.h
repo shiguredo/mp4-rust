@@ -139,15 +139,13 @@ typedef enum Mp4SampleEntryKind {
  * uint32_t track_count;
  * Mp4Error ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
  * if (ret == MP4_ERROR_OK) {
- *     // トラック情報を処理
- *     // ...
+ *     // トラック情報を処理...
  * }
  *
  * // サンプルを取得
  * Mp4DemuxSample sample;
  * while (mp4_file_demuxer_next_sample(demuxer, &sample) == MP4_ERROR_OK) {
- *     // サンプルを処理
- *     // ...
+ *     // サンプルを処理...
  * }
  *
  * // リソース解放
@@ -777,7 +775,7 @@ const char *mp4_file_demuxer_get_last_error(const struct Mp4FileDemuxer *demuxer
  *
  * ```c
  * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
- * FILE *fp = fopen("sample.mp4", "rb");
+ * FILE *fp = fopen("input.mp4", "rb");
  * uint8_t buffer[4096];  // NOTE: 実際には必要なサイズを動的に確保すべき
  *
  * // 初期化が完了するまでループ
@@ -860,7 +858,7 @@ enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
  * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
  * - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
  *   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
- * - `MP4_ERROR_INVALID_DATA`: MP4 ファイルが破損しているか無効な形式である
+ * - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
  *
  * # 使用例
  *
@@ -875,14 +873,14 @@ enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
  * Mp4Error ret = mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
  *
  * if (ret == MP4_ERROR_OK) {
- *     printf("Found %u tracks\n", track_count);
- *     for (uint32_t i = 0; i < track_count; i++) {
- *         printf("Track %u: ID=%u, Kind=%d, Duration=%lu, Timescale=%u\n",
- *                i, tracks[i].track_id, tracks[i].kind,
- *                tracks[i].duration, tracks[i].timescale);
- *     }
+ *    printf("Found %u tracks\n", track_count);
+ *    for (uint32_t i = 0; i < track_count; i++) {
+ *        printf("Track %u: ID=%u, Kind=%d, Duration=%lu, Timescale=%u\n",
+ *               i, tracks[i].track_id, tracks[i].kind,
+ *               tracks[i].duration, tracks[i].timescale);
+ *    }
  * } else {
- *     fprintf(stderr, "Error: %d\n", ret);
+ *    fprintf(stderr, "Error: %d - %s\n", ret, mp4_file_demuxer_get_last_error(demuxer));
  * }
  * ```
  */
@@ -890,6 +888,62 @@ enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
                                           const struct Mp4DemuxTrackInfo **out_tracks,
                                           uint32_t *out_track_count);
 
+/**
+ * MP4 ファイルから時系列順に次のメディアサンプルを取得する
+ *
+ * すべてのトラックから、まだ取得していないもののなかで、
+ * 最も早いタイムスタンプを持つサンプルを返す
+ *
+ * すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+ *
+ * # サンプルデータの読み込みについて
+ *
+ * この関数は、サンプルのメタデータ（タイムスタンプ、サイズ、ファイル内の位置など）のみを返すので、
+ * 実際のサンプルデータ（音声フレームや映像フレーム）の読み込みは呼び出し元の責務となる
+ *
+ * サンプルデータを処理する場合には、返された `Mp4DemuxSample` の `data_offset` と `data_size` フィールドを使用して、
+ * 入力ファイルから直接サンプルデータを読み込む必要がある
+ *
+ * # 引数
+ *
+ * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_sample`: 取得したサンプル情報を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常にサンプルが取得された
+ * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ * - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
+ * - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+ *   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+ * - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
+ *
+ * # 使用例
+ *
+ * ```c
+ * FILE *fp = fopen("input.mp4", "rb");
+ * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+ *
+ * // ファイルデータを供給して初期化（省略）...
+ *
+ * // 時系列順にサンプルを取得
+ * Mp4DemuxSample sample;
+ * while (mp4_file_demuxer_next_sample(demuxer, &sample) == MP4_ERROR_OK) {
+ *     printf("サンプル - トラックID: %u, タイムスタンプ: %lu, サイズ: %zu バイト\n",
+ *            sample.track->track_id, sample.timestamp, sample.data_size);
+ *
+ *     // サンプルデータを入力ファイルから読み込む
+ *     uint8_t sample_data[sample.data_size];
+ *     fseek(fp, sample.data_offset, SEEK_SET);
+ *     fread(sample_data, 1, sample.data_size, fp);
+ *
+ *     // サンプルを処理...
+ * }
+ * ```
+ */
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4DemuxSample *out_sample);
 
