@@ -116,10 +116,6 @@ struct Output {
 /// int main() {
 ///     // 1. Mp4FileMuxer インスタンスを生成
 ///     Mp4FileMuxer *muxer = mp4_file_muxer_new();
-///     if (muxer == NULL) {
-///         fprintf(stderr, "Failed to create muxer\n");
-///         return 1;
-///     }
 ///
 ///     // ファイルをオープン
 ///     FILE *fp = fopen("output.mp4", "wb");
@@ -281,6 +277,52 @@ pub extern "C" fn mp4_estimate_maximum_moov_box_size(
     ]) as u32
 }
 
+/// 新しい `Mp4FileMuxer` インスタンスを作成して、それへのポインタを返す
+///
+/// 返されたポインタは、使用後に `mp4_file_muxer_free()` で破棄する必要がある
+///
+/// # 戻り値
+///
+/// 新しく作成された `Mp4FileMuxer` インスタンスへのポインタ
+/// （現在の実装では NULL ポインタが返されることはない）
+///
+/// # 関連関数
+///
+/// - [`mp4_file_muxer_free()`]: インスタンスを破棄してリソースを解放する
+/// - [`mp4_file_muxer_initialize()`]: マルチプレックス処理を初期化する
+/// - [`mp4_file_muxer_set_reserved_moov_box_size()`]: faststart 用に moov ボックスサイズを設定する
+/// - [`mp4_file_muxer_set_creation_timestamp()`]: ファイル作成時刻を設定する
+///
+/// # 使用例
+///
+/// ```c
+/// // Mp4FileMuxer インスタンスを生成
+/// Mp4FileMuxer *muxer = mp4_file_muxer_new();
+///
+/// // オプションを設定
+/// mp4_file_muxer_set_reserved_moov_box_size(muxer, 8192);
+///
+/// // マルチプレックス処理を初期化
+/// Mp4Error ret = mp4_file_muxer_initialize(muxer);
+/// if (ret != MP4_ERROR_OK) {
+///     fprintf(stderr, "初期化失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
+///     mp4_file_muxer_free(muxer);
+///     return 1;
+/// }
+///
+/// // サンプルを追加...（省略）
+///
+/// // マルチプレックス処理を完了
+/// ret = mp4_file_muxer_finalize(muxer);
+/// if (ret != MP4_ERROR_OK) {
+///     fprintf(stderr, "ファイナライズ失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
+///     mp4_file_muxer_free(muxer);
+///     return 1;
+/// }
+///
+/// // リソース解放
+/// mp4_file_muxer_free(muxer);
+/// ```
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
     let impl_data = Box::new(Mp4FileMuxerImpl {
@@ -293,6 +335,27 @@ pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
     Box::into_raw(impl_data).cast()
 }
 
+/// `Mp4FileMuxer` インスタンスを破棄して、割り当てられたリソースを解放する
+///
+/// この関数は、`mp4_file_muxer_new()` で作成された `Mp4FileMuxer` インスタンスを破棄し、
+/// その内部で割り当てられたすべてのメモリを解放する
+///
+/// # 引数
+///
+/// - `muxer`: 破棄する `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、この関数は何もしない
+///
+/// # 使用例
+///
+/// ```c
+/// // Mp4FileMuxer インスタンスを生成
+/// Mp4FileMuxer *muxer = mp4_file_muxer_new();
+///
+/// // マルチプレックス処理を実行（省略）...
+///
+/// // リソース解放
+/// mp4_file_muxer_free(muxer);
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_free(muxer: *mut Mp4FileMuxer) {
     if !muxer.is_null() {
