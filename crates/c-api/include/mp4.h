@@ -103,6 +103,57 @@ typedef enum Mp4SampleEntryKind {
 } Mp4SampleEntryKind;
 
 /**
+ * MP4 ファイルをデマルチプレックスして、メディアサンプルを時系列順に取得するための構造体
+ *
+ * # 関連関数
+ *
+ * - `mp4_file_demuxer_new()`: `Mp4FileDemuxer` インスタンスを生成する
+ * - `mp4_file_demuxer_free()`: リソースを解放する
+ * - `mp4_file_demuxer_get_required_input()`: 次の処理に必要な入力データの位置とサイズを取得する
+ * - `mp4_file_demuxer_handle_input()`: ファイルデータを入力として受け取る
+ * - `mp4_file_demuxer_get_tracks()`: MP4 ファイル内のすべてのメディアトラック情報を取得する
+ * - `mp4_file_demuxer_next_sample()`: 時系列順に次のサンプルを取得する
+ * - `mp4_file_demuxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
+ *
+ * # Examples
+ *
+ * ```c
+ * // デマルチプレックスの初期化
+ * Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
+ *
+ * // 入力ファイルデータを供給
+ * while (true) {
+ *     uint64_t required_pos;
+ *     int32_t required_size;
+ *     mp4_file_demuxer_get_required_input(demuxer, &required_pos, &required_size);
+ *     if (required_size == 0) break;
+ *
+ *     uint8_t buffer[4096]; // NOTE: 実際には required_size に合わせて動的に確保するべき
+ *     size_t bytes_read = read_file_data(required_pos, buffer, sizeof(buffer));
+ *     mp4_file_demuxer_handle_input(demuxer, required_pos, buffer, bytes_read);
+ * }
+ *
+ * // トラック情報を取得
+ * const Mp4DemuxTrackInfo *tracks;
+ * uint32_t track_count;
+ * mp4_file_demuxer_get_tracks(demuxer, &tracks, &track_count);
+ *
+ * // サンプルを取得
+ * Mp4DemuxSample sample;
+ * while (mp4_file_demuxer_next_sample(demuxer, &sample) == MP4_ERROR_OK) {
+ *     // サンプルを処理
+ *     // ...
+ * }
+ *
+ * // リソース解放
+ * mp4_file_demuxer_free(demuxer);
+ * ```
+ */
+typedef struct Mp4FileDemuxer {
+  uint8_t _private[0];
+} Mp4FileDemuxer;
+
+/**
  * MP4 デマルチプレックス処理中に抽出されたメディアトラックの情報を表す構造体
  */
 typedef struct Mp4DemuxTrackInfo {
