@@ -83,7 +83,7 @@ impl Mp4SampleEntryOwned {
                 }
 
                 Some(Self::Avc1 {
-                    inner: inner,
+                    inner,
                     sps_data,
                     sps_sizes,
                     pps_data,
@@ -361,7 +361,7 @@ pub struct Mp4SampleEntry {
 }
 
 impl Mp4SampleEntry {
-    pub fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+    pub fn to_sample_entry(&self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
         match self.kind {
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1 => unsafe {
                 self.data.avc1.to_sample_entry()

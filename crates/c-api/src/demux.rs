@@ -43,11 +43,11 @@ impl Mp4DemuxSample {
     pub fn new(
         sample: shiguredo_mp4::demux::Sample<'_>,
         track: &Mp4DemuxTrackInfo,
-        sample_entry: &Box<Mp4SampleEntry>,
+        sample_entry: &Mp4SampleEntry,
     ) -> Self {
         Self {
             track,
-            sample_entry: &**sample_entry, // 途中でアドレスが変わらないように `Box` の参照先を渡す
+            sample_entry,
             keyframe: sample.keyframe,
             timestamp: sample.timescaled_timestamp,
             duration: sample.timescaled_duration,
