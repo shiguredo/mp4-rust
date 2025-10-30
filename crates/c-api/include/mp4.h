@@ -1,9 +1,10 @@
+#ifndef SHIGUREDO_MP4
+#define SHIGUREDO_MP4
+
 /* Generated with cbindgen:0.29.2 */
 
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <stdbool>
+#include <stdint>
 
 typedef enum Mp4Error {
   MP4_ERROR_OK = 0,
@@ -265,3 +266,5 @@ enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
                                            const struct Mp4MuxSample *sample);
 
 enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);
+
+#endif  /* SHIGUREDO_MP4 */
