@@ -5,18 +5,38 @@ use shiguredo_mp4::{
     Error, ErrorKind, aux::SampleTableAccessorError, demux::DemuxError, mux::MuxError,
 };
 
+/// 発生する可能性のあるエラーの種類を表現する列挙型
 #[repr(C)]
 #[expect(non_camel_case_types)]
 pub enum Mp4Error {
+    /// エラーが発生しなかったことを示す
     MP4_ERROR_OK = 0,
+
+    /// 入力引数ないしパラメーターが無効である
     MP4_ERROR_INVALID_INPUT,
+
+    /// 入力データが破損しているか無効な形式である
     MP4_ERROR_INVALID_DATA,
+
+    /// 操作に対する内部状態が無効である
     MP4_ERROR_INVALID_STATE,
+
+    /// 入力データの読み込みが必要である
     MP4_ERROR_INPUT_REQUIRED,
+
+    /// 出力データの書き込みが必要である
     MP4_ERROR_OUTPUT_REQUIRED,
+
+    /// NULL ポインタが渡された
     MP4_ERROR_NULL_POINTER,
+
+    /// これ以上読み込むサンプルが存在しない
     MP4_ERROR_NO_MORE_SAMPLES,
+
+    /// 操作またはデータ形式がサポートされていない
     MP4_ERROR_UNSUPPORTED,
+
+    /// 上記以外のエラーが発生した
     MP4_ERROR_OTHER,
 }
 
