@@ -9,11 +9,24 @@ use crate::{
     error::Mp4Error,
 };
 
+/// MP4 デマルチプレックス処理中に抽出されたメディアトラックの情報を表す構造体
 #[repr(C)]
 pub struct Mp4DemuxTrackInfo {
+    /// このトラックを識別するための ID
     pub track_id: u32,
+
+    /// トラックの種類（音声または映像）
     pub kind: Mp4TrackKind,
+
+    /// トラックの尺（タイムスケール単位で表現）
+    ///
+    /// 実際の時間（秒単位）を得るには、この値を `timescale` で除算すること
     pub duration: u64,
+
+    /// このトラック内で使用されているタイムスケール
+    ///
+    /// タイムスタンプと尺の単位を定義する値で、1 秒間の単位数を表す
+    /// 例えば `timescale` が 1000 の場合、タイムスタンプは 1 ms 単位で表現される
     pub timescale: u32,
 }
 
@@ -28,15 +41,59 @@ impl From<shiguredo_mp4::demux::TrackInfo> for Mp4DemuxTrackInfo {
     }
 }
 
+/// MP4 デマルチプレックス処理によって抽出されたメディアサンプルを表す構造体
+///
+/// MP4 ファイル内の各サンプル（フレーム単位の音声または映像データ）のメタデータと
+/// ファイル内の位置情報を保持する
+///
+/// この構造体が参照しているポインタのメモリ管理が `Mp4FileDemuxer` が行っており、
+/// `Mp4FileDemuxer` インスタンスが破棄されるまでは安全に参照可能である
 #[repr(C)]
 pub struct Mp4DemuxSample {
+    /// サンプルが属するトラックの情報へのポインタ
+    ///
+    /// このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
     pub track: *const Mp4DemuxTrackInfo,
+
+    /// サンプルの詳細情報（コーデック設定など）へのポインタ
+    ///
+    /// このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
     pub sample_entry: *const Mp4SampleEntry,
+
+    /// トラック内でユニークなサンプルエントリーのインデックス番号
+    ///
+    /// この値を使用して、複数のサンプルが同じコーデック設定を使用しているかどうかを
+    /// 簡単に判定できる
     pub sample_entry_index: u32,
+
+    /// このサンプルがキーフレームであるかの判定
+    ///
+    /// `true` の場合、このサンプルはキーフレームであり、このポイントから復号を開始できる
+    ///
+    /// 音声の場合には、通常はすべてのサンプルがキーフレーム扱いとなる
     pub keyframe: bool,
+
+    /// サンプルのタイムスタンプ（タイムスケール単位）
+    ///
+    /// 実際の時間（秒単位）を得るには、この値を対応する `Mp4DemuxTrackInfo` の
+    /// `timescale` で除算すること
     pub timestamp: u64,
+
+    /// サンプルの尺（タイムスケール単位）
+    ///
+    /// 実際の時間（秒単位）を得るには、この値を対応する `Mp4DemuxTrackInfo` の
+    /// `timescale` で除算すること
     pub duration: u32,
+
+    /// ファイル内におけるサンプルデータの開始位置（バイト単位）
+    ///
+    /// 実際のサンプルデータへアクセスするには、この位置から `data_size` 分のバイト列を
+    /// 入力ファイルから読み込む必要がある
     pub data_offset: u64,
+
+    /// サンプルデータのサイズ（バイト単位）
+    ///
+    /// `data_offset` から `data_offset + data_size` までの範囲がサンプルデータとなる
     pub data_size: usize,
 }
 
@@ -66,7 +123,10 @@ pub struct Mp4FileDemuxer {
     sample_entries: Vec<(
         shiguredo_mp4::boxes::SampleEntry,
         Mp4SampleEntryOwned,
-        Mp4SampleEntry,
+        // [NOTE]
+        // tracks とは異なり sample_entries は途中でサイズが変わる可能性があるので、
+        // その際に C 側で保持されているポインタが無効にならないように Box でラップしておく
+        Box<Mp4SampleEntry>,
     )>,
     last_error_string: Option<CString>,
 }
@@ -253,7 +313,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                     ));
                     return Mp4Error::MP4_ERROR_UNSUPPORTED;
                 };
-                let entry = entry_owned.to_mp4_sample_entry();
+                let entry = Box::new(entry_owned.to_mp4_sample_entry());
                 demuxer
                     .sample_entries
                     .push((sample.sample_entry.clone(), entry_owned, entry));

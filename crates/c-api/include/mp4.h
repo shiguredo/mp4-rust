@@ -102,10 +102,30 @@ typedef enum Mp4SampleEntryKind {
   MP4_SAMPLE_ENTRY_KIND_MP4A,
 } Mp4SampleEntryKind;
 
+/**
+ * MP4 デマルチプレックス処理中に抽出されたメディアトラックの情報を表す構造体
+ */
 typedef struct Mp4DemuxTrackInfo {
+  /**
+   * このトラックを識別するための ID
+   */
   uint32_t track_id;
+  /**
+   * トラックの種類（音声または映像）
+   */
   enum Mp4TrackKind kind;
+  /**
+   * トラックの尺（タイムスケール単位で表現）
+   *
+   * 実際の時間（秒単位）を得るには、この値を `timescale` で除算すること
+   */
   uint64_t duration;
+  /**
+   * このトラック内で使用されているタイムスケール
+   *
+   * タイムスタンプと尺の単位を定義する値で、1 秒間の単位数を表す
+   * 例えば `timescale` が 1000 の場合、タイムスタンプは 1 ms 単位で表現される
+   */
   uint32_t timescale;
 } Mp4DemuxTrackInfo;
 
@@ -519,14 +539,69 @@ typedef struct Mp4SampleEntry {
   union Mp4SampleEntryData data;
 } Mp4SampleEntry;
 
+/**
+ * MP4 デマルチプレックス処理によって抽出されたメディアサンプルを表す構造体
+ *
+ * MP4 ファイル内の各サンプル（フレーム単位の音声または映像データ）のメタデータと
+ * ファイル内の位置情報を保持する
+ *
+ * この構造体が参照しているポインタのメモリ管理が `Mp4FileDemuxer` が行っており、
+ * `Mp4FileDemuxer` インスタンスが破棄されるまでは安全に参照可能である
+ */
 typedef struct Mp4DemuxSample {
+  /**
+   * サンプルが属するトラックの情報へのポインタ
+   *
+   * このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
+   */
   const struct Mp4DemuxTrackInfo *track;
+  /**
+   * サンプルの詳細情報（コーデック設定など）へのポインタ
+   *
+   * このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
+   */
   const struct Mp4SampleEntry *sample_entry;
+  /**
+   * トラック内でユニークなサンプルエントリーのインデックス番号
+   *
+   * この値を使用して、複数のサンプルが同じコーデック設定を使用しているかどうかを
+   * 簡単に判定できる
+   */
   uint32_t sample_entry_index;
+  /**
+   * このサンプルがキーフレームであるかの判定
+   *
+   * `true` の場合、このサンプルはキーフレームであり、このポイントから復号を開始できる
+   *
+   * 音声の場合には、通常はすべてのサンプルがキーフレーム扱いとなる
+   */
   bool keyframe;
+  /**
+   * サンプルのタイムスタンプ（タイムスケール単位）
+   *
+   * 実際の時間（秒単位）を得るには、この値を対応する `Mp4DemuxTrackInfo` の
+   * `timescale` で除算すること
+   */
   uint64_t timestamp;
+  /**
+   * サンプルの尺（タイムスケール単位）
+   *
+   * 実際の時間（秒単位）を得るには、この値を対応する `Mp4DemuxTrackInfo` の
+   * `timescale` で除算すること
+   */
   uint32_t duration;
+  /**
+   * ファイル内におけるサンプルデータの開始位置（バイト単位）
+   *
+   * 実際のサンプルデータへアクセスするには、この位置から `data_size` 分のバイト列を
+   * 入力ファイルから読み込む必要がある
+   */
   uint64_t data_offset;
+  /**
+   * サンプルデータのサイズ（バイト単位）
+   *
+   * `data_offset` から `data_offset + data_size` までの範囲がサンプルデータとなる
+   */
   uintptr_t data_size;
 } Mp4DemuxSample;
 
