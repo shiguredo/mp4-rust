@@ -120,7 +120,7 @@ impl Mp4DemuxSample {
 ///
 /// # 関連関数
 ///
-/// この構造体は、直接ではなく、以下の関数を通して操作する必要がある:
+/// この構造体は、以下の関数を通して操作する必要がある:
 /// - `mp4_file_demuxer_new()`: `Mp4FileDemuxer` インスタンスを生成する
 /// - `mp4_file_demuxer_free()`: リソースを解放する
 /// - `mp4_file_demuxer_get_required_input()`: 次の処理に必要な入力データの位置とサイズを取得する
@@ -132,18 +132,19 @@ impl Mp4DemuxSample {
 /// # Examples
 ///
 /// ```c
-/// // デマルチプレックスの初期化
+/// // Mp4FileDemuxer インスタンスを生成
 /// Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
 ///
-/// // 入力ファイルデータを供給
+/// // 入力ファイルデータを供給して初期化
 /// while (true) {
 ///     uint64_t required_pos;
 ///     int32_t required_size;
 ///     mp4_file_demuxer_get_required_input(demuxer, &required_pos, &required_size);
 ///     if (required_size == 0) break;
 ///
-///     uint8_t buffer[4096]; // NOTE: 実際には required_size に合わせて動的に確保するべき
-///     size_t bytes_read = read_file_data(required_pos, buffer, sizeof(buffer));
+///     // NOTE: 実際には `required_size == -1` の場合には、ファイル末尾までを読み込む必要がある
+///     uint8_t buffer[required_size];
+///     size_t bytes_read = read_file_data(required_pos, buffer, sizeof(required_size));
 ///     mp4_file_demuxer_handle_input(demuxer, required_pos, buffer, bytes_read);
 /// }
 ///
@@ -321,7 +322,6 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
 /// ```c
 /// Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
 /// FILE *fp = fopen("input.mp4", "rb");
-/// uint8_t buffer[4096];  // NOTE: 実際には必要なサイズを動的に確保すべき
 ///
 /// // 初期化が完了するまでループ
 /// while (true) {
@@ -332,10 +332,10 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
 ///    
 ///     // ファイルから必要なデータを読み込む
 ///     //
-///     // NOTE: `required_size == -1` の場合には、実際にはファイル末尾までを読み込む必要がある
-///     size_t read_size = (required_size > 0) ? required_size : sizeof(buffer);
+///     // NOTE: 実際には `required_size == -1` の場合には、ファイル末尾までを読み込む必要がある
+///     uint8_t buffer[required_size];
 ///     fseek(fp, required_pos, SEEK_SET);
-///     size_t bytes_read = fread(buffer, 1, read_size, fp);
+///     size_t bytes_read = fread(buffer, 1, required_size, fp);
 ///
 ///     // demuxer にデータを供給
 ///     mp4_file_demuxer_handle_input(demuxer, required_pos, buffer, bytes_read);
