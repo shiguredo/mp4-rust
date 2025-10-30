@@ -4,7 +4,6 @@ use std::process::Command;
 #[test]
 fn test_c_examples_compile() {
     let project_root = get_project_root();
-    let examples_dir = get_examples_dir();
     let lib_path = project_root.join("target/debug/libmp4.a");
 
     // ライブラリファイルが存在することを確認
@@ -15,7 +14,7 @@ fn test_c_examples_compile() {
     );
 
     // examples ディレクトリから全ての .c ファイルを検索
-    let c_files: Vec<_> = std::fs::read_dir(&examples_dir)
+    let c_files: Vec<_> = std::fs::read_dir(project_root.join("crates/c-api/examples/"))
         .expect("Failed to read examples directory")
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -69,9 +68,4 @@ fn get_project_root() -> PathBuf {
         .and_then(|p| p.parent())
         .expect("Failed to find project root")
         .to_path_buf()
-}
-
-fn get_examples_dir() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir.join("examples")
 }
