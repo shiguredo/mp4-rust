@@ -5,7 +5,7 @@ fn main() {
         .with_crate(crate_dir)
         .with_language(cbindgen::Language::C)
         .with_include_version(true)
-        .with_include_guard("SHIGUREDO_MP4")
+        .with_include_guard("SHIGUREDO_MP4_H")
         .with_no_includes()
         .with_sys_include("stdbool.h")
         .with_sys_include("stdint.h")

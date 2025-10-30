@@ -1,5 +1,5 @@
-#ifndef SHIGUREDO_MP4
-#define SHIGUREDO_MP4
+#ifndef SHIGUREDO_MP4_H
+#define SHIGUREDO_MP4_H
 
 /* Generated with cbindgen:0.29.2 */
 
@@ -261,4 +261,4 @@ enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
 
 enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);
 
-#endif  /* SHIGUREDO_MP4 */
+#endif  /* SHIGUREDO_MP4_H */
