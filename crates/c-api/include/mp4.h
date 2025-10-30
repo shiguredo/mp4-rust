@@ -197,6 +197,7 @@ typedef struct Mp4SampleEntry {
 typedef struct Mp4DemuxSample {
   const struct Mp4DemuxTrackInfo *track;
   const struct Mp4SampleEntry *sample_entry;
+  uint32_t sample_entry_index;
   bool keyframe;
   uint64_t timestamp;
   uint32_t duration;

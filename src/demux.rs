@@ -90,6 +90,12 @@ pub struct Sample<'a> {
     /// サンプルの詳細情報
     pub sample_entry: &'a SampleEntry,
 
+    /// トラック内でユニークな `SampleEntry` のインデックス番号
+    ///
+    /// この値の比較を行うことで、
+    /// 複数の `Sample` が同じサンプルエントリーを参照しているかどうかを簡単に調べることができる
+    pub sample_entry_index: usize,
+
     /// キーフレームであるかの判定
     pub keyframe: bool,
 
@@ -510,6 +516,7 @@ impl Mp4FileDemuxer {
             let sample = Sample {
                 track: &self.track_infos[track_index],
                 sample_entry: sample_accessor.chunk().sample_entry(),
+                sample_entry_index: sample_accessor.chunk().sample_entry_index(),
                 keyframe: sample_accessor.is_sync_sample(),
                 timescaled_timestamp: sample_accessor.timestamp(),
                 timescaled_duration: sample_accessor.duration(),

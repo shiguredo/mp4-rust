@@ -32,6 +32,7 @@ impl From<shiguredo_mp4::demux::TrackInfo> for Mp4DemuxTrackInfo {
 pub struct Mp4DemuxSample {
     pub track: *const Mp4DemuxTrackInfo,
     pub sample_entry: *const Mp4SampleEntry,
+    pub sample_entry_index: u32,
     pub keyframe: bool,
     pub timestamp: u64,
     pub duration: u32,
@@ -48,6 +49,7 @@ impl Mp4DemuxSample {
         Self {
             track,
             sample_entry,
+            sample_entry_index: sample.sample_entry_index as u32,
             keyframe: sample.keyframe,
             timestamp: sample.timescaled_timestamp,
             duration: sample.timescaled_duration,
@@ -60,11 +62,11 @@ impl Mp4DemuxSample {
 /// cbindgen:no-export
 pub struct Mp4FileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
-    tracks: Vec<Mp4DemuxTrackInfo>, // NOTE: sample_entries とは異なりサイズが途中で変わらないので `Box` は不要
+    tracks: Vec<Mp4DemuxTrackInfo>,
     sample_entries: Vec<(
         shiguredo_mp4::boxes::SampleEntry,
         Mp4SampleEntryOwned,
-        Box<Mp4SampleEntry>, // アドレスが途中で変わらないように `Box` でラップする
+        Mp4SampleEntry,
     )>,
     last_error_string: Option<CString>,
 }
@@ -251,7 +253,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                     ));
                     return Mp4Error::MP4_ERROR_UNSUPPORTED;
                 };
-                let entry = Box::new(entry_owned.to_mp4_sample_entry());
+                let entry = entry_owned.to_mp4_sample_entry();
                 demuxer
                     .sample_entries
                     .push((sample.sample_entry.clone(), entry_owned, entry));
