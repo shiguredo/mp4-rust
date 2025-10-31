@@ -535,6 +535,10 @@ pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> 
 ///
 /// すべての出力データを取得し終えると、`out_output_size` に 0 が設定されて返る
 ///
+/// この関数のハンドリングが必要なのは、以下の関数の呼び出し後である:
+/// - `mp4_file_muxer_initialize()`
+/// - `mp4_file_muxer_finalize()`
+///
 /// # 引数
 ///
 /// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
