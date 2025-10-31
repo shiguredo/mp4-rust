@@ -40,7 +40,7 @@ pub struct Mp4MuxSample {
     ///
     /// 最初のサンプルでは必須
     ///
-    /// 以降は省略可能で、NULL が渡された場合は前のサンプルと同じ値が使用される
+    /// 以降は（コーデック設定に変更がない間は）省略可能で、NULL が渡された場合は前のサンプルと同じ値が使用される
     pub sample_entry: *const Mp4SampleEntry,
 
     /// キーフレームであるかどうか
@@ -635,7 +635,77 @@ pub unsafe extern "C" fn mp4_file_muxer_next_output(
     Mp4Error::MP4_ERROR_OK
 }
 
-/// TODO: Add Japanese API doc
+/// MP4 ファイルに追記されたメディアサンプルの情報を `Mp4FileMuxer` に伝える
+///
+/// この関数は、利用側で実際のサンプルデータをファイルに追記した後に、
+/// そのサンプルの情報を `Mp4FileMuxer` に通知するために呼び出される
+///
+/// `Mp4FileMuxer` はサンプルの情報を蓄積して、`mp4_file_muxer_finalize()` 呼び出し時に、
+/// MP4 ファイルを再生するために必要なメタデータ（moov ボックス）を構築する
+///
+/// なお、サンプルデータは `mp4_file_muxer_initialize()` によって生成された出力データの後ろに
+/// 追記されていく想定となっている
+///
+/// # 引数
+///
+/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// - `sample`: 追記されたサンプルの情報を表す `Mp4MuxSample` 構造体へのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常にサンプルが追加された
+/// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+/// - `MP4_ERROR_INVALID_STATE`: マルチプレックスが初期化されていないか、既にファイナライズ済み
+/// - `MP4_ERROR_OUTPUT_REQUIRED`: 前回の呼び出しで生成された出力データが未処理（`mp4_file_muxer_next_output()` で取得されていない）
+/// - `MP4_ERROR_POSITION_MISMATCH`: サンプルデータの位置がファイル内の期待された位置と一致していない
+/// - その他のエラー: サンプル情報が不正な場合
+///
+/// # 使用例
+///
+/// ```c
+/// // マルチプレックス処理を初期化
+/// mp4_file_muxer_initialize(muxer);
+///
+/// // 初期出力データをファイルに書きこむ
+/// uint64_t output_offset;
+/// uint32_t output_size;
+/// const uint8_t *output_data;
+/// while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
+///     if (output_size == 0) break;
+///     fseek(fp, output_offset, SEEK_SET);
+///     fwrite(output_data, 1, output_size, fp);
+/// }
+/// output_offset += output_size;
+///
+/// // サンプルデータを準備してファイルに書きこむ
+/// uint8_t sample_data[1024];
+/// prepare_sample_data(sample_data, sizeof(sample_data));
+/// fwrite(sample_data, 1, sizeof(sample_data), fp);
+/// output_offset += sizeof(sample_data);
+///
+/// // サンプルエントリーを作成
+/// Mp4SampleEntry sample_entry = // ...;
+///
+/// // サンプル情報を構築
+/// Mp4MuxSample video_sample = {
+///     .track_kind = MP4_TRACK_KIND_VIDEO,
+///     .sample_entry = &sample_entry,
+///     .keyframe = true,
+///     .duration_micros = 33333,  // 30 fps の場合
+///     .data_offset = output_offset,
+///     .data_size = sizeof(sample_data),
+/// };
+///
+/// // マルチプレックスにサンプル情報を通知
+/// Mp4Error ret = mp4_file_muxer_append_sample(muxer, &video_sample);
+/// if (ret != MP4_ERROR_OK) {
+///     fprintf(stderr, "Failed to append sample: %s\n", mp4_file_muxer_get_last_error(muxer));
+///     return 1;
+/// }
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     muxer: *mut Mp4FileMuxer,
@@ -698,6 +768,7 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     }
 }
 
+/// TODO: Add Japanese API doc
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp4Error {
     if muxer.is_null() {
