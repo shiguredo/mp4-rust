@@ -198,7 +198,8 @@ pub struct Sample {
     ///
     /// 同じトラック内のすべてのサンプルは同じタイムスケール値を使用する必要がある
     ///
-    /// 異なるタイムスケール値を指定すると [`MuxError::TimescaleMismatch`] エラーが発生する
+    /// 異なるタイムスケール値を指定すると
+    /// [`Mp4FileMuxer::append_sample()`] 呼び出し時に [`MuxError::TimescaleMismatch`] エラーが発生する
     pub timescale: NonZeroU32,
 
     /// サンプルの尺（タイムスケール単位）

@@ -810,7 +810,8 @@ typedef struct Mp4FileMuxer {
  *     .track_kind = MP4_TRACK_KIND_VIDEO,
  *     .sample_entry = &avc1_entry,
  *     .keyframe = true,
- *     .duration_micros = 33333,  // 33.333 ms (30 fps の場合)
+ *     .timescale = 30,
+ *     .duration = 1,  // 30 FPS
  *     .data_offset = 1024,
  *     .data_size = 4096,
  * };
@@ -820,7 +821,8 @@ typedef struct Mp4FileMuxer {
  *     .track_kind = MP4_TRACK_KIND_AUDIO,
  *     .sample_entry = &opus_entry,
  *     .keyframe = true,  // 音声では通常は常に true
- *     .duration_micros = 20000,  // 20 ms
+ *     .timescale = 1000,
+ *     .duration = 20,  // 20 ms
  *     .data_offset = 5120,
  *     .data_size = 256,
  * };
@@ -846,16 +848,26 @@ typedef struct Mp4MuxSample {
    * このポイントから復号（再生）を開始できることを意味する
    */
   bool keyframe;
+  /**
+   * サンプルのタイムスケール（時間単位）
+   *
+   * `duration` フィールドの値は、このタイムスケール単位での長さを表す
+   *
+   * # Examples
+   *
+   * - 映像サンプル（30 fps）: `timescale = 30` なら `duration = 1` は 1/30 秒
+   * - 音声サンプル（48 kHz）: `timescale = 48000` なら `duration = 1920` は 1920/48000 秒
+   *
+   * # NOTE
+   *
+   * 同じトラック内のすべてのサンプルは同じタイムスケール値を使用する必要がある
+   *
+   * 異なるタイムスケール値を指定すると
+   * `mp4_file_muxer_append_sample()` 呼び出し時に `MP4_ERROR_INVALID_INPUT` エラーが発生する
+   */
   uint32_t timescale;
   /**
-   * サンプルの尺（マイクロ秒単位）
-   *
-   * # 時間単位について
-   *
-   * MP4 ファイル自体の仕様では、任意の時間単位が指定できるが
-   * `Mp4FileMuxer` では、簡単のためにマイクロ秒固定となっている
-   *
-   * TODO: 別 PR でマイクロ秒固定はやめる
+   * サンプルの尺（タイムスケール単位）
    *
    * # サンプルのタイムスタンプについて
    *
@@ -1518,7 +1530,8 @@ enum Mp4Error mp4_file_muxer_next_output(struct Mp4FileMuxer *muxer,
  *     .track_kind = MP4_TRACK_KIND_VIDEO,
  *     .sample_entry = &sample_entry,
  *     .keyframe = true,
- *     .duration_micros = 33333,  // 30 fps の場合
+ *     .timescale = 30,
+ *     .duration = 1,  // 30 FPS
  *     .data_offset = output_offset,
  *     .data_size = sizeof(sample_data),
  * };
