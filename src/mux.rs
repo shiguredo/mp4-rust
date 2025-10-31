@@ -943,7 +943,7 @@ mod tests {
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -957,7 +957,7 @@ mod tests {
             sample_entry: None,
             keyframe: false,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size + 1024,
             data_size: 512,
         };
@@ -982,7 +982,7 @@ mod tests {
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size + 100, // 誤ったオフセット
             data_size: 1024,
         };
@@ -1004,7 +1004,7 @@ mod tests {
             track_kind: TrackKind::Audio,
             sample_entry: None,
             keyframe: false,
-            timescale: NonZeroU32::MIN.saturating_add(48000 - 1),
+            timescale: NonZeroU32::MIN.saturating_add(1000 - 1),
             duration: 20,
             data_offset: initial_size,
             data_size: 512,
@@ -1028,7 +1028,7 @@ mod tests {
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -1043,7 +1043,7 @@ mod tests {
             sample_entry: None,
             keyframe: false,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size + 1024,
             data_size: 512,
         };
@@ -1065,7 +1065,7 @@ mod tests {
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -1078,7 +1078,7 @@ mod tests {
             track_kind: TrackKind::Audio,
             sample_entry: Some(create_opus_sample_entry()),
             keyframe: false,
-            timescale: NonZeroU32::MIN.saturating_add(48000 - 1),
+            timescale: NonZeroU32::MIN.saturating_add(1000 - 1),
             duration: 20,
             data_offset: initial_size + 1024,
             data_size: 256,
@@ -1107,7 +1107,7 @@ mod tests {
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
             timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-            duration: 33,
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -1132,7 +1132,7 @@ mod tests {
                 sample_entry: sample_entry.take(),
                 keyframe: i % 2 == 0,
                 timescale: NonZeroU32::MIN.saturating_add(30 - 1),
-                duration: 33,
+                duration: 1,
                 data_offset: initial_size + (i as u64 * 1024),
                 data_size: 1024,
             };
