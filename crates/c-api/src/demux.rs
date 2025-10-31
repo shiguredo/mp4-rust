@@ -35,7 +35,7 @@ impl From<shiguredo_mp4::demux::TrackInfo> for Mp4DemuxTrackInfo {
         Self {
             track_id: track_info.track_id,
             kind: track_info.kind.into(),
-            duration: track_info.timescaled_duration,
+            duration: track_info.duration,
             timescale: track_info.timescale.get(),
         }
     }
@@ -108,8 +108,8 @@ impl Mp4DemuxSample {
             sample_entry,
             sample_entry_index: sample.sample_entry_index as u32,
             keyframe: sample.keyframe,
-            timestamp: sample.timescaled_timestamp,
-            duration: sample.timescaled_duration,
+            timestamp: sample.timestamp,
+            duration: sample.duration,
             data_offset: sample.data_offset,
             data_size: sample.data_size,
         }
