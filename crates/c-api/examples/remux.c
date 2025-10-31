@@ -176,7 +176,24 @@ int main(int argc, char *argv[]) {
         // 読み込むサイズを決定
         size_t read_size = BUFFER_SIZE;
         if (required_size > 0) {
+            // 特定のサイズが要求されている場合
             read_size = (size_t)required_size;
+        } else if (required_size == -1) {
+            // ファイル末尾までの読み込みが必要な場合
+            long current_pos = ftell(input_file);
+            fseek(input_file, 0, SEEK_END);
+            long file_size = ftell(input_file);
+            fseek(input_file, required_position, SEEK_SET);
+
+            read_size = file_size - required_position;
+        }
+
+        // バッファサイズを超えていたらエラーにする
+        // （実際には、許容可能な範囲内ならバッファをリサイズすべき）
+        if (read_size > BUFFER_SIZE) {
+            fprintf(stderr, "Error: read_size (%zu) exceeds BUFFER_SIZE (%zu). \n",
+                    read_size, (size_t)BUFFER_SIZE);
+            goto cleanup;
         }
 
         size_t bytes_read = fread(read_buffer, 1, read_size, input_file);

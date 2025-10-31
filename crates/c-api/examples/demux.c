@@ -187,8 +187,11 @@ int main(int argc, char *argv[]) {
 
             read_size = file_size - required_position;
         }
-        if ((size_t)read_size > BUFFER_SIZE) {
-            fprintf(stderr, "エラー: read_size (%zu) が BUFFER_SIZE (%zu) を超えています\n",
+
+        // バッファサイズを超えていたらエラーにする
+        // （実際には、許容可能な範囲内ならバッファをリサイズすべき）
+        if (read_size > BUFFER_SIZE) {
+            fprintf(stderr, "Error: read_size (%zu) exceeds BUFFER_SIZE (%zu). \n",
                     read_size, (size_t)BUFFER_SIZE);
             break;
         }
