@@ -35,7 +35,8 @@
 //!     track_kind: TrackKind::Video,
 //!     sample_entry: Some(sample_entry),
 //!     keyframe: true,
-//!     duration: Duration::from_millis(33),
+//!     timescale: 30,
+//!     duration: 1,
 //!     data_offset: initial_bytes.len() as u64,
 //!     data_size: sample_data.len(),
 //! };
