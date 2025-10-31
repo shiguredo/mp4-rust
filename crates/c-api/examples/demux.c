@@ -1,3 +1,25 @@
+// MP4 ファイルをデマルチプレックスして、メディアトラックとサンプル情報を表示する例
+//
+// このプログラムは、MP4 ファイルをデマルチプレックスして、含まれるメディアトラックとサンプルの情報を表示する
+//
+// # ビルド
+//
+//
+// ```bash
+// # mp4-rust のプロジェクトルートで libmp4.a をビルド
+// cargo build
+//
+// # demux.c をコンパイル
+// cc -o target/debug/demux \
+//    -I crates/c-api/include/ \
+//    crates/c-api/examples/demux.c \
+//    target/debug/libmp4.a
+// ```
+//
+// # 実行方法
+// ```bash
+// ./target/debug/demux /path/to/MP4_FILE
+// ```
 #include "mp4.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,6 +27,7 @@
 
 #define BUFFER_SIZE (1024 * 1024)  // 1MB のバッファサイズ
 
+// トラック種別を文字列に変換
 const char *get_track_kind_name(enum Mp4TrackKind kind) {
     switch (kind) {
         case MP4_TRACK_KIND_AUDIO:
@@ -16,6 +39,7 @@ const char *get_track_kind_name(enum Mp4TrackKind kind) {
     }
 }
 
+// サンプルエントリー種別を文字列に変換
 const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
     switch (kind) {
         case MP4_SAMPLE_ENTRY_KIND_AVC1:
@@ -37,6 +61,7 @@ const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
     }
 }
 
+// サンプルエントリー情報を表示
 void print_sample_entry_info(const struct Mp4SampleEntry *sample_entry) {
     printf("    Codec: %s\n", get_sample_entry_kind_name(sample_entry->kind));
 
@@ -102,6 +127,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // デマルチプレックサーを作成
     struct Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
     if (!demuxer) {
         fprintf(stderr, "Error: Could not create demuxer\n");
@@ -109,6 +135,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // 入力バッファを割り当て
     uint8_t *buffer = (uint8_t *)malloc(BUFFER_SIZE);
     if (!buffer) {
         fprintf(stderr, "Error: Could not allocate buffer\n");
@@ -122,6 +149,7 @@ int main(int argc, char *argv[]) {
         uint64_t required_position;
         int32_t required_size;
 
+        // 次に必要な入力データの位置とサイズを取得
         enum Mp4Error err =
             mp4_file_demuxer_get_required_input(demuxer, &required_position, &required_size);
         if (err != MP4_ERROR_OK) {
@@ -133,8 +161,8 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        // 必要なデータサイズが 0 の場合は初期化完了
         if (required_size == 0) {
-            // 初期化完了
             break;
         }
 
@@ -144,6 +172,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        // 読み込むサイズを決定
         size_t read_size = BUFFER_SIZE;
         if (required_size > 0) {
             read_size = (size_t)required_size;
@@ -155,10 +184,11 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        // デマルチプレックサーにデータを入力
         mp4_file_demuxer_handle_input(demuxer, required_position, buffer, (uint32_t)bytes_read);
     }
 
-    // トラック情報を取得して表示
+    // トラック情報を取得
     const struct Mp4DemuxTrackInfo *tracks;
     uint32_t track_count;
 
@@ -177,6 +207,7 @@ int main(int argc, char *argv[]) {
 
     printf("Found %u track(s)\n\n", track_count);
 
+    // トラック情報を表示
     for (uint32_t i = 0; i < track_count; i++) {
         printf("Track %u:\n", i + 1);
         printf("  Track ID: %u\n", tracks[i].track_id);
@@ -192,6 +223,7 @@ int main(int argc, char *argv[]) {
     printf("Samples:\n");
     struct Mp4DemuxSample sample;
 
+    // 時系列順にサンプルを取得
     while (true) {
         err = mp4_file_demuxer_next_sample(demuxer, &sample);
 
@@ -218,8 +250,8 @@ int main(int argc, char *argv[]) {
         printf("    Data offset: 0x%lx\n", sample.data_offset);
         printf("    Data size: %lu bytes\n", sample.data_size);
 
+        // 最初のサンプルのエントリ情報を表示
         if (sample_count == 1) {
-            // 最初のサンプルのエントリ情報を表示
             print_sample_entry_info(sample.sample_entry);
         }
 
@@ -238,6 +270,7 @@ int main(int argc, char *argv[]) {
 
     printf("Total: %u samples, %u keyframes\n", sample_count, keyframe_count);
 
+    // リソースを解放
     free(buffer);
     mp4_file_demuxer_free(demuxer);
     fclose(file);
