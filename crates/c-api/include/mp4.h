@@ -713,12 +713,9 @@ typedef struct Mp4DemuxSample {
  *     uint32_t output_size;
  *     const uint8_t *output_data;
  *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
- *         if (output_size > 0) {
- *             fseek(fp, output_offset, SEEK_SET);
- *             fwrite(output_data, 1, output_size, fp);
- *         } else {
- *             break;
- *         }
+ *         if (output_size == 0) break;
+ *         fseek(fp, output_offset, SEEK_SET);
+ *         fwrite(output_data, 1, output_size, fp);
  *     }
  *
  *     // 5. サンプルを追加
@@ -778,12 +775,9 @@ typedef struct Mp4DemuxSample {
  *
  *     // 7. ファイナライズ後のボックスデータをファイルに書き込む
  *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
- *         if (output_size > 0) {
- *             fseek(fp, output_offset, SEEK_SET);
- *             fwrite(output_data, 1, output_size, fp);
- *         } else {
- *             break;
- *         }
+ *         if (output_size == 0) break;
+ *         fseek(fp, output_offset, SEEK_SET);
+ *         fwrite(output_data, 1, output_size, fp);
  *     }
  *
  *     // 8. リソース解放
