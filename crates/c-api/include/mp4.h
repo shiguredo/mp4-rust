@@ -754,7 +754,8 @@ typedef struct Mp4DemuxSample {
  *         .track_kind = MP4_TRACK_KIND_VIDEO,
  *         .sample_entry = &sample_entry,
  *         .keyframe = true,
- *         .duration_micros = 33333,  // ~30 fps
+ *         .timescale = 30,  // 30 fps
+ *         .duration = 1,
  *         .data_offset = output_offset + output_size,
  *         .data_size = sizeof(video_sample_data),
  *     };
@@ -845,6 +846,7 @@ typedef struct Mp4MuxSample {
    * このポイントから復号（再生）を開始できることを意味する
    */
   bool keyframe;
+  uint32_t timescale;
   /**
    * サンプルの尺（マイクロ秒単位）
    *
@@ -873,7 +875,7 @@ typedef struct Mp4MuxSample {
    * プレイヤーの対応がまちまちであるため `Mp4FileMuxer` では現状サポートしておらず、
    * 上述のような個々のプレイヤーの実装への依存性が低い方法を推奨している
    */
-  uint64_t duration_micros;
+  uint32_t duration;
   /**
    * 出力ファイル内におけるサンプルデータの開始位置（バイト単位）
    */

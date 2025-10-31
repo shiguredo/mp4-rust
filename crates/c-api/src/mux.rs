@@ -1,7 +1,7 @@
 //! ../../../src/mux.rs の C API を定義するためのモジュール
 use std::{
     ffi::{CString, c_char},
-    time::Duration,
+    num::NonZeroU32,
 };
 
 use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
@@ -49,6 +49,9 @@ pub struct Mp4MuxSample {
     /// このポイントから復号（再生）を開始できることを意味する
     pub keyframe: bool,
 
+    // TODO: doc
+    pub timescale: u32,
+
     /// サンプルの尺（マイクロ秒単位）
     ///
     /// # 時間単位について
@@ -75,7 +78,7 @@ pub struct Mp4MuxSample {
     /// なお、MP4 の枠組みでもギャップを表現するためのボックスは存在するが
     /// プレイヤーの対応がまちまちであるため `Mp4FileMuxer` では現状サポートしておらず、
     /// 上述のような個々のプレイヤーの実装への依存性が低い方法を推奨している
-    pub duration_micros: u64,
+    pub duration: u32,
 
     /// 出力ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
@@ -182,7 +185,8 @@ struct Output {
 ///         .track_kind = MP4_TRACK_KIND_VIDEO,
 ///         .sample_entry = &sample_entry,
 ///         .keyframe = true,
-///         .duration_micros = 33333,  // ~30 fps
+///         .timescale = 30,  // 30 fps
+///         .duration = 1,
 ///         .data_offset = output_offset + output_size,
 ///         .data_size = sizeof(video_sample_data),
 ///     };
@@ -733,7 +737,10 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     }
     let sample = unsafe { &*sample };
 
-    let duration = Duration::from_micros(sample.duration_micros);
+    let Some(timescale) = NonZeroU32::new(sample.timescale) else {
+        muxer.set_last_error("[mp4_file_muxer_append_sample] TODO");
+        return Mp4Error::MP4_ERROR_INVALID_INPUT;
+    };
     let sample_entry = if sample.sample_entry.is_null() {
         None
     } else {
@@ -757,7 +764,8 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
         track_kind: sample.track_kind.into(),
         sample_entry,
         keyframe: sample.keyframe,
-        duration,
+        timescale,
+        duration: sample.duration,
         data_offset: sample.data_offset,
         data_size: sample.data_size as usize,
     };

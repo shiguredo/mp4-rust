@@ -16,6 +16,7 @@
 #define VIDEO_WIDTH 1920
 #define VIDEO_HEIGHT 1080
 #define SAMPLE_DURATION_MICROS 33333  // ~30 fps
+#define TIMESCALE 1000000  // マイクロ秒
 
 // テスト用のダミーサンプルデータ構造体
 typedef struct {
@@ -136,7 +137,8 @@ int main(void) {
             .track_kind = MP4_TRACK_KIND_VIDEO,
             .sample_entry = (i == 0) ? &sample_entry : NULL,  // 最初のサンプルのみ sample_entry を指定
             .keyframe = true,
-            .duration_micros = sample->duration,
+            .timescale = TIMESCALE,
+            .duration = sample->duration,
             .data_offset = sample_offset,
             .data_size = sample->data_size,
         };

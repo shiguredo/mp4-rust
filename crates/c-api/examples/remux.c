@@ -280,9 +280,8 @@ int main(int argc, char *argv[]) {
             .track_kind = demux_sample.track->kind,
             .sample_entry = demux_sample.sample_entry,
             .keyframe = demux_sample.keyframe,
-            // マイクロ秒単位の尺に変換
-            .duration_micros = (uint64_t)demux_sample.duration * 1000000 /
-                               demux_sample.track->timescale,
+            .timescale = demux_sample.track->timescale,
+            .duration = demux_sample.duration,
             .data_offset = current_output_data_offset,
             .data_size = (uint32_t)demux_sample.data_size,
         };
