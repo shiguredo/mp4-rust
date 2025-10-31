@@ -628,11 +628,12 @@ impl Mp4FileMuxer {
         }
 
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
+        let (timescale, duration) = self.calculate_total_duration();
         let mvhd_box = MvhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: NonZeroU32::MIN.saturating_add(1_000_000 - 1), // ここはマイクロ秒単位固定にする
-            duration: self.calculate_total_duration_micros(),
+            timescale,
+            duration,
             rate: MvhdBox::DEFAULT_RATE,
             volume: MvhdBox::DEFAULT_VOLUME,
             matrix: MvhdBox::DEFAULT_MATRIX,
@@ -878,22 +879,28 @@ impl Mp4FileMuxer {
         }
     }
 
-    fn calculate_total_duration_micros(&self) -> u64 {
-        let audio_duration = Duration::from_secs(
-            self.audio_chunks
-                .iter()
-                .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
-                .sum::<u64>(),
-        ) / self.audio_track_timescale.get();
+    fn calculate_total_duration(&self) -> (NonZeroU32, u64) {
+        let audio_duration = self
+            .audio_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
+        let video_duration = self
+            .video_chunks
+            .iter()
+            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+            .sum::<u64>();
 
-        let video_duration = Duration::from_secs(
-            self.video_chunks
-                .iter()
-                .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
-                .sum::<u64>(),
-        ) / self.video_track_timescale.get();
+        let normalized_audio_duration =
+            Duration::from_secs(audio_duration) / self.audio_track_timescale.get();
+        let normalized_video_duration =
+            Duration::from_secs(video_duration) / self.video_track_timescale.get();
 
-        audio_duration.max(video_duration).as_micros() as u64
+        if normalized_audio_duration < normalized_video_duration {
+            (self.video_track_timescale, video_duration)
+        } else {
+            (self.audio_track_timescale, audio_duration)
+        }
     }
 }
 
