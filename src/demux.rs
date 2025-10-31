@@ -35,7 +35,7 @@
 //!              sample.track.track_id, sample.timestamp, sample.data_size);
 //!     // sample.data_offset の位置から sample.data_size バイトのサンプルデータにアクセス
 //!     let sample_data = &file_data[sample.data_offset as usize..
-//!                                   sample.data_offset as usize + sample.data_size];
+//!                                  sample.data_offset as usize + sample.data_size];
 //!     // sample_data を処理...
 //! }
 //! ```
@@ -87,10 +87,10 @@ pub struct Sample<'a> {
     /// キーフレームであるかの判定
     pub keyframe: bool,
 
-    /// サンプルのタイムスタンプ（タイムスケール単位）
+    /// サンプルのタイムスタンプ（トラックのタイムスケール単位）
     pub timestamp: u64,
 
-    /// サンプルの尺（タイムスケール単位）
+    /// サンプルの尺（トラックのタイムスケール単位）
     pub duration: u32,
 
     /// ファイル内におけるサンプルデータの開始位置（バイト単位）

@@ -185,10 +185,23 @@ pub struct Sample {
     /// キーフレームかどうか
     pub keyframe: bool,
 
-    /// TODO: doc
+    /// サンプルのタイムスケール（時間単位）
+    ///
+    /// `duration` フィールドの値は、このタイムスケール単位での長さを表す
+    ///
+    /// # Examples
+    ///
+    /// - 映像サンプル（30 fps）: `timescale = 30` なら `duration = 1` は 1/30 秒
+    /// - 音声サンプル（48 kHz）: `timescale = 48000` なら `duration = 1920` は 1920/48000 秒
+    ///
+    /// # NOTE
+    ///
+    /// 同じトラック内のすべてのサンプルは同じタイムスケール値を使用する必要がある
+    ///
+    /// 異なるタイムスケール値を指定すると [`MuxError::TimescaleMismatch`] エラーが発生する
     pub timescale: NonZeroU32,
 
-    /// サンプルの尺
+    /// サンプルの尺（タイムスケール単位）
     ///
     /// # NOTE
     ///
@@ -244,8 +257,10 @@ pub enum MuxError {
     TimescaleMismatch {
         /// 不一致が発生したトラック種別
         track_kind: TrackKind,
+
         /// 期待されたタイムスケール
         expected: NonZeroU32,
+
         /// 実際に提供されたタイムスケール
         actual: NonZeroU32,
     },
