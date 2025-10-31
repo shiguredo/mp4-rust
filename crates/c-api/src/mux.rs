@@ -768,7 +768,51 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     }
 }
 
-/// TODO: Add Japanese API doc
+/// MP4 ファイルのマルチプレックス処理を完了する
+///
+/// この関数は、それまでに追加されたすべてのサンプルの情報を用いて、
+/// MP4 ファイルの再生に必要なメタデータ（moov ボックス）を構築し、
+/// ファイルの最終的な形式を確定する
+///
+/// マルチプレックス処理が完了すると、ファイルに書き込むべき最終的な出力データが
+/// `mp4_file_muxer_next_output()` で取得できるようになる
+///
+/// # 引数
+///
+/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常にマルチプレックス処理が完了した
+/// - `MP4_ERROR_NULL_POINTER`: `muxer` が NULL である
+/// - `MP4_ERROR_INVALID_STATE`: マルチプレックスが初期化されていないか、既にファイナライズ済み
+/// - `MP4_ERROR_OUTPUT_REQUIRED`: 前回の呼び出しで生成された出力データが未処理（`mp4_file_muxer_next_output()` で取得されていない）
+/// - その他のエラー: マルチプレックス処理の完了に失敗した場合
+///
+/// エラーが発生した場合は、`mp4_file_muxer_get_last_error()` でエラーメッセージを取得できる
+///
+/// # 使用例
+///
+/// ```c
+/// // マルチプレックス処理を完了
+/// Mp4Error ret = mp4_file_muxer_finalize(muxer);
+/// if (ret != MP4_ERROR_OK) {
+///     fprintf(stderr, "ファイナライズ失敗: %s\n",
+///             mp4_file_muxer_get_last_error(muxer));
+///     return 1;
+/// }
+///
+/// // ファイナライズ後のデータをファイルに書き込む
+/// uint64_t offset;
+/// uint32_t size;
+/// const uint8_t *data;
+/// while (mp4_file_muxer_next_output(muxer, &offset, &size, &data) == MP4_ERROR_OK) {
+///     if (size == 0) break;
+///     fseek(fp, offset, SEEK_SET);
+///     fwrite(data, 1, size, fp);
+/// }
+/// ```
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp4Error {
     if muxer.is_null() {
