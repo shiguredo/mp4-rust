@@ -23,12 +23,12 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 - 依存ライブラリ 0 で実現しています
 - `no_std` 環境で利用ができます
   - <https://docs.rust-embedded.org/book/intro/no-std.html>
-
-## ロードマップ
-
 - sans I/O 化
 - 高レベル API の提供
 - C 互換 API の提供
+
+## ロードマップ
+
 - AV2 のサポート
 - Fragmented MP4 のサポート
 
