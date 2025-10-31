@@ -183,6 +183,9 @@ pub struct Sample {
     /// キーフレームかどうか
     pub keyframe: bool,
 
+    /// TODO: doc
+    pub timescale: NonZeroU32,
+
     /// サンプルの尺
     ///
     /// # NOTE
@@ -202,7 +205,7 @@ pub struct Sample {
     /// なお、MP4 の枠組みでもギャップを表現するためのボックスは存在するが
     /// プレイヤーの対応がまちまちであるため [`Mp4FileMuxer`] では現状サポートしておらず、
     /// 上述のような個々のプレイヤーの実装への依存性が低い方法を推奨している。
-    pub duration: Duration,
+    pub duration: u32,
 
     /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
@@ -234,16 +237,6 @@ pub enum MuxError {
 
     /// マルチプレックスが既にファイナライズ済み
     AlreadyFinalized,
-
-    /// サンプルの尺が最大値を超過している
-    ///
-    /// MP4 ファイル形式では、サンプルの尺（duration）を u32 の値で表現し、
-    /// [`Mp4FileMuxer`] のタイムスケールはマイクロ秒単位であるため、
-    /// およそ 4,294 秒（約 71 分）を超えるサンプルの尺は表現できない。
-    SampleDurationOverflow {
-        /// 超過したサンプルの尺
-        duration: Duration,
-    },
 }
 
 impl From<Error> for MuxError {
@@ -278,13 +271,6 @@ impl core::fmt::Display for MuxError {
             }
             MuxError::AlreadyFinalized => {
                 write!(f, "Muxer has already been finalized")
-            }
-            MuxError::SampleDurationOverflow { duration } => {
-                write!(
-                    f,
-                    "Sample duration overflow: {} microseconds exceeds u32::MAX",
-                    duration.as_micros(),
-                )
             }
         }
     }
@@ -344,12 +330,11 @@ pub struct Mp4FileMuxer {
     finalized_boxes: Option<FinalizedBoxes>,
     audio_chunks: Vec<Chunk>,
     video_chunks: Vec<Chunk>,
+    audio_track_timescale: NonZeroU32,
+    video_track_timescale: NonZeroU32,
 }
 
 impl Mp4FileMuxer {
-    /// [`Mp4FileMuxer`] が構築する MP4 ファイル内で使用されるタイムスケール（マイクロ秒固定）
-    pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
-
     /// [`Mp4FileMuxer`] インスタンスを生成する
     pub fn new() -> Result<Self, MuxError> {
         Self::with_options(Mp4FileMuxerOptions::default())
@@ -367,6 +352,11 @@ impl Mp4FileMuxer {
             finalized_boxes: None,
             audio_chunks: Vec::new(),
             video_chunks: Vec::new(),
+
+            // 以下の値は、トラックの最初のサンプルを処理する際に、
+            // 実際の値で更新されるので、ここでは任意の初期値を指定しておけばいい
+            audio_track_timescale: NonZeroU32::MIN,
+            video_track_timescale: NonZeroU32::MIN,
         };
         this.build_initial_boxes()?;
         Ok(this)
@@ -445,13 +435,8 @@ impl Mp4FileMuxer {
             });
         }
 
-        let duration = u32::try_from(sample.duration.as_micros()).map_err(|_| {
-            MuxError::SampleDurationOverflow {
-                duration: sample.duration,
-            }
-        })?;
         let metadata = SampleMetadata {
-            duration,
+            duration: sample.duration,
             keyframe: sample.keyframe,
             size: sample.data_size as u32,
         };
@@ -459,8 +444,22 @@ impl Mp4FileMuxer {
         let is_new_chunk_needed = self.is_new_chunk_needed(sample);
 
         let chunks = match sample.track_kind {
-            TrackKind::Audio => &mut self.audio_chunks,
-            TrackKind::Video => &mut self.video_chunks,
+            TrackKind::Audio => {
+                if self.audio_chunks.is_empty() {
+                    self.audio_track_timescale = sample.timescale;
+                } else if self.audio_track_timescale != sample.timescale {
+                    todo!()
+                }
+                &mut self.audio_chunks
+            }
+            TrackKind::Video => {
+                if self.video_chunks.is_empty() {
+                    self.video_track_timescale = sample.timescale;
+                } else if self.video_track_timescale != sample.timescale {
+                    todo!()
+                }
+                &mut self.video_chunks
+            }
         };
 
         if is_new_chunk_needed {
@@ -582,8 +581,8 @@ impl Mp4FileMuxer {
         let mvhd_box = MvhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
-            duration: self.calculate_total_duration(),
+            timescale: NonZeroU32::MIN.saturating_add(1_000_000 - 1), // ここはマイクロ秒単位固定にする
+            duration: self.calculate_total_duration_micros(),
             rate: MvhdBox::DEFAULT_RATE,
             volume: MvhdBox::DEFAULT_VOLUME,
             matrix: MvhdBox::DEFAULT_MATRIX,
@@ -682,7 +681,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
+            timescale: self.audio_track_timescale,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -718,7 +717,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
+            timescale: self.video_track_timescale,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -829,20 +828,22 @@ impl Mp4FileMuxer {
         }
     }
 
-    fn calculate_total_duration(&self) -> u64 {
-        let audio_duration = self
-            .audio_chunks
-            .iter()
-            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
-            .sum::<u64>();
+    fn calculate_total_duration_micros(&self) -> u64 {
+        let audio_duration = Duration::from_secs(
+            self.audio_chunks
+                .iter()
+                .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+                .sum::<u64>(),
+        ) / self.audio_track_timescale.get();
 
-        let video_duration = self
-            .video_chunks
-            .iter()
-            .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
-            .sum::<u64>();
+        let video_duration = Duration::from_secs(
+            self.video_chunks
+                .iter()
+                .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
+                .sum::<u64>(),
+        ) / self.video_track_timescale.get();
 
-        audio_duration.max(video_duration)
+        audio_duration.max(video_duration).as_micros() as u64
     }
 }
 
