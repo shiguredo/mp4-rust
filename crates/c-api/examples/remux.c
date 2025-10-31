@@ -1,10 +1,34 @@
-#include "mp4.h"
+// MP4 ファイルをリマルチプレックスするサンプルプログラム
+//
+// 入力 MP4 ファイルを読み込んでデマルチプレックスし、
+// すべてのサンプルを新しい MP4 ファイルに書き直すプログラムである
+//
+// # ビルド
+//
+// ```bash
+// # mp4-rust のプロジェクトルートで libmp4.a をビルド
+// cargo build
+//
+// # remux.c をコンパイル
+// cc -o target/debug/remux \
+//    -I crates/c-api/include/ \
+//    crates/c-api/examples/remux.c \
+//    target/debug/libmp4.a
+// ```
+//
+// # 実行方法
+// ```bash
+// ./target/debug/remux /path/to/input.mp4 /path/to/output.mp4
+// ```
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define BUFFER_SIZE (1024 * 1024)  // 1MB buffer size
+#include "mp4.h"
 
+#define BUFFER_SIZE (1024 * 1024)  // 1MB のバッファサイズ
+
+// サンプルエントリー種別を文字列に変換
 const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
     switch (kind) {
         case MP4_SAMPLE_ENTRY_KIND_AVC1:
@@ -35,13 +59,14 @@ int main(int argc, char *argv[]) {
     const char *input_filepath = argv[1];
     const char *output_filepath = argv[2];
 
-    // ==================== DEMUXER SETUP ====================
+    // ==================== デマルチプレックサーのセットアップ ====================
     FILE *input_file = fopen(input_filepath, "rb");
     if (!input_file) {
         fprintf(stderr, "Error: Could not open input file '%s'\n", input_filepath);
         return 1;
     }
 
+    // デマルチプレックサーを作成
     struct Mp4FileDemuxer *demuxer = mp4_file_demuxer_new();
     if (!demuxer) {
         fprintf(stderr, "Error: Could not create demuxer\n");
@@ -49,6 +74,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // 読み込み用バッファを割り当て
     uint8_t *read_buffer = (uint8_t *)malloc(BUFFER_SIZE);
     if (!read_buffer) {
         fprintf(stderr, "Error: Could not allocate read buffer\n");
@@ -57,7 +83,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ==================== MUXER SETUP ====================
+    // ==================== マルチプレックサーのセットアップ ====================
     FILE *output_file = fopen(output_filepath, "wb");
     if (!output_file) {
         fprintf(stderr, "Error: Could not open output file '%s'\n", output_filepath);
@@ -67,6 +93,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // マルチプレックサーを作成
     struct Mp4FileMuxer *muxer = mp4_file_muxer_new();
     if (!muxer) {
         fprintf(stderr, "Error: Could not create muxer\n");
@@ -77,7 +104,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Initialize muxer
+    // マルチプレックサーを初期化
     enum Mp4Error err = mp4_file_muxer_initialize(muxer);
     if (err != MP4_ERROR_OK) {
         fprintf(stderr, "Error: Failed to initialize muxer: %d\n", err);
@@ -93,7 +120,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Write initial muxer output
+    // マルチプレックサーの初期出力データを書き込む
     uint64_t output_offset;
     uint32_t output_size;
     const uint8_t *output_data;
@@ -116,15 +143,16 @@ int main(int argc, char *argv[]) {
 
         printf("  Wrote %u bytes at offset %lu\n", output_size, output_offset);
 
-        // Track the current output data offset (where sample data should start)
+        // 次のサンプルデータの開始位置を追跡
         current_output_data_offset = output_offset + output_size;
     }
 
     printf("Sample data will start at offset: %lu\n\n", current_output_data_offset);
 
-    // ==================== DEMUX INPUT ====================
+    // ==================== 入力ファイルのデマルチプレックス ====================
     printf("Demuxing input file...\n");
 
+    // デマルチプレックサーが初期化完了するまで、必要なデータを読み込んで入力する
     while (true) {
         uint64_t required_position;
         int32_t required_size;
@@ -135,6 +163,7 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
+        // 必要なデータサイズが 0 の場合は初期化完了
         if (required_size == 0) {
             break;
         }
@@ -144,6 +173,7 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
+        // 読み込むサイズを決定
         size_t read_size = BUFFER_SIZE;
         if (required_size > 0) {
             read_size = (size_t)required_size;
@@ -155,11 +185,12 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
+        // デマルチプレックサーにデータを入力
         mp4_file_demuxer_handle_input(demuxer, required_position, read_buffer,
                                       (uint32_t)bytes_read);
     }
 
-    // Get track information
+    // トラック情報を取得
     const struct Mp4DemuxTrackInfo *tracks;
     uint32_t track_count;
 
@@ -171,12 +202,13 @@ int main(int argc, char *argv[]) {
 
     printf("Found %u track(s)\n\n", track_count);
 
-    // ==================== REMUX SAMPLES ====================
+    // ==================== サンプルのリマルチプレックス ====================
     printf("Remuxing samples...\n");
 
     uint32_t sample_count = 0;
     struct Mp4DemuxSample demux_sample;
 
+    // 時系列順にサンプルを処理
     while (true) {
         err = mp4_file_demuxer_next_sample(demuxer, &demux_sample);
 
@@ -193,21 +225,21 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        // Read sample data from input file and append the data to output file
-
-        // Seek to the sample data position in the input file
+        // 入力ファイルからサンプルデータを読み込む
         if (fseek(input_file, demux_sample.data_offset, SEEK_SET) != 0) {
-            fprintf(stderr, "Error: Could not seek to sample data offset %lu\n", demux_sample.data_offset);
+            fprintf(stderr, "Error: Could not seek to sample data offset %lu\n",
+                    demux_sample.data_offset);
             goto cleanup;
         }
 
-        // Read the sample data from input file
+        // サンプルデータ用のメモリを割り当て
         uint8_t *sample_data = (uint8_t *)malloc(demux_sample.data_size);
         if (!sample_data) {
             fprintf(stderr, "Error: Could not allocate memory for sample data\n");
             goto cleanup;
         }
 
+        // サンプルデータを読み込む
         size_t bytes_read = fread(sample_data, 1, demux_sample.data_size, input_file);
         if (bytes_read != demux_sample.data_size) {
             fprintf(stderr, "Error: Failed to read sample data (expected %zu bytes, got %zu)\n",
@@ -216,8 +248,9 @@ int main(int argc, char *argv[]) {
             goto cleanup;
         }
 
-        // Write the sample data to output file (append sequentially)
-        if (fwrite(sample_data, 1, demux_sample.data_size, output_file) != demux_sample.data_size) {
+        // サンプルデータを出力ファイルに追記
+        if (fwrite(sample_data, 1, demux_sample.data_size, output_file) !=
+            demux_sample.data_size) {
             fprintf(stderr, "Error: Failed to write sample data to output file\n");
             free(sample_data);
             goto cleanup;
@@ -225,18 +258,19 @@ int main(int argc, char *argv[]) {
 
         free(sample_data);
 
-        // Create mux sample from demux sample
+        // デマルチプレックスサンプルからマルチプレックスサンプルを構築
         struct Mp4MuxSample mux_sample = {
             .track_kind = demux_sample.track->kind,
             .sample_entry = demux_sample.sample_entry,
             .keyframe = demux_sample.keyframe,
+            // マイクロ秒単位の尺に変換
             .duration_micros = (uint64_t)demux_sample.duration * 1000000 /
                                demux_sample.track->timescale,
             .data_offset = current_output_data_offset,
             .data_size = (uint32_t)demux_sample.data_size,
         };
 
-        // Append sample to muxer
+        // マルチプレックサーにサンプルを追加
         err = mp4_file_muxer_append_sample(muxer, &mux_sample);
         if (err != MP4_ERROR_OK) {
             fprintf(stderr, "Error: Failed to append sample: %d\n", err);
@@ -249,7 +283,7 @@ int main(int argc, char *argv[]) {
 
         sample_count++;
 
-        // Update output offset for next sample
+        // 次のサンプルデータの開始位置を更新
         current_output_data_offset += demux_sample.data_size;
 
         if (sample_count % 100 == 0) {
@@ -259,7 +293,7 @@ int main(int argc, char *argv[]) {
 
     printf("Total samples processed: %u\n\n", sample_count);
 
-    // ==================== FINALIZE MUXER ====================
+    // ==================== マルチプレックサーの終了処理 ====================
     printf("Finalizing muxer...\n");
 
     err = mp4_file_muxer_finalize(muxer);
@@ -272,7 +306,7 @@ int main(int argc, char *argv[]) {
         goto cleanup;
     }
 
-    // Write final muxer output
+    // マルチプレックサーの最終出力データを書き込む
     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) ==
            MP4_ERROR_OK) {
         if (output_size == 0) break;
@@ -293,6 +327,7 @@ int main(int argc, char *argv[]) {
     printf("\nSuccessfully remuxed '%s' to '%s'\n", input_filepath, output_filepath);
 
 cleanup:
+    // リソースを解放
     mp4_file_muxer_free(muxer);
     fclose(output_file);
     free(read_buffer);

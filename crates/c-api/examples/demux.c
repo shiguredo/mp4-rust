@@ -20,10 +20,11 @@
 // ```bash
 // ./target/debug/demux /path/to/MP4_FILE
 // ```
-#include "mp4.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "mp4.h"
 
 #define BUFFER_SIZE (1024 * 1024)  // 1MB のバッファサイズ
 
