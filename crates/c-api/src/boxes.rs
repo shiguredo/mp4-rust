@@ -34,6 +34,13 @@ pub enum Mp4SampleEntryKind {
 pub enum Mp4SampleEntryOwned {
     Avc1 {
         inner: shiguredo_mp4::boxes::Avc1Box,
+
+        // [NOTE]
+        // 以下のフィールドは C 側に露出するポインタのアドレスが途中で変わらないようにするためのもので、
+        // 情報としては inner とサブセットとなっている
+        //
+        // inner および以下のフィールドが途中で更新されると
+        // C 側で保持されているポインタが不正になる可能性があるので注意
         sps_data: Vec<*const u8>,
         sps_sizes: Vec<u32>,
         pps_data: Vec<*const u8>,
@@ -41,6 +48,9 @@ pub enum Mp4SampleEntryOwned {
     },
     Hev1 {
         inner: shiguredo_mp4::boxes::Hev1Box,
+
+        // [NOTE]
+        // Avc1 のコメントを参照
         nalu_types: Vec<u8>,
         nalu_counts: Vec<u32>,
         nalu_data: Vec<*const u8>,
@@ -51,11 +61,17 @@ pub enum Mp4SampleEntryOwned {
     },
     Vp09 {
         inner: shiguredo_mp4::boxes::Vp09Box,
+
+        // [NOTE]
+        // Avc1 のコメントを参照
         codec_init_data: *const u8,
         codec_init_size: u32,
     },
     Av01 {
         inner: shiguredo_mp4::boxes::Av01Box,
+
+        // [NOTE]
+        // Avc1 のコメントを参照
         config_obus: Vec<u8>,
     },
     Opus {
@@ -63,6 +79,9 @@ pub enum Mp4SampleEntryOwned {
     },
     Mp4a {
         inner: shiguredo_mp4::boxes::Mp4aBox,
+
+        // [NOTE]
+        // Avc1 のコメントを参照
         dec_specific_info: Vec<u8>,
     },
 }

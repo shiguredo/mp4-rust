@@ -51,7 +51,7 @@ fn test_c_examples_compile() {
             .arg("-I")
             .arg(project_root.join("crates/c-api/include"))
             .status()
-            .expect(&format!("Failed to compile example: {}", c_file.display()));
+            .expect("Failed to execute cc command");
 
         assert!(
             status.success(),
