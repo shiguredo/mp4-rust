@@ -1,7 +1,7 @@
 //! ../../../src/mux.rs の C API を定義するためのモジュール
 use std::{
     ffi::{CString, c_char},
-    time::Duration,
+    num::NonZeroU32,
 };
 
 use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
@@ -16,7 +16,8 @@ use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
 ///     .track_kind = MP4_TRACK_KIND_VIDEO,
 ///     .sample_entry = &avc1_entry,
 ///     .keyframe = true,
-///     .duration_micros = 33333,  // 33.333 ms (30 fps の場合)
+///     .timescale = 30,
+///     .duration = 1,  // 30 FPS
 ///     .data_offset = 1024,
 ///     .data_size = 4096,
 /// };
@@ -26,7 +27,8 @@ use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
 ///     .track_kind = MP4_TRACK_KIND_AUDIO,
 ///     .sample_entry = &opus_entry,
 ///     .keyframe = true,  // 音声では通常は常に true
-///     .duration_micros = 20000,  // 20 ms
+///     .timescale = 1000,
+///     .duration = 20,  // 20 ms
 ///     .data_offset = 5120,
 ///     .data_size = 256,
 /// };
@@ -49,14 +51,24 @@ pub struct Mp4MuxSample {
     /// このポイントから復号（再生）を開始できることを意味する
     pub keyframe: bool,
 
-    /// サンプルの尺（マイクロ秒単位）
+    /// サンプルのタイムスケール（時間単位）
     ///
-    /// # 時間単位について
+    /// `duration` フィールドの値は、このタイムスケール単位での長さを表す
     ///
-    /// MP4 ファイル自体の仕様では、任意の時間単位が指定できるが
-    /// `Mp4FileMuxer` では、簡単のためにマイクロ秒固定となっている
+    /// # Examples
     ///
-    /// TODO: 別 PR でマイクロ秒固定はやめる
+    /// - 映像サンプル（30 fps）: `timescale = 30` なら `duration = 1` は 1/30 秒
+    /// - 音声サンプル（48 kHz）: `timescale = 48000` なら `duration = 1920` は 1920/48000 秒
+    ///
+    /// # NOTE
+    ///
+    /// 同じトラック内のすべてのサンプルは同じタイムスケール値を使用する必要がある
+    ///
+    /// 異なるタイムスケール値を指定すると
+    /// `mp4_file_muxer_append_sample()` 呼び出し時に `MP4_ERROR_INVALID_INPUT` エラーが発生する
+    pub timescale: u32,
+
+    /// サンプルの尺（タイムスケール単位）
     ///
     /// # サンプルのタイムスタンプについて
     ///
@@ -75,7 +87,7 @@ pub struct Mp4MuxSample {
     /// なお、MP4 の枠組みでもギャップを表現するためのボックスは存在するが
     /// プレイヤーの対応がまちまちであるため `Mp4FileMuxer` では現状サポートしておらず、
     /// 上述のような個々のプレイヤーの実装への依存性が低い方法を推奨している
-    pub duration_micros: u64,
+    pub duration: u32,
 
     /// 出力ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
@@ -141,12 +153,9 @@ struct Output {
 ///     uint32_t output_size;
 ///     const uint8_t *output_data;
 ///     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
-///         if (output_size > 0) {
-///             fseek(fp, output_offset, SEEK_SET);
-///             fwrite(output_data, 1, output_size, fp);
-///         } else {
-///             break;
-///         }
+///         if (output_size == 0) break;
+///         fseek(fp, output_offset, SEEK_SET);
+///         fwrite(output_data, 1, output_size, fp);
 ///     }
 ///
 ///     // 5. サンプルを追加
@@ -182,7 +191,8 @@ struct Output {
 ///         .track_kind = MP4_TRACK_KIND_VIDEO,
 ///         .sample_entry = &sample_entry,
 ///         .keyframe = true,
-///         .duration_micros = 33333,  // ~30 fps
+///         .timescale = 30,  // 30 fps
+///         .duration = 1,
 ///         .data_offset = output_offset + output_size,
 ///         .data_size = sizeof(video_sample_data),
 ///     };
@@ -205,12 +215,9 @@ struct Output {
 ///
 ///     // 7. ファイナライズ後のボックスデータをファイルに書き込む
 ///     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
-///         if (output_size > 0) {
-///             fseek(fp, output_offset, SEEK_SET);
-///             fwrite(output_data, 1, output_size, fp);
-///         } else {
-///             break;
-///         }
+///         if (output_size == 0) break;
+///         fseek(fp, output_offset, SEEK_SET);
+///         fwrite(output_data, 1, output_size, fp);
 ///     }
 ///
 ///     // 8. リソース解放
@@ -698,7 +705,8 @@ pub unsafe extern "C" fn mp4_file_muxer_next_output(
 ///     .track_kind = MP4_TRACK_KIND_VIDEO,
 ///     .sample_entry = &sample_entry,
 ///     .keyframe = true,
-///     .duration_micros = 33333,  // 30 fps の場合
+///     .timescale = 30,
+///     .duration = 1,  // 30 FPS
 ///     .data_offset = output_offset,
 ///     .data_size = sizeof(sample_data),
 /// };
@@ -733,7 +741,10 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     }
     let sample = unsafe { &*sample };
 
-    let duration = Duration::from_micros(sample.duration_micros);
+    let Some(timescale) = NonZeroU32::new(sample.timescale) else {
+        muxer.set_last_error("[mp4_file_muxer_append_sample] Timescale must be greater than 0");
+        return Mp4Error::MP4_ERROR_INVALID_INPUT;
+    };
     let sample_entry = if sample.sample_entry.is_null() {
         None
     } else {
@@ -757,7 +768,8 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
         track_kind: sample.track_kind.into(),
         sample_entry,
         keyframe: sample.keyframe,
-        duration,
+        timescale,
+        duration: sample.duration,
         data_offset: sample.data_offset,
         data_size: sample.data_size as usize,
     };

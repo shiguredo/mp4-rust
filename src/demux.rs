@@ -25,17 +25,17 @@
 //! let tracks = demuxer.tracks().expect("トラック取得失敗");
 //! println!("{}個のトラックが見つかりました", tracks.len());
 //! for track in tracks {
-//!     println!("トラックID: {}, 種類: {:?}, 尺: {:?}",
-//!              track.track_id, track.kind, track.duration());
+//!     println!("トラックID: {}, 種類: {:?}, 尺: {}, タイムスケール: {}",
+//!              track.track_id, track.kind, track.duration, track.timescale);
 //! }
 //!
 //! // 時系列順にサンプルを抽出する
 //! while let Some(sample) = demuxer.next_sample().expect("サンプル読み込み失敗") {
-//!     println!("サンプル - トラックID: {}, タイムスタンプ: {:?}, サイズ: {} バイト",
-//!              sample.track.track_id, sample.timestamp(), sample.data_size);
+//!     println!("サンプル - トラックID: {}, タイムスタンプ: {}, サイズ: {} バイト",
+//!              sample.track.track_id, sample.timestamp, sample.data_size);
 //!     // sample.data_offset の位置から sample.data_size バイトのサンプルデータにアクセス
 //!     let sample_data = &file_data[sample.data_offset as usize..
-//!                                   sample.data_offset as usize + sample.data_size];
+//!                                  sample.data_offset as usize + sample.data_size];
 //!     // sample_data を処理...
 //! }
 //! ```
@@ -60,22 +60,12 @@ pub struct TrackInfo {
     pub kind: TrackKind,
 
     /// トラックの尺（タイムスケール単位）
-    pub timescaled_duration: u64,
+    ///
+    /// 秒単位の尺は、この値を `timescale` で割ることで求められる
+    pub duration: u64,
 
     /// トラックで使用されているタイムスケール
     pub timescale: NonZeroU32,
-}
-
-impl TrackInfo {
-    /// トラックの尺を [`Duration`] 形式で返す
-    ///
-    /// # NOTE
-    ///
-    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
-    /// もしそれが問題となる場合は `timescaled_duration` および `timescale` フィールドを直接参照すること
-    pub fn duration(&self) -> Duration {
-        Duration::from_secs(self.timescaled_duration) / self.timescale.get()
-    }
 }
 
 /// MP4 ファイルから抽出されたメディアサンプルを表す構造体
@@ -99,39 +89,23 @@ pub struct Sample<'a> {
     /// キーフレームであるかの判定
     pub keyframe: bool,
 
-    /// サンプルのタイムスタンプ（タイムスケール単位）
-    pub timescaled_timestamp: u64,
+    /// サンプルのタイムスタンプ（トラックのタイムスケール単位）
+    ///
+    /// 秒単位のタイムスタンプは、この値を `track.timescale` で割ることで求められる
+    ///
+    /// なお、この値は「同じトラック内の前方に位置するサンプルの尺の累積値」を計算することで求めらている
+    pub timestamp: u64,
 
-    /// サンプルの尺（タイムスケール単位）
-    pub timescaled_duration: u32,
+    /// サンプルの尺（トラックのタイムスケール単位）
+    ///
+    /// 秒単位の尺は、この値を `track.timescale` で割ることで求められる
+    pub duration: u32,
 
     /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
 
     /// サンプルデータのサイズ（バイト単位）
     pub data_size: usize,
-}
-
-impl Sample<'_> {
-    /// サンプルのタイムスタンプを [`Duration`] 形式で返す
-    ///
-    /// # NOTE
-    ///
-    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
-    /// もしそれが問題となる場合は `timescaled_timestamp` および `timescale` フィールドを直接参照すること
-    pub fn timestamp(&self) -> Duration {
-        Duration::from_secs(self.timescaled_timestamp) / self.track.timescale.get()
-    }
-
-    /// サンプルの尺を [`Duration`] 形式で返す
-    ///
-    /// # NOTE
-    ///
-    /// [`Duration`] に変換することによって、若干の誤差が生じる可能性があるため、
-    /// もしそれが問題となる場合は `timescaled_duration` および `timescale` フィールドを直接参照すること
-    pub fn duration(&self) -> Duration {
-        Duration::from_secs(self.timescaled_duration as u64) / self.track.timescale.get()
-    }
 }
 
 /// デマルチプレックスに必要な入力データの情報を表す構造体
@@ -449,7 +423,7 @@ impl Mp4FileDemuxer {
             self.track_infos.push(TrackInfo {
                 track_id,
                 kind,
-                timescaled_duration: trak_box.mdia_box.mdhd_box.duration,
+                duration: trak_box.mdia_box.mdhd_box.duration,
                 timescale,
             });
             self.tracks.push(TrackState {
@@ -518,8 +492,8 @@ impl Mp4FileDemuxer {
                 sample_entry: sample_accessor.chunk().sample_entry(),
                 sample_entry_index: sample_accessor.chunk().sample_entry_index(),
                 keyframe: sample_accessor.is_sync_sample(),
-                timescaled_timestamp: sample_accessor.timestamp(),
-                timescaled_duration: sample_accessor.duration(),
+                timestamp: sample_accessor.timestamp(),
+                duration: sample_accessor.duration(),
                 data_offset: sample_accessor.data_offset(),
                 data_size: sample_accessor.data_size() as usize,
             };
@@ -558,7 +532,7 @@ mod tests {
         let mut keyframe_count = 0;
         while let Some(sample) = demuxer.next_sample().expect("failed to read samples") {
             assert!(sample.data_size > 0);
-            assert!(sample.duration() > Duration::ZERO);
+            assert!(sample.duration > 0);
             sample_count += 1;
             if sample.keyframe {
                 keyframe_count += 1;

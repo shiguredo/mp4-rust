@@ -10,6 +10,7 @@
 //! ```no_run
 //! use std::fs::File;
 //! use std::io::{Write, Seek, SeekFrom};
+//! use std::num::NonZeroU32;
 //! use std::time::Duration;
 //!
 //! use shiguredo_mp4::mux::{Mp4FileMuxer, Sample};
@@ -35,7 +36,8 @@
 //!     track_kind: TrackKind::Video,
 //!     sample_entry: Some(sample_entry),
 //!     keyframe: true,
-//!     duration: Duration::from_millis(33),
+//!     timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+//!     duration: 1,
 //!     data_offset: initial_bytes.len() as u64,
 //!     data_size: sample_data.len(),
 //! };
@@ -183,7 +185,24 @@ pub struct Sample {
     /// キーフレームかどうか
     pub keyframe: bool,
 
-    /// サンプルの尺
+    /// サンプルのタイムスケール（時間単位）
+    ///
+    /// `duration` フィールドの値は、このタイムスケール単位での長さを表す
+    ///
+    /// # Examples
+    ///
+    /// - 映像サンプル（30 fps）: `timescale = 30` なら `duration = 1` は 1/30 秒
+    /// - 音声サンプル（48 kHz）: `timescale = 48000` なら `duration = 1920` は 1920/48000 秒
+    ///
+    /// # NOTE
+    ///
+    /// 同じトラック内のすべてのサンプルは同じタイムスケール値を使用する必要がある
+    ///
+    /// 異なるタイムスケール値を指定すると
+    /// [`Mp4FileMuxer::append_sample()`] 呼び出し時に [`MuxError::TimescaleMismatch`] エラーが発生する
+    pub timescale: NonZeroU32,
+
+    /// サンプルの尺（タイムスケール単位）
     ///
     /// # NOTE
     ///
@@ -202,7 +221,7 @@ pub struct Sample {
     /// なお、MP4 の枠組みでもギャップを表現するためのボックスは存在するが
     /// プレイヤーの対応がまちまちであるため [`Mp4FileMuxer`] では現状サポートしておらず、
     /// 上述のような個々のプレイヤーの実装への依存性が低い方法を推奨している。
-    pub duration: Duration,
+    pub duration: u32,
 
     /// ファイル内におけるサンプルデータの開始位置（バイト単位）
     pub data_offset: u64,
@@ -235,14 +254,16 @@ pub enum MuxError {
     /// マルチプレックスが既にファイナライズ済み
     AlreadyFinalized,
 
-    /// サンプルの尺が最大値を超過している
-    ///
-    /// MP4 ファイル形式では、サンプルの尺（duration）を u32 の値で表現し、
-    /// [`Mp4FileMuxer`] のタイムスケールはマイクロ秒単位であるため、
-    /// およそ 4,294 秒（約 71 分）を超えるサンプルの尺は表現できない。
-    SampleDurationOverflow {
-        /// 超過したサンプルの尺
-        duration: Duration,
+    /// 同じトラック内のタイムスケール値の不一致
+    TimescaleMismatch {
+        /// 不一致が発生したトラック種別
+        track_kind: TrackKind,
+
+        /// 期待されたタイムスケール
+        expected: NonZeroU32,
+
+        /// 実際に提供されたタイムスケール
+        actual: NonZeroU32,
     },
 }
 
@@ -279,11 +300,14 @@ impl core::fmt::Display for MuxError {
             MuxError::AlreadyFinalized => {
                 write!(f, "Muxer has already been finalized")
             }
-            MuxError::SampleDurationOverflow { duration } => {
+            MuxError::TimescaleMismatch {
+                track_kind,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
-                    "Sample duration overflow: {} microseconds exceeds u32::MAX",
-                    duration.as_micros(),
+                    "Timescale mismatch for {track_kind:?} track: expected {expected}, but got {actual}",
                 )
             }
         }
@@ -344,12 +368,11 @@ pub struct Mp4FileMuxer {
     finalized_boxes: Option<FinalizedBoxes>,
     audio_chunks: Vec<Chunk>,
     video_chunks: Vec<Chunk>,
+    audio_track_timescale: NonZeroU32,
+    video_track_timescale: NonZeroU32,
 }
 
 impl Mp4FileMuxer {
-    /// [`Mp4FileMuxer`] が構築する MP4 ファイル内で使用されるタイムスケール（マイクロ秒固定）
-    pub const TIMESCALE: NonZeroU32 = NonZeroU32::MIN.saturating_add(1_000_000 - 1);
-
     /// [`Mp4FileMuxer`] インスタンスを生成する
     pub fn new() -> Result<Self, MuxError> {
         Self::with_options(Mp4FileMuxerOptions::default())
@@ -367,6 +390,11 @@ impl Mp4FileMuxer {
             finalized_boxes: None,
             audio_chunks: Vec::new(),
             video_chunks: Vec::new(),
+
+            // 以下の値は、トラックの最初のサンプルを処理する際に、
+            // 実際の値で更新されるので、ここでは任意の初期値を指定しておけばいい
+            audio_track_timescale: NonZeroU32::MIN,
+            video_track_timescale: NonZeroU32::MIN,
         };
         this.build_initial_boxes()?;
         Ok(this)
@@ -445,13 +473,8 @@ impl Mp4FileMuxer {
             });
         }
 
-        let duration = u32::try_from(sample.duration.as_micros()).map_err(|_| {
-            MuxError::SampleDurationOverflow {
-                duration: sample.duration,
-            }
-        })?;
         let metadata = SampleMetadata {
-            duration,
+            duration: sample.duration,
             keyframe: sample.keyframe,
             size: sample.data_size as u32,
         };
@@ -459,8 +482,34 @@ impl Mp4FileMuxer {
         let is_new_chunk_needed = self.is_new_chunk_needed(sample);
 
         let chunks = match sample.track_kind {
-            TrackKind::Audio => &mut self.audio_chunks,
-            TrackKind::Video => &mut self.video_chunks,
+            TrackKind::Audio => {
+                // 最初のサンプルのタイムスケールをトラックのタイムスケールにする
+                if self.audio_chunks.is_empty() {
+                    self.audio_track_timescale = sample.timescale;
+                } else if self.audio_track_timescale != sample.timescale {
+                    return Err(MuxError::TimescaleMismatch {
+                        track_kind: TrackKind::Audio,
+                        expected: self.audio_track_timescale,
+                        actual: sample.timescale,
+                    });
+                }
+
+                &mut self.audio_chunks
+            }
+            TrackKind::Video => {
+                // 最初のサンプルのタイムスケールをトラックのタイムスケールにする
+                if self.video_chunks.is_empty() {
+                    self.video_track_timescale = sample.timescale;
+                } else if self.video_track_timescale != sample.timescale {
+                    return Err(MuxError::TimescaleMismatch {
+                        track_kind: TrackKind::Video,
+                        expected: self.video_track_timescale,
+                        actual: sample.timescale,
+                    });
+                }
+
+                &mut self.video_chunks
+            }
         };
 
         if is_new_chunk_needed {
@@ -579,11 +628,12 @@ impl Mp4FileMuxer {
         }
 
         let creation_time = Mp4FileTime::from_unix_time(self.options.creation_timestamp);
+        let (timescale, duration) = self.calculate_total_duration();
         let mvhd_box = MvhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
-            duration: self.calculate_total_duration(),
+            timescale,
+            duration,
             rate: MvhdBox::DEFAULT_RATE,
             volume: MvhdBox::DEFAULT_VOLUME,
             matrix: MvhdBox::DEFAULT_MATRIX,
@@ -682,7 +732,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
+            timescale: self.audio_track_timescale,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -718,7 +768,7 @@ impl Mp4FileMuxer {
         let mdhd_box = MdhdBox {
             creation_time,
             modification_time: creation_time,
-            timescale: Self::TIMESCALE,
+            timescale: self.video_track_timescale,
             duration: total_duration,
             language: MdhdBox::LANGUAGE_UNDEFINED,
         };
@@ -829,20 +879,28 @@ impl Mp4FileMuxer {
         }
     }
 
-    fn calculate_total_duration(&self) -> u64 {
+    fn calculate_total_duration(&self) -> (NonZeroU32, u64) {
         let audio_duration = self
             .audio_chunks
             .iter()
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
-
         let video_duration = self
             .video_chunks
             .iter()
             .flat_map(|c| c.samples.iter().map(|s| s.duration as u64))
             .sum::<u64>();
 
-        audio_duration.max(video_duration)
+        let normalized_audio_duration =
+            Duration::from_secs(audio_duration) / self.audio_track_timescale.get();
+        let normalized_video_duration =
+            Duration::from_secs(video_duration) / self.video_track_timescale.get();
+
+        if normalized_audio_duration < normalized_video_duration {
+            (self.video_track_timescale, video_duration)
+        } else {
+            (self.audio_track_timescale, audio_duration)
+        }
     }
 }
 
@@ -884,7 +942,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -897,7 +956,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: None,
             keyframe: false,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size + 1024,
             data_size: 512,
         };
@@ -921,7 +981,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size + 100, // 誤ったオフセット
             data_size: 1024,
         };
@@ -943,7 +1004,8 @@ mod tests {
             track_kind: TrackKind::Audio,
             sample_entry: None,
             keyframe: false,
-            duration: Duration::from_millis(20),
+            timescale: NonZeroU32::MIN.saturating_add(1000 - 1),
+            duration: 20,
             data_offset: initial_size,
             data_size: 512,
         };
@@ -965,7 +1027,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -979,7 +1042,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: None,
             keyframe: false,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size + 1024,
             data_size: 512,
         };
@@ -1000,7 +1064,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -1013,7 +1078,8 @@ mod tests {
             track_kind: TrackKind::Audio,
             sample_entry: Some(create_opus_sample_entry()),
             keyframe: false,
-            duration: Duration::from_millis(20),
+            timescale: NonZeroU32::MIN.saturating_add(1000 - 1),
+            duration: 20,
             data_offset: initial_size + 1024,
             data_size: 256,
         };
@@ -1040,7 +1106,8 @@ mod tests {
             track_kind: TrackKind::Video,
             sample_entry: Some(create_avc1_sample_entry()),
             keyframe: true,
-            duration: Duration::from_millis(33),
+            timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+            duration: 1,
             data_offset: initial_size,
             data_size: 1024,
         };
@@ -1064,7 +1131,8 @@ mod tests {
                 track_kind: TrackKind::Video,
                 sample_entry: sample_entry.take(),
                 keyframe: i % 2 == 0,
-                duration: Duration::from_millis(33),
+                timescale: NonZeroU32::MIN.saturating_add(30 - 1),
+                duration: 1,
                 data_offset: initial_size + (i as u64 * 1024),
                 data_size: 1024,
             };
