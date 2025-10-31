@@ -748,7 +748,7 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     let sample = unsafe { &*sample };
 
     let Some(timescale) = NonZeroU32::new(sample.timescale) else {
-        muxer.set_last_error("[mp4_file_muxer_append_sample] TODO");
+        muxer.set_last_error("[mp4_file_muxer_append_sample] Timescale must be greater than 0");
         return Mp4Error::MP4_ERROR_INVALID_INPUT;
     };
     let sample_entry = if sample.sample_entry.is_null() {
