@@ -13,7 +13,7 @@ fn test_simple_mux_demux() {
         lib_path.display()
     );
 
-    let c_file = project_root.join("tests/simple_mux_demux.c");
+    let c_file = project_root.join("crates/c-api/tests/simple_mux_demux.c");
     assert!(
         c_file.exists(),
         "simple_mux_demux.c not found at {}",
