@@ -237,6 +237,16 @@ pub enum MuxError {
 
     /// マルチプレックスが既にファイナライズ済み
     AlreadyFinalized,
+
+    /// 同じトラック内のタイムスケール値の不一致
+    TimescaleMismatch {
+        /// 不一致が発生したトラック種別
+        track_kind: TrackKind,
+        /// 期待されたタイムスケール
+        expected: NonZeroU32,
+        /// 実際に提供されたタイムスケール
+        actual: NonZeroU32,
+    },
 }
 
 impl From<Error> for MuxError {
@@ -271,6 +281,16 @@ impl core::fmt::Display for MuxError {
             }
             MuxError::AlreadyFinalized => {
                 write!(f, "Muxer has already been finalized")
+            }
+            MuxError::TimescaleMismatch {
+                track_kind,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Timescale mismatch for {track_kind:?} track: expected {expected}, but got {actual}",
+                )
             }
         }
     }
@@ -445,19 +465,31 @@ impl Mp4FileMuxer {
 
         let chunks = match sample.track_kind {
             TrackKind::Audio => {
+                // 最初のサンプルのタイムスケールをトラックのタイムスケールにする
                 if self.audio_chunks.is_empty() {
                     self.audio_track_timescale = sample.timescale;
                 } else if self.audio_track_timescale != sample.timescale {
-                    todo!()
+                    return Err(MuxError::TimescaleMismatch {
+                        track_kind: TrackKind::Audio,
+                        expected: self.audio_track_timescale,
+                        actual: sample.timescale,
+                    });
                 }
+
                 &mut self.audio_chunks
             }
             TrackKind::Video => {
+                // 最初のサンプルのタイムスケールをトラックのタイムスケールにする
                 if self.video_chunks.is_empty() {
                     self.video_track_timescale = sample.timescale;
                 } else if self.video_track_timescale != sample.timescale {
-                    todo!()
+                    return Err(MuxError::TimescaleMismatch {
+                        track_kind: TrackKind::Video,
+                        expected: self.video_track_timescale,
+                        actual: sample.timescale,
+                    });
                 }
+
                 &mut self.video_chunks
             }
         };
