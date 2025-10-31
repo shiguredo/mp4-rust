@@ -1351,13 +1351,110 @@ const char *mp4_file_muxer_get_last_error(const struct Mp4FileMuxer *muxer);
 enum Mp4Error mp4_file_muxer_set_reserved_moov_box_size(struct Mp4FileMuxer *muxer,
                                                         uint64_t size);
 
+/**
+ * MP4 ファイルのマルチプレックス処理を初期化する
+ *
+ * この関数は、`mp4_file_muxer_new()` で作成した `Mp4FileMuxer` インスタンスを初期化し、
+ * マルチプレックス処理を開始するための準備を行う
+ *
+ * 初期化によって生成された出力データは `mp4_file_muxer_next_output()` によって取得できる
+ *
+ * # 引数
+ *
+ * - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常に初期化された
+ * - `MP4_ERROR_NULL_POINTER`: `muxer` が NULL である
+ * - `MP4_ERROR_INVALID_STATE`: マルチプレックスが既に初期化済みである
+ * - その他のエラー: 初期化に失敗した場合
+ *
+ * エラーが発生した場合は、`mp4_file_muxer_get_last_error()` でエラーメッセージを取得できる
+ *
+ * # オプション指定
+ *
+ * 以下のオプションを指定する場合はは `mp4_file_muxer_initialize()` 呼び出し前に行う必要がある:
+ * - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に moov ボックスサイズを設定する
+ */
 enum Mp4Error mp4_file_muxer_initialize(struct Mp4FileMuxer *muxer);
 
+/**
+ * MP4 ファイルの構築に必要な次の出力データを取得する
+ *
+ * マルチプレックス処理中に生成される、MP4 ファイルに書き込むべきデータを取得する
+ *
+ * 出力データは複数ある可能性があるため、利用者はこの関数をループで呼び出す必要がある
+ *
+ * すべての出力データを取得し終えると、`out_output_size` に 0 が設定されて返る
+ *
+ * # 引数
+ *
+ * - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_output_offset`: 出力データをファイルに書き込むべき位置（バイト単位）を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_output_size`: 出力データのサイズ（バイト単位）を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *   - 0 が設定された場合は、すべてのデータを取得し終えたことを意味する
+ *
+ * - `out_output_data`: 出力データのバッファへのポインタを受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *   - 注意: 同じ `Mp4FileMuxer` インスタンスに対して別の関数呼び出しを行うと、このポインタの参照先が無効になる可能性がある
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常に出力データが取得された
+ * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ *
+ * # 使用例
+ *
+ * ```c
+ * FILE *fp = fopen("output.mp4", "wb");
+ * Mp4FileMuxer *muxer = mp4_file_muxer_new();
+ *
+ * // 初期化
+ * mp4_file_muxer_initialize(muxer);
+ *
+ * // 初期出力データをファイルに書き込む
+ * uint64_t output_offset;
+ * uint32_t output_size;
+ * const uint8_t *output_data;
+ * while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
+ *     if (output_size == 0) break;  // すべてのデータを取得し終えた
+ *
+ *     // 指定された位置にデータを書き込む
+ *     fseek(fp, output_offset, SEEK_SET);
+ *     fwrite(output_data, 1, output_size, fp);
+ * }
+ *
+ * // サンプルを追加（省略）...
+ *
+ * // ファイナライズ
+ * mp4_file_muxer_finalize(muxer);
+ *
+ * // ファイナライズ後の出力データをファイルに書き込む
+ * while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
+ *     if (output_size == 0) break;
+ *     fseek(fp, output_offset, SEEK_SET);
+ *     fwrite(output_data, 1, output_size, fp);
+ * }
+ *
+ * mp4_file_muxer_free(muxer);
+ * fclose(fp);
+ * ```
+ */
 enum Mp4Error mp4_file_muxer_next_output(struct Mp4FileMuxer *muxer,
                                          uint64_t *out_output_offset,
                                          uint32_t *out_output_size,
                                          const uint8_t **out_output_data);
 
+/**
+ * TODO: Add Japanese API doc
+ */
 enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
                                            const struct Mp4MuxSample *sample);
 
