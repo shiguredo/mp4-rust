@@ -55,8 +55,7 @@ fn test_c_examples_compile() {
 
         assert!(
             status.success(),
-            "Compilation failed for example: {}",
-            example_name
+            "Compilation failed for example: {example_name}"
         );
     }
 }
