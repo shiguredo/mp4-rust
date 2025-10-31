@@ -97,7 +97,6 @@ struct Output {
 /// - `mp4_file_muxer_new()`: `Mp4FileMuxer` インスタンスを生成する
 /// - `mp4_file_muxer_free()`: リソースを解放する
 /// - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に事前確保する moov ボックスのサイズを設定する
-/// - `mp4_file_muxer_set_creation_timestamp()`: ファイル作成時刻を設定する
 /// - `mp4_file_muxer_initialize()`: マルチプレックス処理を初期化する
 /// - `mp4_file_muxer_append_sample()`: サンプルを追加する
 /// - `mp4_file_muxer_next_output()`: 出力データを取得する
@@ -127,7 +126,6 @@ struct Output {
 ///
 ///     // 2. オプション設定（必要に応じて）
 ///     mp4_file_muxer_set_reserved_moov_box_size(muxer, 8192);
-///     mp4_file_muxer_set_creation_timestamp(muxer, 0);  // 0 = UNIX エポック
 ///
 ///     // 3. マルチプレックス処理を初期化
 ///     Mp4Error ret = mp4_file_muxer_initialize(muxer);
@@ -291,7 +289,6 @@ pub extern "C" fn mp4_estimate_maximum_moov_box_size(
 /// - `mp4_file_muxer_free()`: インスタンスを破棄してリソースを解放する
 /// - `mp4_file_muxer_initialize()`: マルチプレックス処理を初期化する
 /// - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に moov ボックスサイズを設定する
-/// - `mp4_file_muxer_set_creation_timestamp()`: ファイル作成時刻を設定する
 ///
 /// # 使用例
 ///
@@ -470,42 +467,6 @@ pub unsafe extern "C" fn mp4_file_muxer_set_reserved_moov_box_size(
 
     let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
     muxer.options.reserved_moov_box_size = size as usize;
-
-    Mp4Error::MP4_ERROR_OK
-}
-
-/// MP4 ファイル作成時刻を設定する
-///
-/// この関数は、構築される MP4 ファイル内のメタデータ（mvhd ボックスおよび tkhd ボックス）に
-/// 記録されるファイル作成時刻を指定する
-///
-/// # 引数
-///
-/// - `muxer`: `Mp4FileMuxer` インスタンスへのポインタ
-///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
-/// - `timestamp_secs`: ファイル作成時刻（秒単位）
-///   - UNIX エポック（1970年1月1日 00:00:00 UTC）からの経過時間を指定する
-///
-/// # 戻り値
-///
-/// - `MP4_ERROR_OK`: 正常に設定された
-/// - `MP4_ERROR_NULL_POINTER`: `muxer` が NULL である
-///
-/// # 注意
-///
-/// この関数の呼び出しは `mp4_file_muxer_initialize()` の前に行う必要があり、
-/// 初期化後の呼び出しは効果がない
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_file_muxer_set_creation_timestamp(
-    muxer: *mut Mp4FileMuxer,
-    timestamp_secs: u64,
-) -> Mp4Error {
-    if muxer.is_null() {
-        return Mp4Error::MP4_ERROR_NULL_POINTER;
-    }
-
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
-    muxer.options.creation_timestamp = Duration::from_secs(timestamp_secs);
 
     Mp4Error::MP4_ERROR_OK
 }
