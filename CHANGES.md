@@ -11,6 +11,13 @@
 
 ## develop
 
+- [ADD] C 言語バインディングを追加する
+  - MP4 ファイルのマルチプレックス・デマルチプレックス機能を C 言語から利用するための API を提供する `crates/c-api/` を追加した
+    - このクレートは別の Rust ライブラリ から利用されることを想定していないため、crates-io には登録しない
+  - `mp4_file_demuxer_*` 関数群により、MP4 ファイルの読み込みと時系列順のサンプル抽出が可能になった
+  - `mp4_file_muxer_*` 関数群により、複数のメディアトラックからサンプルを統合して MP4 ファイルを構築できるようになった
+  - サンプルプログラム（`examples/demux.c`, `examples/remux.c`）とテストプログラム（`tests/simple_mux_demux.c`）を追加した
+  - @sile
 - [CHANGE] `MdatBox::is_variable_size` フィールドを削除する
   -  4 GB までのペイロードしか扱えず中途半端だったので、`MdatBox` 構造体から `is_variable_size` フィールドを削除した
   - 今後は可変長ペイロードを表現する場合は、`MdatBox` ではなく [`BoxHeader`] を直接使用する必要がある

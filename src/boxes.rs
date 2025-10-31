@@ -2029,13 +2029,13 @@ impl SampleEntry {
     /// 解像度を取得する
     ///
     /// 映像の場合は (幅, 高さ)、音声の場合は None を返す
-    pub fn video_resolution(&self) -> Option<(u32, u32)> {
+    pub fn video_resolution(&self) -> Option<(u16, u16)> {
         match self {
-            Self::Avc1(b) => Some((b.visual.width as u32, b.visual.height as u32)),
-            Self::Hev1(b) => Some((b.visual.width as u32, b.visual.height as u32)),
-            Self::Vp08(b) => Some((b.visual.width as u32, b.visual.height as u32)),
-            Self::Vp09(b) => Some((b.visual.width as u32, b.visual.height as u32)),
-            Self::Av01(b) => Some((b.visual.width as u32, b.visual.height as u32)),
+            Self::Avc1(b) => Some((b.visual.width, b.visual.height)),
+            Self::Hev1(b) => Some((b.visual.width, b.visual.height)),
+            Self::Vp08(b) => Some((b.visual.width, b.visual.height)),
+            Self::Vp09(b) => Some((b.visual.width, b.visual.height)),
+            Self::Av01(b) => Some((b.visual.width, b.visual.height)),
             _ => None,
         }
     }

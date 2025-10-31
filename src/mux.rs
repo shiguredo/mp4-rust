@@ -102,7 +102,7 @@ pub struct Mp4FileMuxerOptions {
     /// ファイル全体をロードする必要がなくなり、再生開始までの時間が短くなることが期待できる。
     ///
     /// なお、実際の moov ボックスのサイズがここで指定した値よりも大きい場合は、
-    /// moov ボックスはファイル末尾に配置され、faststart 形式は無効になります。
+    /// moov ボックスはファイル末尾に配置され、faststart 形式は無効になる。
     ///
     /// デフォルト値は 0（faststart は常に無効となる）。
     pub reserved_moov_box_size: usize,
@@ -641,7 +641,7 @@ impl Mp4FileMuxer {
             .video_chunks
             .iter()
             .filter_map(|c| c.sample_entry.video_resolution())
-            .fold((0u32, 0u32), |(max_w, max_h), (w, h)| {
+            .fold((0u16, 0u16), |(max_w, max_h), (w, h)| {
                 (max_w.max(w), max_h.max(h))
             });
 
