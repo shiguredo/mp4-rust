@@ -10,6 +10,7 @@
 //! ```no_run
 //! use std::fs::File;
 //! use std::io::{Write, Seek, SeekFrom};
+//! use std::num::NonZeroU32;
 //! use std::time::Duration;
 //!
 //! use shiguredo_mp4::mux::{Mp4FileMuxer, Sample};
@@ -35,7 +36,7 @@
 //!     track_kind: TrackKind::Video,
 //!     sample_entry: Some(sample_entry),
 //!     keyframe: true,
-//!     timescale: 30,
+//!     timescale: NonZeroU32::MIN.saturating_add(30 - 1),
 //!     duration: 1,
 //!     data_offset: initial_bytes.len() as u64,
 //!     data_size: sample_data.len(),
