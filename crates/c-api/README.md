@@ -11,7 +11,46 @@ C 言語用のヘッダファイルは [`include/mp4.h`](./include/mp4.h) にあ
 
 ### ビルド済みライブラリを使用する方法
 
-TODO: GitHub Release を利用する方法を書く
+[mp4-rust の Releases ページ](https://github.com/shiguredo/mp4-rust/releases) から、お使いのプラットフォームに対応したアーカイブをダウンロードしてください。
+
+```bash
+# 例: macOS の場合
+#
+# NOTE: VERSION 環境は変数は実際に値に適宜置き換えてください
+wget https://github.com/shiguredo/mp4-rust/releases/download/$VERSION/mp4-$VERSION_macos-26_arm64.tar.gz
+
+# アーカイブを展開
+tar zxvf mp4-$VERSION_macos-26_arm64.tar.gz
+```
+
+展開後のディレクトリ構造は以下の通りです:
+
+```
+mp4-$VERSION_macos-26_arm64/
+├── include/
+│   └── mp4.h
+└── lib/
+    ├── libmp4.a       （静的ライブラリ）
+    └── libmp4.dylib   （動的ライブラリ）
+```
+
+ダウンロード済みの静的ライブラリを使用してサンプルプログラムをビルドします。
+
+```bash
+# demux.c をビルドおよび実行
+cc -o demux \
+   -I mp4-$VERSION_macos-26_arm64/include/ \
+   mp4-$VERSION_macos-26_arm64/lib/libmp4.a \
+   crates/c-api/examples/demux.c
+./demux /path/to/sample.mp4
+
+# remux.c をビルドおよび実行
+cc -o remux \
+   -I mp4-$VERSION_macos-26_arm64/include/ \
+   mp4-$VERSION_macos-26_arm64/lib/libmp4.a \
+   crates/c-api/examples/remux.c
+./remux /path/to/input.mp4 /path/to/output.mp4
+```
 
 ### ライブラリを自前でビルドする方法
 
