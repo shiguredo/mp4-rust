@@ -499,20 +499,23 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
-    match demuxer.inner.tracks() {
-        Ok(tracks) => {
-            demuxer.tracks = tracks.iter().map(|t| t.clone().into()).collect();
-            unsafe {
-                *out_tracks = demuxer.tracks.as_ptr();
-                *out_track_count = demuxer.tracks.len() as u32;
+    if demuxer.tracks.is_empty() {
+        match demuxer.inner.tracks() {
+            Ok(tracks) => {
+                demuxer.tracks = tracks.iter().map(|t| t.clone().into()).collect();
             }
-            Mp4Error::MP4_ERROR_OK
-        }
-        Err(e) => {
-            demuxer.set_last_error(&format!("[mp4_file_demuxer_get_tracks] {e}"));
-            e.into()
+            Err(e) => {
+                demuxer.set_last_error(&format!("[mp4_file_demuxer_get_tracks] {e}"));
+                return e.into();
+            }
         }
     }
+
+    unsafe {
+        *out_tracks = demuxer.tracks.as_ptr();
+        *out_track_count = demuxer.tracks.len() as u32;
+    }
+    Mp4Error::MP4_ERROR_OK
 }
 
 /// MP4 ファイルから時系列順に次のメディアサンプルを取得する
@@ -574,6 +577,14 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
     demuxer: *mut Mp4FileDemuxer,
     out_sample: *mut Mp4DemuxSample,
 ) -> Mp4Error {
+    // 最初に mp4_file_demuxer_get_tracks() を呼んで、demuxer.tracks が確実に初期化されているようにする
+    let mut tracks_ptr: *const Mp4DemuxTrackInfo = std::ptr::null();
+    let mut track_count: u32 = 0;
+    let result = unsafe { mp4_file_demuxer_get_tracks(demuxer, &mut tracks_ptr, &mut track_count) };
+    if !matches!(result, Mp4Error::MP4_ERROR_OK) {
+        return result;
+    }
+
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
