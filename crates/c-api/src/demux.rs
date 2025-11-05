@@ -57,14 +57,10 @@ pub struct Mp4DemuxSample {
 
     /// サンプルの詳細情報（コーデック設定など）へのポインタ
     ///
+    /// 値が NULL の場合は「サンプルエントリーの内容が前のサンプルと同じ」であることを意味する
+    ///
     /// このポインタの参照先には `Mp4FileDemuxer` インスタンスが有効な間のみアクセス可能である
     pub sample_entry: *const Mp4SampleEntry,
-
-    /// トラック内でユニークなサンプルエントリーのインデックス番号
-    ///
-    /// この値を使用して、複数のサンプルが同じコーデック設定を使用しているかどうかを
-    /// 簡単に判定できる
-    pub sample_entry_index: u32,
 
     /// このサンプルがキーフレームであるかの判定
     ///
@@ -101,12 +97,13 @@ impl Mp4DemuxSample {
     pub fn new(
         sample: shiguredo_mp4::demux::Sample<'_>,
         track: &Mp4DemuxTrackInfo,
-        sample_entry: &Mp4SampleEntry,
+        sample_entry: Option<&Mp4SampleEntry>,
     ) -> Self {
         Self {
             track,
-            sample_entry,
-            sample_entry_index: sample.sample_entry_index as u32,
+            sample_entry: sample_entry
+                .map(|x| x as *const _)
+                .unwrap_or(std::ptr::null()),
             keyframe: sample.keyframe,
             timestamp: sample.timestamp,
             duration: sample.duration,
@@ -608,30 +605,29 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
                 return Mp4Error::MP4_ERROR_INVALID_STATE;
             };
 
-            let sample_entry_box_type = sample.sample_entry.box_type();
-            let sample_entry = if let Some(entry) = demuxer
-                .sample_entries
-                .iter()
-                .find_map(|entry| (entry.0 == *sample.sample_entry).then_some(&entry.2))
-            {
-                entry
-            } else {
-                let Some(entry_owned) = Mp4SampleEntryOwned::new(sample.sample_entry.clone())
-                else {
-                    demuxer.set_last_error(&format!(
+            let sample_entry = if let Some(sample_entry) = sample.sample_entry {
+                let sample_entry_box_type = sample_entry.box_type();
+                if let Some(entry) = demuxer
+                    .sample_entries
+                    .iter()
+                    .find_map(|entry| (entry.0 == *sample_entry).then_some(&entry.2))
+                {
+                    Some(&**entry)
+                } else {
+                    let Some(entry_owned) = Mp4SampleEntryOwned::new(sample_entry.clone()) else {
+                        demuxer.set_last_error(&format!(
                         "[mp4_file_demuxer_next_sample] Unsupported sample entry box type: {sample_entry_box_type}",
                     ));
-                    return Mp4Error::MP4_ERROR_UNSUPPORTED;
-                };
-                let entry = Box::new(entry_owned.to_mp4_sample_entry());
-                demuxer
-                    .sample_entries
-                    .push((sample.sample_entry.clone(), entry_owned, entry));
-                demuxer
-                    .sample_entries
-                    .last()
-                    .map(|entry| &entry.2)
-                    .expect("infallible")
+                        return Mp4Error::MP4_ERROR_UNSUPPORTED;
+                    };
+                    let entry = Box::new(entry_owned.to_mp4_sample_entry());
+                    demuxer
+                        .sample_entries
+                        .push((sample_entry.clone(), entry_owned, entry));
+                    demuxer.sample_entries.last().map(|entry| &*entry.2)
+                }
+            } else {
+                None
             };
 
             unsafe {
