@@ -893,6 +893,15 @@ typedef struct Mp4MuxSample {
 } Mp4MuxSample;
 
 /**
+ * ライブラリのバージョンを取得する
+ *
+ * # 戻り値
+ *
+ * バージョン文字列へのポインタ（NULL終端）
+ */
+const char *mp4_library_version(void);
+
+/**
  * 新しい `Mp4FileDemuxer` インスタンスを作成して、それへのポインタを返す
  *
  * この関数が返したポインタは、使用後に `mp4_file_demuxer_free()` で破棄する必要がある
