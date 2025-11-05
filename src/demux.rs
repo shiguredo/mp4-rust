@@ -485,10 +485,19 @@ impl Mp4FileDemuxer {
             let sample_accessor = track.table.get_sample(sample_index).expect("bug");
             let sample_entry = sample_accessor.chunk().sample_entry();
             let sample_entry_index = sample_accessor.chunk().sample_entry_index();
-            let is_new_sample_entry = track
-                .current_sample_entry
-                .as_ref()
-                .is_none_or(|(i, entry)| *i != sample_entry_index || entry != sample_entry);
+            let is_new_sample_entry =
+                track
+                    .current_sample_entry
+                    .as_ref()
+                    .is_none_or(|(i, entry)| {
+                        // サンプルエントリーの内容が変わっている場合には true を返す
+                        if *i == sample_entry_index {
+                            // インデックスが等しい場合には、内容も常に等しい
+                            // (この条件分岐がなくても判定結果は変わらないが、最適化のために入れている）
+                            return false;
+                        }
+                        entry != sample_entry
+                    });
             if is_new_sample_entry {
                 track.current_sample_entry = Some((sample_entry_index, sample_entry.clone()));
             }
