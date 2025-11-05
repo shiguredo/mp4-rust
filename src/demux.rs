@@ -172,7 +172,6 @@ struct TrackState {
     table: SampleTableAccessor<StblBox>,
     timescale: NonZeroU32,
     next_sample_index: NonZeroU32,
-    current_sample_entry: Option<(usize, SampleEntry)>, // 第一要素はインデックス
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
@@ -427,7 +426,6 @@ impl Mp4FileDemuxer {
                 table,
                 timescale,
                 next_sample_index: NonZeroU32::MIN,
-                current_sample_entry: None,
             })
         }
 
@@ -485,22 +483,24 @@ impl Mp4FileDemuxer {
             let sample_accessor = track.table.get_sample(sample_index).expect("bug");
             let sample_entry = sample_accessor.chunk().sample_entry();
             let sample_entry_index = sample_accessor.chunk().sample_entry_index();
-            let is_new_sample_entry =
-                track
-                    .current_sample_entry
-                    .as_ref()
-                    .is_none_or(|(i, entry)| {
-                        // サンプルエントリーの内容が変わっている場合には true を返す
-                        if *i == sample_entry_index {
-                            // インデックスが等しい場合には、内容も常に等しい
-                            // (この条件分岐がなくても判定結果は変わらないが、最適化のために入れている）
-                            return false;
-                        }
-                        entry != sample_entry
-                    });
-            if is_new_sample_entry {
-                track.current_sample_entry = Some((sample_entry_index, sample_entry.clone()));
-            }
+
+            // サンプルエントリーに変更があるかどうかをチェックする
+            // NOTE: 将来的にシークに対応する場合には、シーク直後は常に新規扱いにする必要がある
+            let is_new_sample_entry = if let Some(prev_sample_index) =
+                NonZeroU32::new(sample_index.get() - 1)
+            {
+                let prev_sample_accessor = track.table.get_sample(prev_sample_index).expect("bug");
+                if prev_sample_accessor.chunk().sample_entry_index() == sample_entry_index {
+                    // サンプルエントリーのインデックスが等しい場合には、内容も常に等しい
+                    false
+                } else {
+                    prev_sample_accessor.chunk().sample_entry() != sample_entry
+                }
+            } else {
+                // 最初のサンプル
+                true
+            };
+
             let sample = Sample {
                 track: &self.track_infos[track_index],
                 sample_entry: is_new_sample_entry.then_some(sample_entry),
