@@ -61,11 +61,6 @@ pub enum Mp4SampleEntryOwned {
     },
     Vp09 {
         inner: shiguredo_mp4::boxes::Vp09Box,
-
-        // [NOTE]
-        // Avc1 のコメントを参照
-        codec_init_data: *const u8,
-        codec_init_size: u32,
     },
     Av01 {
         inner: shiguredo_mp4::boxes::Av01Box,
@@ -137,15 +132,7 @@ impl Mp4SampleEntryOwned {
                 })
             }
             shiguredo_mp4::boxes::SampleEntry::Vp08(inner) => Some(Self::Vp08 { inner }),
-            shiguredo_mp4::boxes::SampleEntry::Vp09(inner) => {
-                let codec_init_data = inner.vpcc_box.codec_initialization_data.as_ptr();
-                let codec_init_size = inner.vpcc_box.codec_initialization_data.len() as u32;
-                Some(Self::Vp09 {
-                    inner,
-                    codec_init_data,
-                    codec_init_size,
-                })
-            }
+            shiguredo_mp4::boxes::SampleEntry::Vp09(inner) => Some(Self::Vp09 { inner }),
             shiguredo_mp4::boxes::SampleEntry::Av01(inner) => {
                 let config_obus = inner.av1c_box.config_obus.clone();
                 Some(Self::Av01 { inner, config_obus })
@@ -274,11 +261,7 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { vp08 },
                 }
             }
-            Self::Vp09 {
-                inner,
-                codec_init_data,
-                codec_init_size,
-            } => {
+            Self::Vp09 { inner } => {
                 let vp09 = Mp4SampleEntryVp09 {
                     width: inner.visual.width,
                     height: inner.visual.height,
@@ -290,8 +273,6 @@ impl Mp4SampleEntryOwned {
                     colour_primaries: inner.vpcc_box.colour_primaries,
                     transfer_characteristics: inner.vpcc_box.transfer_characteristics,
                     matrix_coefficients: inner.vpcc_box.matrix_coefficients,
-                    codec_initialization_data: *codec_init_data,
-                    codec_initialization_data_size: *codec_init_size,
                 };
                 Mp4SampleEntry {
                     kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09,
@@ -815,13 +796,6 @@ impl Mp4SampleEntryVp08 {
 ///     printf("プロファイル: %d\n", vp09->profile);
 ///     printf("レベル: %d\n", vp09->level);
 ///     printf("ビット深度: %d\n", vp09->bit_depth);
-///
-///     // コーデック初期化データにアクセス
-///     if (vp09->codec_initialization_data_size > 0) {
-///         const uint8_t *init_data = vp09->codec_initialization_data;
-///         uint32_t init_size = vp09->codec_initialization_data_size;
-///         // 初期化データを処理...
-///     }
 /// }
 /// ```
 #[derive(Clone, Copy)]
@@ -837,27 +811,10 @@ pub struct Mp4SampleEntryVp09 {
     pub colour_primaries: u8,
     pub transfer_characteristics: u8,
     pub matrix_coefficients: u8,
-    pub codec_initialization_data: *const u8,
-    pub codec_initialization_data_size: u32,
 }
 
 impl Mp4SampleEntryVp09 {
     fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
-        let codec_initialization_data = if self.codec_initialization_data_size > 0 {
-            if self.codec_initialization_data.is_null() {
-                return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
-            }
-            unsafe {
-                std::slice::from_raw_parts(
-                    self.codec_initialization_data,
-                    self.codec_initialization_data_size as usize,
-                )
-                .to_vec()
-            }
-        } else {
-            Vec::new()
-        };
-
         let vpcc_box = shiguredo_mp4::boxes::VpccBox {
             profile: self.profile,
             level: self.level,
@@ -867,7 +824,8 @@ impl Mp4SampleEntryVp09 {
             colour_primaries: self.colour_primaries,
             transfer_characteristics: self.transfer_characteristics,
             matrix_coefficients: self.matrix_coefficients,
-            codec_initialization_data,
+            // VP9 では以下の値は常に固定値
+            codec_initialization_data: Vec::new(),
         };
         let vp09_box = shiguredo_mp4::boxes::Vp09Box {
             visual: create_visual_sample_entry_fields(self.width, self.height),

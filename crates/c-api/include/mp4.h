@@ -352,13 +352,6 @@ typedef struct Mp4SampleEntryVp08 {
  *     printf("プロファイル: %d\n", vp09->profile);
  *     printf("レベル: %d\n", vp09->level);
  *     printf("ビット深度: %d\n", vp09->bit_depth);
- *
- *     // コーデック初期化データにアクセス
- *     if (vp09->codec_initialization_data_size > 0) {
- *         const uint8_t *init_data = vp09->codec_initialization_data;
- *         uint32_t init_size = vp09->codec_initialization_data_size;
- *         // 初期化データを処理...
- *     }
  * }
  * ```
  */
@@ -373,8 +366,6 @@ typedef struct Mp4SampleEntryVp09 {
   uint8_t colour_primaries;
   uint8_t transfer_characteristics;
   uint8_t matrix_coefficients;
-  const uint8_t *codec_initialization_data;
-  uint32_t codec_initialization_data_size;
 } Mp4SampleEntryVp09;
 
 /**
