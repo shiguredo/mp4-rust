@@ -78,13 +78,9 @@ pub struct Sample<'a> {
     pub track: &'a TrackInfo,
 
     /// サンプルの詳細情報
-    pub sample_entry: &'a SampleEntry,
-
-    /// トラック内でユニークな `SampleEntry` のインデックス番号
     ///
-    /// この値の比較を行うことで、
-    /// 複数の `Sample` が同じサンプルエントリーを参照しているかどうかを簡単に調べることができる
-    pub sample_entry_index: usize,
+    /// 前のサンプルから変更がない場合には None になる（最初のサンプルは常に Some となる）
+    pub sample_entry: Option<&'a SampleEntry>,
 
     /// キーフレームであるかの判定
     pub keyframe: bool,
@@ -174,8 +170,9 @@ impl<'a> Input<'a> {
 #[derive(Debug)]
 struct TrackState {
     table: SampleTableAccessor<StblBox>,
-    next_sample_index: NonZeroU32,
     timescale: NonZeroU32,
+    next_sample_index: NonZeroU32,
+    current_sample_entry: Option<(usize, SampleEntry)>, // 第一要素はインデックス
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
@@ -428,8 +425,9 @@ impl Mp4FileDemuxer {
             });
             self.tracks.push(TrackState {
                 table,
-                next_sample_index: NonZeroU32::MIN,
                 timescale,
+                next_sample_index: NonZeroU32::MIN,
+                current_sample_entry: None,
             })
         }
 
@@ -483,14 +481,20 @@ impl Mp4FileDemuxer {
                     DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
                 })?;
 
-            let sample_accessor = self.tracks[track_index]
-                .table
-                .get_sample(sample_index)
-                .expect("bug");
+            let track = &mut self.tracks[track_index];
+            let sample_accessor = track.table.get_sample(sample_index).expect("bug");
+            let sample_entry = sample_accessor.chunk().sample_entry();
+            let sample_entry_index = sample_accessor.chunk().sample_entry_index();
+            let is_new_sample_entry = track
+                .current_sample_entry
+                .as_ref()
+                .is_none_or(|(i, entry)| *i != sample_entry_index || entry != sample_entry);
+            if is_new_sample_entry {
+                track.current_sample_entry = Some((sample_entry_index, sample_entry.clone()));
+            }
             let sample = Sample {
                 track: &self.track_infos[track_index],
-                sample_entry: sample_accessor.chunk().sample_entry(),
-                sample_entry_index: sample_accessor.chunk().sample_entry_index(),
+                sample_entry: is_new_sample_entry.then_some(sample_entry),
                 keyframe: sample_accessor.is_sync_sample(),
                 timestamp: sample_accessor.timestamp(),
                 duration: sample_accessor.duration(),
