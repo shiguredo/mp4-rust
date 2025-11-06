@@ -53,7 +53,7 @@ fn test_c_examples_compile() {
 
         // Windows のみ追加のライブラリをリンク
         #[cfg(target_os = "windows")]
-        cmd.arg("-lws2_32").arg("-lntdll");
+        cmd.arg("-lws2_32").arg("-lntdll").arg("-luserenv");
 
         let status = cmd.status().expect("Failed to execute cc command");
 
@@ -96,7 +96,7 @@ fn test_simple_mux_demux() {
 
     // Windows のみ追加のライブラリをリンク
     #[cfg(target_os = "windows")]
-    cmd.arg("-lws2_32").arg("-lntdll");
+    cmd.arg("-lws2_32").arg("-lntdll").arg("-luserenv");
 
     let status = cmd.status().expect("Failed to compile simple_mux_demux.c");
 
