@@ -18,10 +18,6 @@
   - `mp4_file_muxer_*` 関数群により、複数のメディアトラックからサンプルを統合して MP4 ファイルを構築できるようになった
   - サンプルプログラム（`examples/demux.c`, `examples/remux.c`）とテストプログラム（`tests/simple_mux_demux.c`）を追加した
   - @sile
-- [CHANGE] `MdatBox::is_variable_size` フィールドを削除する
-  -  4 GB までのペイロードしか扱えず中途半端だったので、`MdatBox` 構造体から `is_variable_size` フィールドを削除した
-  - 今後は可変長ペイロードを表現する場合は、`MdatBox` ではなく [`BoxHeader`] を直接使用する必要がある
-  - @sile
 - [ADD] MP4 ファイルのマルチプレックス機能を追加する
   - 複数のメディアトラック（音声・映像）からのサンプルを時系列順に統合して、MP4 ファイルを構築するための `mux` モジュールを追加した
   - 新しく追加された `Mp4FileMuxer` 構造体により、段階的にサンプルを追加して MP4 ファイルを構築できる
@@ -32,21 +28,24 @@
   - 新しく追加された `Mp4FileDemuxer` 構造体により、段階的にファイルデータを処理し、サンプルを順序付けて取得できる
   - I/O 操作に依存しない設計で、ファイル読み込みは利用側で実施する
   - @sile
-- [CHANGE] Error 構造体の std::io::Error への依存をなくす
-  - std::io モジュールへの依存をなくしたのに伴い、独自の ErrorKind enum を定義し、使用するようにした
+- [ADD] no_std 環境のサポートを追加する
+  - `default-features = false` を指定することで no_std 環境でも利用可能になった
+  - std 環境がデフォルトなので、既存のコードへの影響はない
+  - @voluntas
+- [CHANGE] `MdatBox::is_variable_size` フィールドを削除する
+  -  4 GB までのペイロードしか扱えず中途半端だったので、`MdatBox` 構造体から `is_variable_size` フィールドを削除した
+  - 今後は可変長ペイロードを表現する場合は、`MdatBox` ではなく [`BoxHeader`] を直接使用する必要がある
   - @sile
 - [CHANGE] IgnoredBox 構造体を削除する
   - この構造体は Decode トレイトの古い設計前提であったので、設計変更に伴い不要となった
   - @sile
-- [CHANGE] Encode および Decode トレイトを I/O に依存しない設計に変更する
-  - モチベーション: no_std / wasm / C API に対応する際に、I/O と密結合になっていると取り回しが難しいので、コア部分では I/O に依存しないようにする
+- [CHANGE] Error 構造体の std::io::Error への依存をなくす（sans-I/O 対応）
+  - std::io モジュールへの依存をなくしたのに伴い、独自の ErrorKind enum を定義し、使用するようにした
+  - @sile
+- [CHANGE] Encode および Decode トレイトを I/O に依存しない設計に変更する（sans-I/O 対応）
+  - モチベーション: no_std / wasm / C API に対応する際に、I/O と密結合になっていると取り回しが難しいので、mp4-rust レイヤーでは I/O に依存しないようにする
   - std::io::{Read, Write} に対してではなく、バッファ（&[u8]）に対して操作を行うように変更した
   - @sile
-- [ADD] no_std 環境のサポートを追加する
-  - `default-features = false` を指定することで no_std 環境でも利用可能になった
-  - no_std 環境では独自の I/O トレイトを使用し、alloc クレートに依存する
-  - std 環境がデフォルトなので、既存のコードへの影響はない
-  - @voluntas
 
 ## 2025.2.0
 
