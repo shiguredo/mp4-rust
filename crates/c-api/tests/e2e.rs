@@ -43,15 +43,19 @@ fn test_c_examples_compile() {
             .join(format!("{}", example_name));
 
         // C コンパイラでビルド
-        let status = Command::new("cc")
-            .arg(&c_file)
+        let mut cmd = Command::new("cc");
+        cmd.arg(&c_file)
             .arg("-o")
             .arg(&output_path)
             .arg(&lib_path)
             .arg("-I")
-            .arg(project_root.join("crates/c-api/include"))
-            .status()
-            .expect("Failed to execute cc command");
+            .arg(project_root.join("crates/c-api/include"));
+
+        // Windows のみ ws2_32 をリンク
+        #[cfg(target_os = "windows")]
+        cmd.arg("-lws2_32");
+
+        let status = cmd.status().expect("Failed to execute cc command");
 
         assert!(
             status.success(),
@@ -82,15 +86,19 @@ fn test_simple_mux_demux() {
     let output_path = project_root.join("target/debug").join("simple_mux_demux");
 
     // C ファイルをコンパイル
-    let status = Command::new("cc")
-        .arg(&c_file)
+    let mut cmd = Command::new("cc");
+    cmd.arg(&c_file)
         .arg("-o")
         .arg(&output_path)
         .arg(&lib_path)
         .arg("-I")
-        .arg(project_root.join("crates/c-api/include"))
-        .status()
-        .expect("Failed to compile simple_mux_demux.c");
+        .arg(project_root.join("crates/c-api/include"));
+
+    // Windows のみ ws2_32 をリンク
+    #[cfg(target_os = "windows")]
+    cmd.arg("-lws2_32");
+
+    let status = cmd.status().expect("Failed to compile simple_mux_demux.c");
 
     assert!(
         status.success(),
