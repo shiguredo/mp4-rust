@@ -55,6 +55,7 @@ jobs:
         uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
       - run: rustup default ${{ matrix.toolchain }}
+      - run: rustup show
 
       # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
       - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm
