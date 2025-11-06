@@ -68,6 +68,24 @@ jobs:
       - run: cargo build --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
       - run: cargo test --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
 
+      - name: Windows の場合には MSVC 系でもビルドだけは試す（テスト用の実行可能バイナリの作成は、MSVC 固有のパス解決処理が複雑になりすぎるので見送り）
+        if: contains(matrix.os, 'windows')
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo build --package c-api --target x86_64-pc-windows-msvc
+
+      - name: MSVC ビルド成果物の確認
+        if: contains(matrix.os, 'windows')
+        run: |
+          if (Test-Path "target/x86_64-pc-windows-msvc/debug/mp4.lib") {
+            Write-Host "mp4.lib が正常に生成されました"
+            ls -la target/x86_64-pc-windows-msvc/debug/mp4.lib
+          } else {
+            Write-Host "ERROR: mp4.lib が見つかりません"
+            exit 1
+          }
+        shell: pwsh
+
   lints:
     name: Lints
     strategy:
