@@ -73,18 +73,9 @@ jobs:
         run: |
           rustup target add x86_64-pc-windows-msvc
           cargo build --package c-api --target x86_64-pc-windows-msvc
-
       - name: MSVC ビルド成果物の確認
         if: contains(matrix.os, 'windows')
-        run: |
-          if (Test-Path "target/x86_64-pc-windows-msvc/debug/mp4.lib") {
-            Write-Host "mp4.lib が正常に生成されました"
-            dir target/x86_64-pc-windows-msvc/debug/mp4.lib
-          } else {
-            Write-Host "ERROR: mp4.lib が見つかりません"
-            exit 1
-          }
-        shell: pwsh
+        run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib || exit 1
 
   lints:
     name: Lints
