@@ -51,9 +51,9 @@ fn test_c_examples_compile() {
             .arg("-I")
             .arg(project_root.join("crates/c-api/include"));
 
-        // Windows のみ ws2_32 をリンク
+        // Windows のみ追加のライブラリをリンク
         #[cfg(target_os = "windows")]
-        cmd.arg("-lws2_32");
+        cmd.arg("-lws2_32").arg("-lntdll");
 
         let status = cmd.status().expect("Failed to execute cc command");
 
@@ -94,9 +94,9 @@ fn test_simple_mux_demux() {
         .arg("-I")
         .arg(project_root.join("crates/c-api/include"));
 
-    // Windows のみ ws2_32 をリンク
+    // Windows のみ追加のライブラリをリンク
     #[cfg(target_os = "windows")]
-    cmd.arg("-lws2_32");
+    cmd.arg("-lws2_32").arg("-lntdll");
 
     let status = cmd.status().expect("Failed to compile simple_mux_demux.c");
 
