@@ -429,8 +429,12 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 
     /// チャンクが参照するサンプルエントリー返す
     pub fn sample_entry(&self) -> &'a SampleEntry {
-        &self.sample_table.stbl_box().stsd_box.entries
-            [self.stsc_entry().sample_description_index.get() as usize - 1]
+        &self.sample_table.stbl_box().stsd_box.entries[self.sample_entry_index()]
+    }
+
+    /// このチャンクが参照するサンプルエントリーのインデックス（0 ベース）を取得する
+    pub fn sample_entry_index(&self) -> usize {
+        self.stsc_entry().sample_description_index.get() as usize - 1
     }
 
     /// チャンクに属するサンプルの数を返す

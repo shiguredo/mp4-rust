@@ -1,6 +1,6 @@
 [package]
 name = "shiguredo_mp4"
-version = "2025.2.0"
+version = "2025.3.0"
 edition = "2024"
 rust-version = "1.88"
 authors = ["Shiguredo Inc."]
@@ -18,4 +18,4 @@ default = ["std"]
 std = []
 
 [workspace]
-members = ["examples/dump_wasm", "examples/transcode_wasm"]
+members = ["crates/c-api","examples/dump_wasm", "examples/transcode_wasm"]

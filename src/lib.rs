@@ -9,16 +9,15 @@ mod auxiliary;
 mod basic_types;
 pub mod boxes;
 mod codec;
+pub mod demux;
 pub mod descriptors;
-pub mod io;
-#[cfg(not(feature = "std"))]
-mod io_no_std;
+pub mod mux;
 
 pub use basic_types::{
     BaseBox, BoxHeader, BoxSize, BoxType, Either, FixedPointNumber, FullBox, FullBoxFlags,
-    FullBoxHeader, Mp4File, Mp4FileTime, Uint, Utf8String,
+    FullBoxHeader, Mp4File, Mp4FileTime, TrackKind, Uint, Utf8String,
 };
-pub use codec::{Decode, Encode, Error, Result};
+pub use codec::{Decode, Encode, Error, ErrorKind, Result};
 
 // [NOTE]
 // Windows 環境では aux.rs というファイル名が予約語で、リポジトリに含まれていると git clone に失敗するため、

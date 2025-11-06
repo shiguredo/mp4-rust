@@ -3,13 +3,13 @@ use std::{num::NonZeroU32, time::Duration};
 use orfail::OrFail;
 use serde::Serialize;
 use shiguredo_mp4::{
+    Decode, Either, Encode, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
     aux::SampleTableAccessor,
     boxes::{
         Brand, DinfBox, FtypBox, HdlrBox, MdatBox, MdhdBox, MdiaBox, MinfBox, MoovBox, MvhdBox,
         RootBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox,
         StszBox, SttsBox, TkhdBox, TrakBox, VmhdBox,
     },
-    BaseBox, Decode, Either, FixedPointNumber, Mp4File, Mp4FileTime, Utf8String,
 };
 
 // 出力側はマイクロ秒に決め打ち
@@ -53,16 +53,15 @@ impl OutputMp4Builder {
                 Brand::AV01,
             ],
         };
-        self.file_size += ftyp_box.box_size().get() as u32;
+        self.file_size += ftyp_box.encode_to_vec().map(|b| b.len()).expect("bug") as u32;
         ftyp_box
     }
 
     fn build_mdat_box(&mut self) -> MdatBox {
         let mut mdat_box = MdatBox {
-            is_variable_size: false,
             payload: Vec::new(),
         };
-        self.file_size += mdat_box.box_size().get() as u32;
+        self.file_size += mdat_box.encode_to_vec().map(|b| b.len()).expect("bug") as u32;
 
         for track in &self.tracks {
             for chunk in &track.chunks {
@@ -227,7 +226,7 @@ pub struct InputMp4 {
 
 impl InputMp4 {
     pub fn parse(mp4_file_bytes: &[u8]) -> orfail::Result<Self> {
-        let mp4_file = Mp4File::decode(mp4_file_bytes).or_fail()?;
+        let (mp4_file, _) = Mp4File::decode(mp4_file_bytes).or_fail()?;
         let moov_box = mp4_file
             .boxes
             .iter()
