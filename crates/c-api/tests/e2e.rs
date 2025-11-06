@@ -4,12 +4,12 @@ use std::process::Command;
 #[test]
 fn test_c_examples_compile() {
     let project_root = get_project_root();
-    let lib_path = get_lib_path(&project_root);
+    let lib_path = project_root.join("target/debug/libmp4.a");
 
     // ライブラリファイルが存在することを確認
     assert!(
         lib_path.exists(),
-        "libmp4 library not found at {}. Run `cargo build` first.",
+        "libmp4.a not found at {}. Run `cargo build` first.",
         lib_path.display()
     );
 
@@ -38,10 +38,9 @@ fn test_c_examples_compile() {
             .file_stem()
             .expect("Failed to get file stem")
             .to_string_lossy();
-        let output_path =
-            project_root
-                .join("target/debug")
-                .join(format!("{}{}", example_name, get_exe_suffix()));
+        let output_path = project_root
+            .join("target/debug")
+            .join(format!("{}", example_name));
 
         // C コンパイラでビルド
         let status = Command::new("cc")
@@ -64,12 +63,12 @@ fn test_c_examples_compile() {
 #[test]
 fn test_simple_mux_demux() {
     let project_root = get_project_root();
-    let lib_path = get_lib_path(&project_root);
+    let lib_path = project_root.join("target/debug/libmp4.a");
 
     // ライブラリファイルが存在することを確認
     assert!(
         lib_path.exists(),
-        "libmp4 library not found at {}. Run `cargo build` first.",
+        "libmp4.a not found at {}. Run `cargo build` first.",
         lib_path.display()
     );
 
@@ -80,9 +79,7 @@ fn test_simple_mux_demux() {
         c_file.display()
     );
 
-    let output_path = project_root
-        .join("target/debug")
-        .join(format!("simple_mux_demux{}", get_exe_suffix()));
+    let output_path = project_root.join("target/debug").join("simple_mux_demux");
 
     // C ファイルをコンパイル
     let status = Command::new("cc")
@@ -115,15 +112,4 @@ fn get_project_root() -> PathBuf {
         .and_then(|p| p.parent())
         .expect("Failed to find project root")
         .to_path_buf()
-}
-
-/// プラットフォーム別のライブラリパスを取得
-fn get_lib_path(project_root: &PathBuf) -> PathBuf {
-    let lib_name = if cfg!(windows) { "mp4.lib" } else { "libmp4.a" };
-    project_root.join("target/debug").join(lib_name)
-}
-
-/// 実行ファイルのサフィックスを取得（Windows: .exe、その他: ""）
-fn get_exe_suffix() -> &'static str {
-    if cfg!(windows) { ".exe" } else { "" }
 }
