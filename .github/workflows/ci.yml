@@ -79,7 +79,7 @@ jobs:
         run: |
           if (Test-Path "target/x86_64-pc-windows-msvc/debug/mp4.lib") {
             Write-Host "mp4.lib が正常に生成されました"
-            ls -la target/x86_64-pc-windows-msvc/debug/mp4.lib
+            dir target/x86_64-pc-windows-msvc/debug/mp4.lib
           } else {
             Write-Host "ERROR: mp4.lib が見つかりません"
             exit 1
