@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  github-release:
+    name: "Create GitHub Release"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
+      release-id: ${{ steps.create-release.outputs.release-id }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - name: Get the version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ${{ contains(steps.get_version.outputs.VERSION, 'canary') }}; then
+            release_output=$(gh release create ${{ steps.get_version.outputs.VERSION }} \
+              --prerelease \
+              --title "${{ steps.get_version.outputs.VERSION }}" \
+              --notes "Release ${{ steps.get_version.outputs.VERSION }}")
+          else
+            release_output=$(gh release create ${{ steps.get_version.outputs.VERSION }} \
+              --title "${{ steps.get_version.outputs.VERSION }}" \
+              --notes "Release ${{ steps.get_version.outputs.VERSION }}")
+          fi
+          release_id=$(echo "$release_output" | grep -o 'releases/[0-9]*' | cut -d'/' -f2)
+          echo "release-id=$release_id" >> $GITHUB_OUTPUT
+
+  upload-assets:
+    name: "Upload assets"
+    needs: github-release
+    strategy:
+      matrix:
+        platform:
+          - name: ubuntu-24.04_x86_64
+            runs-on: ubuntu-24.04
+          - name: ubuntu-24.04_arm64
+            runs-on: ubuntu-24.04-arm
+          - name: ubuntu-22.04_x86_64
+            runs-on: ubuntu-22.04
+          - name: ubuntu-22.04_arm64
+            runs-on: ubuntu-22.04-arm
+          - name: macos-26_arm64
+            runs-on: macos-26
+          - name: macos-15_arm64
+            runs-on: macos-15
+          - name: macos-14_arm64
+            runs-on: macos-14
+    runs-on: ${{ matrix.platform.runs-on }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - run: rustup update stable
+      - run: rustup default stable
+
+      - name: Build
+        run: cargo build --release --package c-api
+
+      - run: |
+          mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
+          mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
+          cp $(ls target/release/libmp4.* | grep -E '(a|so|dylib)$') mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
+          cp crates/c-api/include/mp4.h mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
+          tar -czf mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.tar.gz \
+            mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}
+
+      - name: Upload Release Asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.github-release.outputs.version }} \
+            mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.tar.gz
+
+  publish:
+    needs: [github-release, upload-assets]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+    - uses: actions/checkout@v5
+    - uses: rust-lang/crates-io-auth-action@v1
+      id: auth
+    - run: cargo publish
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  slack_notify_failed:
+    needs: [github-release, upload-assets, publish]
+    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    if: failure()
+    steps:
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: hisui
+          SLACK_COLOR: danger
+          SLACK_ICON_EMOJI: ":japanese_ogre:"
+          SLACK_TITLE: "FAILED"
+          SLACK_MESSAGE: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|${{github.event.head_commit.message }}>
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

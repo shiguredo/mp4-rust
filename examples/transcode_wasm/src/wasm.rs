@@ -1,10 +1,10 @@
 use std::{future::Future, marker::PhantomData};
 
-use futures::{channel::oneshot, TryFutureExt};
+use futures::{TryFutureExt, channel::oneshot};
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
-use shiguredo_mp4::boxes::Avc1Box;
 use shiguredo_mp4::Encode;
+use shiguredo_mp4::boxes::Avc1Box;
 
 use crate::mp4::Mp4FileSummary;
 use crate::transcode::{
@@ -25,7 +25,7 @@ pub struct Encoded {
     pub data: Vec<u8>,
 }
 
-extern "C" {
+unsafe extern "C" {
     pub fn consoleLog(msg: *const u8, msg_len: i32);
 
     #[expect(improper_ctypes)]
@@ -71,12 +71,12 @@ impl WebCodec {
     pub fn create_h264_decoder(config: &Avc1Box) -> impl Future<Output = orfail::Result<Coder>> {
         let (tx, rx) = oneshot::channel::<orfail::Result<_>>();
 
-        let mut description = Vec::new();
-        config
+        let mut description = [0; 1024]; // 十分なサイズのバッファを用意しておく
+        let encoded_size = config
             .avcc_box
             .encode(&mut description)
             .expect("unreachable");
-        description.drain(..8); // ボックスヘッダ部分を取り除く
+        let description = description[8..encoded_size].to_vec(); // ボックスヘッダ部分は取り除いて Vec にする
 
         let config = VideoDecoderConfig {
             codec: format!(
@@ -161,7 +161,7 @@ impl Drop for Coder {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case)]
 pub fn newTranscoder(options: JsonVec<TranscodeOptions>) -> *mut Transcoder {
     std::panic::set_hook(Box::new(|info| {
@@ -175,13 +175,13 @@ pub fn newTranscoder(options: JsonVec<TranscodeOptions>) -> *mut Transcoder {
     Box::into_raw(Box::new(Transcoder::new(options)))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn freeTranscoder(transcoder: *mut Transcoder) {
     let _ = unsafe { Box::from_raw(transcoder) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyCreateVideoDecoderResult(
     transcoder: *mut Transcoder,
@@ -194,7 +194,7 @@ pub fn notifyCreateVideoDecoderResult(
     let _ = pollTranscode(transcoder);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyCreateVideoEncoderResult(
     transcoder: *mut Transcoder,
@@ -207,7 +207,7 @@ pub fn notifyCreateVideoEncoderResult(
     let _ = pollTranscode(transcoder);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyDecodeResult(
     transcoder: *mut Transcoder,
@@ -224,7 +224,7 @@ pub fn notifyDecodeResult(
     let _ = pollTranscode(transcoder);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn notifyEncodeResult(
     transcoder: *mut Transcoder,
@@ -241,7 +241,7 @@ pub fn notifyEncodeResult(
     let _ = pollTranscode(transcoder);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn parseInputMp4File(
     transcoder: *mut Transcoder,
@@ -253,7 +253,7 @@ pub fn parseInputMp4File(
     JsonVec::new(result)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn startTranscode(transcoder: *mut Transcoder) -> JsonVec<orfail::Result<()>> {
     let transcoder = unsafe { &mut *transcoder };
@@ -261,7 +261,7 @@ pub fn startTranscode(transcoder: *mut Transcoder) -> JsonVec<orfail::Result<()>
     JsonVec::new(result)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn pollTranscode(transcoder: *mut Transcoder) -> JsonVec<orfail::Result<TranscodeProgress>> {
     let transcoder = unsafe { &mut *transcoder };
@@ -269,7 +269,7 @@ pub fn pollTranscode(transcoder: *mut Transcoder) -> JsonVec<orfail::Result<Tran
     JsonVec::new(result)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn buildOutputMp4File(transcoder: *mut Transcoder) -> JsonVec<orfail::Result<()>> {
     let transcoder = unsafe { &mut *transcoder };
@@ -277,32 +277,32 @@ pub fn buildOutputMp4File(transcoder: *mut Transcoder) -> JsonVec<orfail::Result
     JsonVec::new(result)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn getOutputMp4File(transcoder: *mut Transcoder) -> *const Vec<u8> {
     let transcoder = unsafe { &mut *transcoder };
     transcoder.get_output_mp4_file() as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn vecOffset(v: *mut Vec<u8>) -> *mut u8 {
     unsafe { &mut *v }.as_mut_ptr()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn vecLen(v: *mut Vec<u8>) -> i32 {
     unsafe { &*v }.len() as i32
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case)]
 pub fn allocateVec(len: i32) -> *mut Vec<u8> {
     Box::into_raw(Box::new(vec![0; len as usize]))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(non_snake_case, clippy::not_unsafe_ptr_arg_deref)]
 pub fn freeVec(v: *mut Vec<u8>) {
     let _ = unsafe { Box::from_raw(v) };
@@ -326,7 +326,7 @@ impl<T: Serialize> JsonVec<T> {
 
 impl<T: for<'de> Deserialize<'de>> JsonVec<T> {
     unsafe fn into_value(self) -> T {
-        let bytes = Box::from_raw(self.bytes);
+        let bytes = unsafe { Box::from_raw(self.bytes) };
         let value: T = serde_json::from_slice(&bytes).expect("Invalid JSON");
         value
     }

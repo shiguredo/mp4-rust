@@ -1,8 +1,8 @@
 use std::{
     collections::VecDeque,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -14,11 +14,11 @@ use futures::{
 use orfail::{Failure, OrFail};
 use serde::{Deserialize, Serialize};
 use shiguredo_mp4::{
+    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Encode, Uint,
     boxes::{
         Av01Box, Av1cBox, Avc1Box, AvccBox, Hev1Box, HvccBox, SampleEntry, VisualSampleEntryFields,
         Vp08Box, Vp09Box, VpccBox,
     },
-    BaseBox, BoxHeader, BoxSize, BoxType, Decode, Encode, Uint,
 };
 
 use crate::{
@@ -195,8 +195,7 @@ impl Transcoder {
     pub fn build_output_mp4_file(&mut self) -> orfail::Result<()> {
         let builder = OutputMp4Builder::new(std::mem::take(&mut self.output_tracks));
         let mp4 = builder.build().or_fail()?;
-        self.output_mp4.clear();
-        mp4.encode(&mut self.output_mp4).or_fail()?;
+        self.output_mp4 = mp4.encode_to_vec().or_fail()?;
         Ok(())
     }
 
@@ -396,6 +395,6 @@ impl TrackTranscoder {
         header.encode(&mut data).or_fail()?;
         data.extend_from_slice(description);
 
-        T::decode(&mut &data[..]).or_fail()
+        T::decode(&data[..]).or_fail().map(|(desc, _)| desc)
     }
 }

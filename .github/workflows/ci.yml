@@ -20,9 +20,11 @@ jobs:
         toolchain: [stable, beta, nightly]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
-      - run: cargo check
+      - run: rustup default ${{ matrix.toolchain }}
+      - run: cargo check --workspace
+      - run: cargo check --workspace --no-default-features
 
   test:
     name: Test Suite
@@ -32,22 +34,37 @@ jobs:
         toolchain: [stable, beta, nightly]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
-      - run: cargo test
+      - run: rustup default ${{ matrix.toolchain }}
+
+      # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
+      - run: cargo build --workspace 
+      - run: cargo test --workspace
+
+      - run: cargo build --workspace --no-default-features
+      - run: cargo test --workspace --no-default-features
 
   lints:
     name: Lints
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        toolchain: [stable, beta, nightly]
+        # [NOTE]
+        # clippy は「stable と nightly の片方に対応したらもう片方で失敗する」といったケースが
+        # まれにあるのと、そもそも nightly のチェックを事前に行うメリットが
+        # 薄い（lint で警告がでても、別に普通に使う分には問題はない）ので、
+        # ここでは stable だけを使っている
+        toolchain: [stable]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - run: rustup update ${{ matrix.toolchain }}
-      - run: cargo fmt -- --check
-      - run: cargo clippy -- -D warnings
+      - run: rustup default ${{ matrix.toolchain }}
+      - run: rustup component add clippy
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace --no-default-features -- -D warnings
 
   slack_notify_failed:
     needs: [check, test, lints]
