@@ -62,6 +62,7 @@ jobs:
 
       # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
       - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: ls target/debug/
       - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm
 
       - run: cargo build --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
