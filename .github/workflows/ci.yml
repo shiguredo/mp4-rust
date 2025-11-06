@@ -53,6 +53,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v5
+      - name: Windows の場合には MSVC 系ではなく MinGW 系を使うようにする
+        if: contains(matrix.os, 'windows')
+        run: rustup set default-host x86_64-pc-windows-gnu
       - run: rustup update ${{ matrix.toolchain }}
       - run: rustup default ${{ matrix.toolchain }}
       - run: rustup show
