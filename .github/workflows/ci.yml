@@ -57,11 +57,11 @@ jobs:
       - run: rustup default ${{ matrix.toolchain }}
 
       # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
-      - run: cargo build --workspace
-      - run: cargo test --workspace
+      - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm
 
-      - run: cargo build --workspace --no-default-features
-      - run: cargo test --workspace --no-default-features
+      - run: cargo build --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: cargo test --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
 
   lints:
     name: Lints
