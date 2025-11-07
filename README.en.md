@@ -10,10 +10,6 @@ We will not respond to pull requests or issues that have not been discussed on D
 
 Please review <https://github.com/shiguredo/oss> before using this software.
 
-## About Shiguredo's open-source software
-
-Please read <https://github.com/shiguredo/oss> before using this software.
-
 ## Overview
 
 A Rust library for reading and writing MP4 files.
