@@ -14,10 +14,19 @@ on:
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        toolchain: [stable, beta, nightly]
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025
+          - macos-26
+        toolchain:
+          - stable
+          - beta
+          - nightly
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout sources
         uses: actions/checkout@v5
@@ -28,34 +37,66 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        toolchain: [stable, beta, nightly]
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025
+          - macos-26
+        toolchain:
+          - stable
+          - beta
+          - nightly
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout sources
         uses: actions/checkout@v5
+      - name: Windows の場合には MSVC 系ではなく MinGW 系を使うようにする
+        if: contains(matrix.os, 'windows')
+        run: rustup set default-host x86_64-pc-windows-gnu
       - run: rustup update ${{ matrix.toolchain }}
       - run: rustup default ${{ matrix.toolchain }}
+      - run: rustup show
 
       # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
-      - run: cargo build --workspace 
-      - run: cargo test --workspace
+      - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: ls target/debug/
+      - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm
 
-      - run: cargo build --workspace --no-default-features
-      - run: cargo test --workspace --no-default-features
+      - run: cargo build --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: cargo test --no-default-features --workspace --exclude dump_wasm --exclude transcode_wasm
+
+      - name: Windows の場合には MSVC 系でもビルドだけは試す（テスト用の実行可能バイナリの作成は、MSVC 固有のパス解決処理が複雑になりすぎるので見送り）
+        if: contains(matrix.os, 'windows')
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          cargo build --package c-api --target x86_64-pc-windows-msvc
+      - name: MSVC ビルド成果物の確認
+        if: contains(matrix.os, 'windows')
+        run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib
 
   lints:
     name: Lints
-    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        # [NOTE]
-        # clippy は「stable と nightly の片方に対応したらもう片方で失敗する」といったケースが
-        # まれにあるのと、そもそも nightly のチェックを事前に行うメリットが
-        # 薄い（lint で警告がでても、別に普通に使う分には問題はない）ので、
-        # ここでは stable だけを使っている
-        toolchain: [stable]
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025
+          - macos-26
+        toolchain:
+          # [NOTE]
+          # clippy は「stable と nightly の片方に対応したらもう片方で失敗する」といったケースが
+          # まれにあるのと、そもそも nightly のチェックを事前に行うメリットが
+          # 薄い（lint で警告がでても、別に普通に使う分には問題はない）ので、
+          # ここでは stable だけを使っている
+          - stable
+          # - beta
+          # - nightly
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout sources
         uses: actions/checkout@v5

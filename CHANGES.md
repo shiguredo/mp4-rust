@@ -11,6 +11,11 @@
 
 ## develop
 
+### misc
+
+- [ADD] Windows と macOS を CI 対象に追加する
+  - @sile
+
 ## 2025.3.0
 
 - [ADD] C 言語バインディングを追加する
