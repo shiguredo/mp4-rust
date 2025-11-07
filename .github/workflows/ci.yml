@@ -75,7 +75,7 @@ jobs:
           cargo build --package c-api --target x86_64-pc-windows-msvc
       - name: MSVC ビルド成果物の確認
         if: contains(matrix.os, 'windows')
-        run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib || exit 1
+        run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib
 
   lints:
     name: Lints
