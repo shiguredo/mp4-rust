@@ -1983,6 +1983,7 @@ pub enum SampleEntry {
     Av01(Av01Box),
     Opus(OpusBox),
     Mp4a(Mp4aBox),
+    Flac(FlacBox),
     Unknown(UnknownBox),
 }
 
@@ -1994,6 +1995,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.channelcount as u8),
             Self::Mp4a(b) => Some(b.audio.channelcount as u8),
+            Self::Flac(b) => Some(b.audio.channelcount as u8),
             _ => None,
         }
     }
@@ -2007,10 +2009,15 @@ impl SampleEntry {
     /// このメソッドはサンプリングレートの整数部分のみを返し、小数部分は切り捨てられる。
     /// ただし通常は、MP4 ファイルでは音声のサンプリングレートは常に整数値（例: 44100 Hz, 48000 Hz）であり、
     /// 小数部分が 0 以外の値を持つことはないため、問題ないと想定している。
+    ///
+    /// FLAC の場合、65535 Hz を超えるサンプリングレートは AudioSampleEntry には
+    /// 格納できないため、実際のサンプリングレートは STREAMINFO メタデータブロックから
+    /// 取得する必要がある場合がある。
     pub fn audio_sample_rate(&self) -> Option<u16> {
         match self {
             Self::Opus(b) => Some(b.audio.samplerate.integer),
             Self::Mp4a(b) => Some(b.audio.samplerate.integer),
+            Self::Flac(b) => Some(b.audio.samplerate.integer),
             _ => None,
         }
     }
@@ -2022,6 +2029,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.samplesize),
             Self::Mp4a(b) => Some(b.audio.samplesize),
+            Self::Flac(b) => Some(b.audio.samplesize),
             _ => None,
         }
     }
@@ -2049,6 +2057,7 @@ impl SampleEntry {
             Self::Av01(b) => b,
             Self::Opus(b) => b,
             Self::Mp4a(b) => b,
+            Self::Flac(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -2064,6 +2073,7 @@ impl Encode for SampleEntry {
             Self::Av01(b) => b.encode(buf),
             Self::Opus(b) => b.encode(buf),
             Self::Mp4a(b) => b.encode(buf),
+            Self::Flac(b) => b.encode(buf),
             Self::Unknown(b) => b.encode(buf),
         }
     }
@@ -2080,6 +2090,7 @@ impl Decode for SampleEntry {
             Av01Box::TYPE => Av01Box::decode(buf).map(|(b, n)| (Self::Av01(b), n)),
             OpusBox::TYPE => OpusBox::decode(buf).map(|(b, n)| (Self::Opus(b), n)),
             Mp4aBox::TYPE => Mp4aBox::decode(buf).map(|(b, n)| (Self::Mp4a(b), n)),
+            FlacBox::TYPE => FlacBox::decode(buf).map(|(b, n)| (Self::Flac(b), n)),
             _ => UnknownBox::decode(buf).map(|(b, n)| (Self::Unknown(b), n)),
         }
     }
@@ -3898,6 +3909,256 @@ impl BaseBox for DopsBox {
 
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(core::iter::empty())
+    }
+}
+
+/// FLAC メタデータブロック
+///
+/// FLAC 仕様の METADATA_BLOCK 構造を表現する
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct FlacMetadataBlock {
+    /// 最後のメタデータブロックかどうかを示すフラグ (1 bit)
+    pub last_metadata_block_flag: bool,
+    /// ブロックタイプ (7 bits)
+    /// 0: STREAMINFO, 1: PADDING, 2: APPLICATION, 3: SEEKTABLE,
+    /// 4: VORBIS_COMMENT, 5: CUESHEET, 6: PICTURE
+    pub block_type: u8,
+    /// ブロックデータ (length は block_data.len() から計算)
+    pub block_data: Vec<u8>,
+}
+
+impl Encode for FlacMetadataBlock {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let length = self.block_data.len();
+        if length > 0xFF_FFFF {
+            return Err(Error::invalid_input(
+                "FLAC metadata block data is too large (max 16777215 bytes)",
+            ));
+        }
+
+        let mut offset = 0;
+        // LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
+        let first_byte = if self.last_metadata_block_flag {
+            0x80 | (self.block_type & 0x7F)
+        } else {
+            self.block_type & 0x7F
+        };
+        offset += first_byte.encode(&mut buf[offset..])?;
+
+        // Length (24 bits, big-endian)
+        let length_bytes = [
+            ((length >> 16) & 0xFF) as u8,
+            ((length >> 8) & 0xFF) as u8,
+            (length & 0xFF) as u8,
+        ];
+        offset += length_bytes.encode(&mut buf[offset..])?;
+
+        // BlockData
+        offset += self.block_data.as_slice().encode(&mut buf[offset..])?;
+
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacMetadataBlock {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let mut offset = 0;
+
+        // FirstByte: LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
+        let first_byte = u8::decode_at(buf, &mut offset)?;
+        let last_metadata_block_flag = (first_byte & 0x80) != 0;
+        let block_type = first_byte & 0x7F;
+
+        // Length (24 bits, big-endian)
+        let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
+        let length =
+            ((length_bytes[0] as usize) << 16) | ((length_bytes[1] as usize) << 8) | (length_bytes[2] as usize);
+
+        // BlockData
+        Error::check_buffer_size(offset + length, buf)?;
+        let block_data = buf[offset..offset + length].to_vec();
+        offset += length;
+
+        Ok((
+            Self {
+                last_metadata_block_flag,
+                block_type,
+                block_data,
+            },
+            offset,
+        ))
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSpecificBox class (親: [`FlacBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct DflaBox {
+    /// FLAC メタデータブロックのリスト
+    /// 最初のブロックは必ず STREAMINFO (block_type=0) でなければならない
+    pub metadata_blocks: Vec<FlacMetadataBlock>,
+}
+
+impl DflaBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"dfLa");
+
+    const VERSION: u8 = 0;
+}
+
+impl Encode for DflaBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+
+        for block in &self.metadata_blocks {
+            offset += block.encode(&mut buf[offset..])?;
+        }
+
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for DflaBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        let mut offset = 0;
+        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+        if full_header.version != Self::VERSION {
+            return Err(Error::invalid_data(format!(
+                "Unsupported dfLa version: {}",
+                full_header.version
+            )));
+        }
+
+        let mut metadata_blocks = Vec::new();
+        while offset < payload.len() {
+            let block = FlacMetadataBlock::decode_at(payload, &mut offset)?;
+            let is_last = block.last_metadata_block_flag;
+            metadata_blocks.push(block);
+            if is_last {
+                break;
+            }
+        }
+
+        if metadata_blocks.is_empty() {
+            return Err(Error::invalid_data(
+                "dfLa box must contain at least one metadata block (STREAMINFO)",
+            ));
+        }
+
+        if metadata_blocks[0].block_type != 0 {
+            return Err(Error::invalid_data(
+                "First metadata block in dfLa must be STREAMINFO (block_type=0)",
+            ));
+        }
+
+        Ok((Self { metadata_blocks }, header.external_size() + payload.len()))
+    }
+}
+
+impl BaseBox for DflaBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for DflaBox {
+    fn full_box_version(&self) -> u8 {
+        Self::VERSION
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSampleEntry class (親: [`StsdBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct FlacBox {
+    pub audio: AudioSampleEntryFields,
+    pub dfla_box: DflaBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl FlacBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"fLaC");
+}
+
+impl Encode for FlacBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += self.audio.encode(&mut buf[offset..])?;
+        offset += self.dfla_box.encode(&mut buf[offset..])?;
+        for b in &self.unknown_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+        header.box_type.expect(Self::TYPE)?;
+
+        let mut offset = 0;
+        let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+
+        let mut dfla_box = None;
+        let mut unknown_boxes = Vec::new();
+
+        while offset < payload.len() {
+            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+            match child_header.box_type {
+                DflaBox::TYPE if dfla_box.is_none() => {
+                    dfla_box = Some(DflaBox::decode_at(payload, &mut offset)?);
+                }
+                _ => {
+                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                }
+            }
+        }
+
+        Ok((
+            Self {
+                audio,
+                dfla_box: check_mandatory_box(dfla_box, "dfLa", "fLaC")?,
+                unknown_boxes,
+            },
+            header.external_size() + payload.len(),
+        ))
+    }
+}
+
+impl BaseBox for FlacBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            core::iter::empty()
+                .chain(core::iter::once(&self.dfla_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
     }
 }
 
