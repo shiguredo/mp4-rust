@@ -50,6 +50,7 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 - [VP Codec ISO Media File Format Binding](https://www.webmproject.org/vp9/mp4/)
 - [AV1 Codec ISO Media File Format Binding](https://aomediacodec.github.io/av1-isobmff/)
 - [Encapsulation of Opus in ISO Base Media File Format](https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html)
+- [Encapsulation of FLAC in ISO Base Media File Format](https://github.com/xiph/flac/blob/master/doc/isoflac.txt)
 
 ## ライセンス
 

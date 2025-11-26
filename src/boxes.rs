@@ -2010,9 +2010,8 @@ impl SampleEntry {
     /// ただし通常は、MP4 ファイルでは音声のサンプリングレートは常に整数値（例: 44100 Hz, 48000 Hz）であり、
     /// 小数部分が 0 以外の値を持つことはないため、問題ないと想定している。
     ///
-    /// FLAC の場合、65535 Hz を超えるサンプリングレートは AudioSampleEntry には
-    /// 格納できないため、実際のサンプリングレートは STREAMINFO メタデータブロックから
-    /// 取得する必要がある場合がある。
+    /// なお音声コーデックによっては u16 の範囲を超えるサンプリングレートが使用される場合もある。
+    /// その可能性がある場合は、このメソッドではなく、コーデック固有の方法で実際のサンプリングレートを取得すること。
     pub fn audio_sample_rate(&self) -> Option<u16> {
         match self {
             Self::Opus(b) => Some(b.audio.samplerate.integer),
@@ -3972,8 +3971,9 @@ impl Decode for FlacMetadataBlock {
 
         // Length (24 bits, big-endian)
         let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
-        let length =
-            ((length_bytes[0] as usize) << 16) | ((length_bytes[1] as usize) << 8) | (length_bytes[2] as usize);
+        let length = ((length_bytes[0] as usize) << 16)
+            | ((length_bytes[1] as usize) << 8)
+            | (length_bytes[2] as usize);
 
         // BlockData
         Error::check_buffer_size(offset + length, buf)?;
@@ -4060,7 +4060,10 @@ impl Decode for DflaBox {
             ));
         }
 
-        Ok((Self { metadata_blocks }, header.external_size() + payload.len()))
+        Ok((
+            Self { metadata_blocks },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 
