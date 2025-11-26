@@ -3915,15 +3915,16 @@ impl BaseBox for DopsBox {
 ///
 /// FLAC 仕様の METADATA_BLOCK 構造を表現する
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct FlacMetadataBlock {
     /// 最後のメタデータブロックかどうかを示すフラグ (1 bit)
     pub last_metadata_block_flag: bool,
+
     /// ブロックタイプ (7 bits)
     /// 0: STREAMINFO, 1: PADDING, 2: APPLICATION, 3: SEEKTABLE,
     /// 4: VORBIS_COMMENT, 5: CUESHEET, 6: PICTURE
     pub block_type: u8,
-    /// ブロックデータ (length は block_data.len() から計算)
+
+    /// ブロックデータ
     pub block_data: Vec<u8>,
 }
 
@@ -3995,7 +3996,6 @@ impl Decode for FlacMetadataBlock {
 ///
 /// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct DflaBox {
     /// FLAC メタデータブロックのリスト
     /// 最初のブロックは必ず STREAMINFO (block_type=0) でなければならない
