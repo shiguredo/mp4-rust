@@ -2395,7 +2395,9 @@ impl Decode for AvccBox {
         let mut bit_depth_luma_minus8 = None;
         let mut bit_depth_chroma_minus8 = None;
         let mut sps_ext_list = Vec::new();
-        if !matches!(avc_profile_indication, 66 | 77 | 88) {
+        // High Profile 以上の場合、追加フィールドが存在する可能性がある
+        // ただし、これらはオプションなので、データが残っている場合のみ読み込む
+        if !matches!(avc_profile_indication, 66 | 77 | 88) && offset < payload.len() {
             chroma_format = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
             bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
             bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
@@ -3972,8 +3974,9 @@ impl Decode for FlacMetadataBlock {
 
         // Length (24 bits, big-endian)
         let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
-        let length =
-            ((length_bytes[0] as usize) << 16) | ((length_bytes[1] as usize) << 8) | (length_bytes[2] as usize);
+        let length = ((length_bytes[0] as usize) << 16)
+            | ((length_bytes[1] as usize) << 8)
+            | (length_bytes[2] as usize);
 
         // BlockData
         Error::check_buffer_size(offset + length, buf)?;
@@ -4060,7 +4063,10 @@ impl Decode for DflaBox {
             ));
         }
 
-        Ok((Self { metadata_blocks }, header.external_size() + payload.len()))
+        Ok((
+            Self { metadata_blocks },
+            header.external_size() + payload.len(),
+        ))
     }
 }
 

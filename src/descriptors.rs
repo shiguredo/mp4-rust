@@ -123,7 +123,8 @@ pub struct DecoderConfigDescriptor {
     pub buffer_size_db: Uint<u32, 24>,
     pub max_bitrate: u32,
     pub avg_bitrate: u32,
-    pub dec_specific_info: DecoderSpecificInfo,
+    /// DecoderSpecificInfo はオプション（存在しない場合がある）
+    pub dec_specific_info: Option<DecoderSpecificInfo>,
 }
 
 impl DecoderConfigDescriptor {
@@ -165,7 +166,12 @@ impl Decode for DecoderConfigDescriptor {
         let max_bitrate = u32::decode_at(buf, &mut offset)?;
         let avg_bitrate = u32::decode_at(buf, &mut offset)?;
 
-        let dec_specific_info = DecoderSpecificInfo::decode_at(buf, &mut offset)?;
+        // DecoderSpecificInfo はオプション。次のタグが 5 (DecSpecificInfoTag) の場合のみデコードする
+        let dec_specific_info = if offset < buf.len() && buf[offset] == DecoderSpecificInfo::TAG {
+            Some(DecoderSpecificInfo::decode_at(buf, &mut offset)?)
+        } else {
+            None
+        };
 
         Ok((
             Self {
@@ -194,7 +200,9 @@ impl Encode for DecoderConfigDescriptor {
         offset += self.buffer_size_db.to_bits().to_be_bytes()[1..].encode(&mut buf[offset..])?;
         offset += self.max_bitrate.encode(&mut buf[offset..])?;
         offset += self.avg_bitrate.encode(&mut buf[offset..])?;
-        offset += self.dec_specific_info.encode(&mut buf[offset..])?;
+        if let Some(ref dec_specific_info) = self.dec_specific_info {
+            offset += dec_specific_info.encode(&mut buf[offset..])?;
+        }
 
         encode_tag_and_payload(buf, Self::TAG, offset)
     }

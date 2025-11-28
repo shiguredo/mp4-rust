@@ -144,8 +144,9 @@ impl Mp4SampleEntryOwned {
                     .es
                     .dec_config_descr
                     .dec_specific_info
-                    .payload
-                    .clone();
+                    .as_ref()
+                    .map(|info| info.payload.clone())
+                    .unwrap_or_default();
                 Some(Self::Mp4a {
                     inner,
                     dec_specific_info,
@@ -1076,9 +1077,9 @@ impl Mp4SampleEntryMp4a {
                     buffer_size_db: Uint::new(self.buffer_size_db),
                     max_bitrate: self.max_bitrate,
                     avg_bitrate: self.avg_bitrate,
-                    dec_specific_info: shiguredo_mp4::descriptors::DecoderSpecificInfo {
+                    dec_specific_info: Some(shiguredo_mp4::descriptors::DecoderSpecificInfo {
                         payload: dec_specific_info,
-                    },
+                    }),
                 },
                 sl_config_descr: shiguredo_mp4::descriptors::SlConfigDescriptor,
             },
