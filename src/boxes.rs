@@ -2422,6 +2422,9 @@ impl Decode for AvccBox {
             let mut sps_list = Vec::with_capacity(sps_count);
             for _ in 0..sps_count {
                 let size = u16::decode_at(payload, &mut offset)? as usize;
+                if offset + size > payload.len() {
+                    return Err(Error::invalid_data("SPS data exceeds payload boundary"));
+                }
                 let sps = payload[offset..offset + size].to_vec();
                 offset += size;
                 sps_list.push(sps);
@@ -2431,6 +2434,9 @@ impl Decode for AvccBox {
             let mut pps_list = Vec::with_capacity(pps_count);
             for _ in 0..pps_count {
                 let size = u16::decode_at(payload, &mut offset)? as usize;
+                if offset + size > payload.len() {
+                    return Err(Error::invalid_data("PPS data exceeds payload boundary"));
+                }
                 let pps = payload[offset..offset + size].to_vec();
                 offset += size;
                 pps_list.push(pps);
@@ -2455,6 +2461,9 @@ impl Decode for AvccBox {
                 let sps_ext_count = u8::decode_at(payload, &mut offset)? as usize;
                 for _ in 0..sps_ext_count {
                     let size = u16::decode_at(payload, &mut offset)? as usize;
+                    if offset + size > payload.len() {
+                        return Err(Error::invalid_data("SPS EXT data exceeds payload boundary"));
+                    }
                     let sps_ext = payload[offset..offset + size].to_vec();
                     offset += size;
                     sps_ext_list.push(sps_ext);
