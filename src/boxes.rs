@@ -1412,7 +1412,7 @@ impl Decode for MinfBox {
                     smhd_or_vmhd_box: {
                         let smhd = smhd_box.map(Either::A);
                         let vmhd = vmhd_box.map(Either::B);
-                        check_mandatory_box(smhd.or(vmhd), "smhd' or 'vmhd", "box")?
+                        check_mandatory_box(smhd.or(vmhd), "smhd' or 'vmhd", "minf")?
                     },
                     dinf_box: check_mandatory_box(dinf_box, "dinf", "minf")?,
                     stbl_box: check_mandatory_box(stbl_box, "stbl", "minf")?,
