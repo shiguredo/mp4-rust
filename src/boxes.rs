@@ -2440,13 +2440,13 @@ impl Decode for AvccBox {
             let mut bit_depth_luma_minus8 = None;
             let mut bit_depth_chroma_minus8 = None;
             let mut sps_ext_list = Vec::new();
-            if !matches!(avc_profile_indication, 66 | 77 | 88)
-               // [NOTE]
-               // ISO/IEC 14496-15 の仕様としては、プロファイルが 66 | 77 | 88 以外の場合には、
-               // 以降のフィールドが必須扱いとなっているが、現実的にはその仕様を守っていないファイルが
-               // 存在するため、残りのペイロードのサイズが空の場合には、以降の処理をスキップしている
-               && offset < payload.len()
-            {
+
+            // [NOTE]
+            // ISO/IEC 14496-15 の仕様としては、プロファイルが 66 | 77 | 88 以外の場合には、
+            // 以降のフィールドが必須扱いとなっている。
+            // ただし、現実的にはその仕様を守っていないファイルが存在するため、
+            // 「残りのペイロードのサイズが空の場合には、以降の処理をスキップする」というチェックを追加している。
+            if !matches!(avc_profile_indication, 66 | 77 | 88) && offset < payload.len() {
                 chroma_format = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
                 bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
                 bit_depth_chroma_minus8 =
