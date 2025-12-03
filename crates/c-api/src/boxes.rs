@@ -1062,6 +1062,18 @@ impl Mp4SampleEntryMp4a {
             Vec::new()
         };
 
+        let object_type_indication = shiguredo_mp4::descriptors::DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3;
+        let dec_config_descr = shiguredo_mp4::descriptors::DecoderConfigDescriptor {
+            object_type_indication,
+            stream_type: shiguredo_mp4::descriptors::DecoderConfigDescriptor::STREAM_TYPE_AUDIO,
+            up_stream: shiguredo_mp4::descriptors::DecoderConfigDescriptor::UP_STREAM_FALSE,
+            buffer_size_db: Uint::new(self.buffer_size_db),
+            max_bitrate: self.max_bitrate,
+            avg_bitrate: self.avg_bitrate,
+            dec_specific_info: Some(shiguredo_mp4::descriptors::DecoderSpecificInfo {
+                payload: dec_specific_info,
+            }),
+        };
         let esds_box = shiguredo_mp4::boxes::EsdsBox {
             es: shiguredo_mp4::descriptors::EsDescriptor {
                 es_id: shiguredo_mp4::descriptors::EsDescriptor::MIN_ES_ID,
@@ -1069,17 +1081,7 @@ impl Mp4SampleEntryMp4a {
                 depends_on_es_id: None,
                 url_string: None,
                 ocr_es_id: None,
-                dec_config_descr: shiguredo_mp4::descriptors::DecoderConfigDescriptor {
-                    object_type_indication: shiguredo_mp4::descriptors::DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3,
-                    stream_type: shiguredo_mp4::descriptors::DecoderConfigDescriptor::STREAM_TYPE_AUDIO,
-                    up_stream: shiguredo_mp4::descriptors::DecoderConfigDescriptor::UP_STREAM_FALSE,
-                    buffer_size_db: Uint::new(self.buffer_size_db),
-                    max_bitrate: self.max_bitrate,
-                    avg_bitrate: self.avg_bitrate,
-                    dec_specific_info:Some( shiguredo_mp4::descriptors::DecoderSpecificInfo {
-                        payload: dec_specific_info,
-                    }),
-                },
+                dec_config_descr,
                 sl_config_descr: shiguredo_mp4::descriptors::SlConfigDescriptor,
             },
         };
