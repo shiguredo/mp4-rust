@@ -10,6 +10,13 @@ use crate::{
     descriptors::EsDescriptor,
 };
 
+fn set_box_type_if_none(mut e: Error, ty: BoxType) -> Error {
+    if e.box_type.is_none() {
+        e.box_type = Some(ty);
+    }
+    e
+}
+
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
 ///
 /// ペイロードは単なるバイト列として扱われる
@@ -2226,7 +2233,10 @@ impl Decode for Avc1Box {
             let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 AvccBox::TYPE if avcc_box.is_none() => {
-                    avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
+                    avcc_box = Some(
+                        AvccBox::decode_at(payload, &mut offset)
+                            .map_err(|e| set_box_type_if_none(e, AvccBox::TYPE))?,
+                    );
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);

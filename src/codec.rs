@@ -285,18 +285,6 @@ pub trait Decode: Sized {
         *offset += size;
         Ok(decoded)
     }
-
-    /// TODO: doc
-    #[track_caller]
-    fn decode_box(buf: &[u8], ty: BoxType) -> Result<(Self, usize)> {
-        Self::decode(buf).map_err(|mut e| {
-            if e.box_type.is_none() {
-                // エラーが発生した大元のボックスの種別を覚えておく
-                e.box_type = Some(ty);
-            }
-            e
-        })
-    }
 }
 
 impl Decode for u8 {
