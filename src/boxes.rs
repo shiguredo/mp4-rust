@@ -2440,7 +2440,7 @@ impl Decode for AvccBox {
             let mut bit_depth_luma_minus8 = None;
             let mut bit_depth_chroma_minus8 = None;
             let mut sps_ext_list = Vec::new();
-            if !matches!(avc_profile_indication, 66 | 77 | 88) 
+            if !matches!(avc_profile_indication, 66 | 77 | 88)
                // [NOTE]
                // ISO/IEC 14496-15 の仕様としては、プロファイルが 66 | 77 | 88 以外の場合には、
                // 以降のフィールドが必須扱いとなっているが、現実的にはその仕様を守っていないファイルが
