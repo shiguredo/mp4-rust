@@ -123,7 +123,7 @@ pub struct DecoderConfigDescriptor {
     pub buffer_size_db: Uint<u32, 24>,
     pub max_bitrate: u32,
     pub avg_bitrate: u32,
-    pub dec_specific_info: DecoderSpecificInfo,
+    pub dec_specific_info: Option<DecoderSpecificInfo>,
 }
 
 impl DecoderConfigDescriptor {
@@ -165,7 +165,17 @@ impl Decode for DecoderConfigDescriptor {
         let max_bitrate = u32::decode_at(buf, &mut offset)?;
         let avg_bitrate = u32::decode_at(buf, &mut offset)?;
 
-        let dec_specific_info = DecoderSpecificInfo::decode_at(buf, &mut offset)?;
+        let dec_specific_info = if starts_with_tag(&buf[offset..], DecoderSpecificInfo::TAG) {
+            Some(DecoderSpecificInfo::decode_at(buf, &mut offset)?)
+        } else {
+            None
+        };
+
+        // [NOTE]
+        // 仕様的には、ここに複数個の profileLevelIndicationIndexDescriptor が存在する可能性がある。
+        // ただし、実際に使われることがあるかどうかは不明なのと、
+        // 実例データがないと実装が適切かどうかの判断が難しいため、いったんは未実装としておいて、
+        // 本当に必要になったタイミングで実装することにする。
 
         Ok((
             Self {
@@ -194,7 +204,9 @@ impl Encode for DecoderConfigDescriptor {
         offset += self.buffer_size_db.to_bits().to_be_bytes()[1..].encode(&mut buf[offset..])?;
         offset += self.max_bitrate.encode(&mut buf[offset..])?;
         offset += self.avg_bitrate.encode(&mut buf[offset..])?;
-        offset += self.dec_specific_info.encode(&mut buf[offset..])?;
+        if let Some(dec_specific_info) = &self.dec_specific_info {
+            offset += dec_specific_info.encode(&mut buf[offset..])?;
+        }
 
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
@@ -272,6 +284,11 @@ impl Encode for SlConfigDescriptor {
         let offset = predefined.encode(buf)?;
         encode_tag_and_payload(buf, Self::TAG, offset)
     }
+}
+
+/// バッファが指定したタグから始まるかどうかをチェックする
+fn starts_with_tag(buf: &[u8], expected_tag: u8) -> bool {
+    buf.first().map_or(false, |&tag| tag == expected_tag)
 }
 
 fn decode_tag_and_size(buf: &[u8]) -> Result<(u8, usize, usize)> {
