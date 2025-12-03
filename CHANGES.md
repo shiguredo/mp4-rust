@@ -11,6 +11,10 @@
 
 ## develop
 
+- [FIX] AAC の MP4 読み込み時に DecoderConfigDescriptor が存在しないとエラーになる問題を修正する
+  - ISO/IEC 14496-1 の仕様としては DecoderConfigDescriptor はオプショナルだが、実装が必須扱いになっていたのでエラーとなっていた
+  - 仕様に合わせてオプショナル扱いとするように実装を修正する
+  - @sile
 - [UPDATE] avcC ボックスのデコード時にペイロード境界チェックを追加する
   - SPS/PPS/SPS EXT データ読み込み時にオフセットがペイロード範囲内にあるかをチェックし、範囲外ならエラーにする
   - @sile
