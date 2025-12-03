@@ -118,7 +118,11 @@ impl core::fmt::Display for Error {
             write!(f, "[{ty}] ")?;
         }
 
-        write!(f, "{:?}: {}", self.kind, self.reason)?;
+        if self.reason.is_empty() {
+            write!(f, "{:?}", self.kind)?;
+        } else {
+            write!(f, "{:?}: {}", self.kind, self.reason)?;
+        }
 
         #[cfg(feature = "std")]
         {
