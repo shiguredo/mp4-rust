@@ -10,11 +10,17 @@ use crate::{
     descriptors::EsDescriptor,
 };
 
-fn set_box_type_if_none(mut e: Error, ty: BoxType) -> Error {
-    if e.box_type.is_none() {
-        e.box_type = Some(ty);
-    }
-    e
+fn with_box_type<F, T>(ty: BoxType, f: F) -> Result<T>
+where
+    F: FnOnce() -> Result<T>,
+{
+    f().map_err(|mut e| {
+        if e.box_type.is_none() {
+            // エラー発生時には、エラーの原因となった（最初の）ボックスの種別の情報をセットする
+            e.box_type = Some(ty);
+        }
+        e
+    })
 }
 
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
@@ -187,26 +193,28 @@ impl Encode for FtypBox {
 
 impl Decode for FtypBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let major_brand = Brand::decode_at(payload, &mut offset)?;
-        let minor_version = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let major_brand = Brand::decode_at(payload, &mut offset)?;
+            let minor_version = u32::decode_at(payload, &mut offset)?;
 
-        let mut compatible_brands = Vec::new();
-        while offset < payload.len() {
-            compatible_brands.push(Brand::decode_at(payload, &mut offset)?);
-        }
+            let mut compatible_brands = Vec::new();
+            while offset < payload.len() {
+                compatible_brands.push(Brand::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((
-            Self {
-                major_brand,
-                minor_version,
-                compatible_brands,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    major_brand,
+                    minor_version,
+                    compatible_brands,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2233,10 +2241,7 @@ impl Decode for Avc1Box {
             let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
             match child_header.box_type {
                 AvccBox::TYPE if avcc_box.is_none() => {
-                    avcc_box = Some(
-                        AvccBox::decode_at(payload, &mut offset)
-                            .map_err(|e| set_box_type_if_none(e, AvccBox::TYPE))?,
-                    );
+                    avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
                 }
                 _ => {
                     unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
