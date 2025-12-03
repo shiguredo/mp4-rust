@@ -288,7 +288,7 @@ impl Encode for SlConfigDescriptor {
 
 /// バッファが指定したタグから始まるかどうかをチェックする
 fn starts_with_tag(buf: &[u8], expected_tag: u8) -> bool {
-    buf.first().map_or(false, |&tag| tag == expected_tag)
+    buf.first().is_some_and(|&tag| tag == expected_tag)
 }
 
 fn decode_tag_and_size(buf: &[u8]) -> Result<(u8, usize, usize)> {
