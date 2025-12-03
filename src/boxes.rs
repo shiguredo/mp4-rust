@@ -1541,13 +1541,11 @@ impl Decode for VmhdBox {
             header.box_type.expect(Self::TYPE)?;
 
             let mut offset = 0;
-            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-            if full_header.flags.get() != 1 {
-                return Err(Error::invalid_data(format!(
-                    "Unexpected FullBox header flags of 'vmhd' box: {}",
-                    full_header.flags.get()
-                )));
-            }
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+
+            // [NOTE]
+            // ISO/IEC 14496-12 の仕様には「vmhd ボックスの flags は 1 になる」と記載があるが、
+            // 実際には 0 となるファイルも存在するため、ここではそのチェックを行わないようにしている
 
             let graphicsmode = u16::decode_at(payload, &mut offset)?;
             let opcolor = <[u16; 3]>::decode_at(payload, &mut offset)?;
