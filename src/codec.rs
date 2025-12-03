@@ -118,7 +118,11 @@ impl core::fmt::Display for Error {
             write!(f, "[{ty}] ")?;
         }
 
-        write!(f, "{:?}: {}", self.kind, self.reason)?;
+        if self.reason.is_empty() {
+            write!(f, "{:?}", self.kind)?;
+        } else {
+            write!(f, "{:?}: {}", self.kind, self.reason)?;
+        }
 
         #[cfg(feature = "std")]
         {
@@ -279,6 +283,7 @@ pub trait Decode: Sized {
     /// オフセット位置からバイト列をデコードし、オフセットを自動で進める
     ///
     /// なお、デコードが失敗した場合はオフセットの更新は行われない
+    #[track_caller]
     fn decode_at(buf: &[u8], offset: &mut usize) -> Result<Self> {
         let (decoded, size) = Self::decode(&buf[*offset..])?;
         *offset += size;
