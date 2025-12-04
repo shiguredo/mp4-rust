@@ -4017,6 +4017,13 @@ impl Decode for DflaBox {
                 }
             }
 
+            if offset < payload.len() {
+                return Err(Error::invalid_data(format!(
+                    "Unexpected data after last metadata block ({} bytes remaining)",
+                    payload.len() - offset
+                )));
+            }
+
             if metadata_blocks.is_empty() {
                 return Err(Error::invalid_data(
                     "dfLa box must contain at least one metadata block (STREAMINFO)",
