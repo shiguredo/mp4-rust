@@ -2033,6 +2033,7 @@ pub enum SampleEntry {
     Av01(Av01Box),
     Opus(OpusBox),
     Mp4a(Mp4aBox),
+    Flac(FlacBox),
     Unknown(UnknownBox),
 }
 
@@ -2044,6 +2045,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.channelcount as u8),
             Self::Mp4a(b) => Some(b.audio.channelcount as u8),
+            Self::Flac(b) => Some(b.audio.channelcount as u8),
             _ => None,
         }
     }
@@ -2057,10 +2059,14 @@ impl SampleEntry {
     /// このメソッドはサンプリングレートの整数部分のみを返し、小数部分は切り捨てられる。
     /// ただし通常は、MP4 ファイルでは音声のサンプリングレートは常に整数値（例: 44100 Hz, 48000 Hz）であり、
     /// 小数部分が 0 以外の値を持つことはないため、問題ないと想定している。
+    ///
+    /// なお音声コーデックによっては u16 の範囲を超えるサンプリングレートが使用される場合もある。
+    /// その可能性がある場合は、このメソッドではなく、コーデック固有の方法で実際のサンプリングレートを取得すること。
     pub fn audio_sample_rate(&self) -> Option<u16> {
         match self {
             Self::Opus(b) => Some(b.audio.samplerate.integer),
             Self::Mp4a(b) => Some(b.audio.samplerate.integer),
+            Self::Flac(b) => Some(b.audio.samplerate.integer),
             _ => None,
         }
     }
@@ -2072,6 +2078,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.samplesize),
             Self::Mp4a(b) => Some(b.audio.samplesize),
+            Self::Flac(b) => Some(b.audio.samplesize),
             _ => None,
         }
     }
@@ -2099,6 +2106,7 @@ impl SampleEntry {
             Self::Av01(b) => b,
             Self::Opus(b) => b,
             Self::Mp4a(b) => b,
+            Self::Flac(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -2114,6 +2122,7 @@ impl Encode for SampleEntry {
             Self::Av01(b) => b.encode(buf),
             Self::Opus(b) => b.encode(buf),
             Self::Mp4a(b) => b.encode(buf),
+            Self::Flac(b) => b.encode(buf),
             Self::Unknown(b) => b.encode(buf),
         }
     }
@@ -2130,6 +2139,7 @@ impl Decode for SampleEntry {
             Av01Box::TYPE => Av01Box::decode(buf).map(|(b, n)| (Self::Av01(b), n)),
             OpusBox::TYPE => OpusBox::decode(buf).map(|(b, n)| (Self::Opus(b), n)),
             Mp4aBox::TYPE => Mp4aBox::decode(buf).map(|(b, n)| (Self::Mp4a(b), n)),
+            FlacBox::TYPE => FlacBox::decode(buf).map(|(b, n)| (Self::Flac(b), n)),
             _ => UnknownBox::decode(buf).map(|(b, n)| (Self::Unknown(b), n)),
         }
     }
@@ -3864,6 +3874,89 @@ impl BaseBox for Mp4aBox {
         Box::new(
             core::iter::empty()
                 .chain(core::iter::once(&self.esds_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSampleEntry class (親: [`StsdBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct FlacBox {
+    pub audio: AudioSampleEntryFields,
+    //pub dfla_box: DflaBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl FlacBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"fLaC");
+}
+
+impl Encode for FlacBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += self.audio.encode(&mut buf[offset..])?;
+        //offset += self.dfla_box.encode(&mut buf[offset..])?;
+        for b in &self.unknown_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+
+            //let mut dfla_box = None;
+            let mut unknown_boxes = Vec::new();
+
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    /*
+                                    DflaBox::TYPE if dfla_box.is_none() => {
+                                        dfla_box = Some(DflaBox::decode_at(payload, &mut offset)?);
+                                    }
+
+                    */
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
+                }
+            }
+
+            Ok((
+                Self {
+                    audio,
+                    //dfla_box: check_mandatory_box(dfla_box, "dfLa", "fLaC")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for FlacBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            core::iter::empty()
+                //.chain(core::iter::once(&self.dfla_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
