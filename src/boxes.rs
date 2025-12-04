@@ -4010,7 +4010,7 @@ impl Decode for DflaBox {
             let mut metadata_blocks = Vec::new();
             while offset < payload.len() {
                 let block = FlacMetadataBlock::decode_at(payload, &mut offset)?;
-                let is_last = block.last_metadata_block_flag.get() == 1;
+                let is_last = block.last_metadata_block_flag.as_bool();
                 metadata_blocks.push(block);
                 if is_last {
                     break;

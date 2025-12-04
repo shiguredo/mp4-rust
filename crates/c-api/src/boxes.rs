@@ -29,6 +29,9 @@ pub enum Mp4SampleEntryKind {
 
     /// MP4A (AAC)
     MP4_SAMPLE_ENTRY_KIND_MP4A,
+
+    /// FLAC
+    MP4_SAMPLE_ENTRY_KIND_FLAC,
 }
 
 pub enum Mp4SampleEntryOwned {
@@ -78,6 +81,13 @@ pub enum Mp4SampleEntryOwned {
         // [NOTE]
         // Avc1 のコメントを参照
         dec_specific_info: Vec<u8>,
+    },
+    Flac {
+        inner: shiguredo_mp4::boxes::FlacBox,
+
+        // [NOTE]
+        // Avc1 のコメントを参照
+        streaminfo_data: Vec<u8>,
     },
 }
 
@@ -149,6 +159,18 @@ impl Mp4SampleEntryOwned {
                 Some(Self::Mp4a {
                     inner,
                     dec_specific_info,
+                })
+            }
+            shiguredo_mp4::boxes::SampleEntry::Flac(inner) => {
+                let streaminfo_data = if let Some(block) = inner.dfla_box.metadata_blocks.first() {
+                    // FLAC の仕様的に最初の block は必ず STREAMINFO になる
+                    block.block_data.clone()
+                } else {
+                    Vec::new()
+                };
+                Some(Self::Flac {
+                    inner,
+                    streaminfo_data,
                 })
             }
             _ => None,
@@ -342,6 +364,22 @@ impl Mp4SampleEntryOwned {
                     data: Mp4SampleEntryData { mp4a },
                 }
             }
+            Self::Flac {
+                inner,
+                streaminfo_data,
+            } => {
+                let flac = Mp4SampleEntryFlac {
+                    channel_count: inner.audio.channelcount as u8,
+                    sample_rate: inner.audio.samplerate.integer,
+                    sample_size: inner.audio.samplesize,
+                    streaminfo_data: streaminfo_data.as_ptr(),
+                    streaminfo_size: streaminfo_data.len() as u32,
+                };
+                Mp4SampleEntry {
+                    kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC,
+                    data: Mp4SampleEntryData { flac },
+                }
+            }
         }
     }
 }
@@ -372,6 +410,9 @@ pub union Mp4SampleEntryData {
 
     /// MP4A（AAC）音声コーデック用のサンプルエントリー
     pub mp4a: Mp4SampleEntryMp4a,
+
+    /// FLAC 音声コーデック用のサンプルエントリー
+    pub flac: Mp4SampleEntryFlac,
 }
 
 /// MP4 サンプルエントリー
@@ -447,6 +488,9 @@ impl Mp4SampleEntry {
             },
             Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A => unsafe {
                 self.data.mp4a.to_sample_entry()
+            },
+            Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC => unsafe {
+                self.data.flac.to_sample_entry()
             },
         }
     }
@@ -1097,5 +1141,55 @@ impl Mp4SampleEntryMp4a {
             unknown_boxes: Vec::new(),
         };
         Ok(shiguredo_mp4::boxes::SampleEntry::Mp4a(mp4a_box))
+    }
+}
+
+/// FLAC コーデック用のサンプルエントリー
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Mp4SampleEntryFlac {
+    pub channel_count: u8,
+    pub sample_rate: u16,
+    pub sample_size: u16,
+    pub streaminfo_data: *const u8,
+    pub streaminfo_size: u32,
+}
+
+impl Mp4SampleEntryFlac {
+    fn to_sample_entry(self) -> Result<shiguredo_mp4::boxes::SampleEntry, Mp4Error> {
+        // streaminfo_data から DflaBox を構築
+        let streaminfo = if self.streaminfo_size > 0 {
+            if self.streaminfo_data.is_null() {
+                return Err(Mp4Error::MP4_ERROR_NULL_POINTER);
+            }
+            unsafe {
+                std::slice::from_raw_parts(self.streaminfo_data, self.streaminfo_size as usize)
+                    .to_vec()
+            }
+        } else {
+            Vec::new()
+        };
+
+        let dfla_box = shiguredo_mp4::boxes::DflaBox {
+            metadata_blocks: vec![shiguredo_mp4::boxes::FlacMetadataBlock {
+                last_metadata_block_flag: Uint::from(true),
+                block_type: shiguredo_mp4::boxes::FlacMetadataBlock::BLOCK_TYPE_STREAMINFO,
+                block_data: streaminfo,
+            }],
+        };
+
+        let flac_box = shiguredo_mp4::boxes::FlacBox {
+            audio: shiguredo_mp4::boxes::AudioSampleEntryFields {
+                data_reference_index:
+                    shiguredo_mp4::boxes::AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+                channelcount: self.channel_count as u16,
+                samplesize: self.sample_size,
+                samplerate: shiguredo_mp4::FixedPointNumber::new(self.sample_rate, 0),
+            },
+            dfla_box,
+            unknown_boxes: Vec::new(),
+        };
+
+        Ok(shiguredo_mp4::boxes::SampleEntry::Flac(flac_box))
     }
 }
