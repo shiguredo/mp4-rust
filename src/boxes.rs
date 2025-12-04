@@ -4010,7 +4010,7 @@ impl Decode for DflaBox {
             let mut metadata_blocks = Vec::new();
             while offset < payload.len() {
                 let block = FlacMetadataBlock::decode_at(payload, &mut offset)?;
-                let is_last = block.last_metadata_block_flag;
+                let is_last = block.last_metadata_block_flag.get() == 1;
                 metadata_blocks.push(block);
                 if is_last {
                     break;
@@ -4023,7 +4023,7 @@ impl Decode for DflaBox {
                 ));
             }
 
-            if metadata_blocks[0].block_type != 0 {
+            if metadata_blocks[0].block_type != FlacMetadataBlock::BLOCK_TYPE_STREAMINFO {
                 return Err(Error::invalid_data(
                     "First metadata block in dfLa must be STREAMINFO (block_type=0)",
                 ));
@@ -4060,36 +4060,43 @@ impl FullBox for DflaBox {
 /// FLAC メタデータブロック
 ///
 /// FLAC 仕様の METADATA_BLOCK 構造を表現する
+///
+/// <https://xiph.org/flac/format.html>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FlacMetadataBlock {
-    /// 最後のメタデータブロックかどうかを示すフラグ (1 bit)
-    pub last_metadata_block_flag: bool,
+    /// 最後のメタデータブロックかどうかを示すフラグ
+    pub last_metadata_block_flag: Uint<u8, 1, 7>,
 
-    /// ブロックタイプ (7 bits)
+    /// ブロックタイプ
     /// 0: STREAMINFO, 1: PADDING, 2: APPLICATION, 3: SEEKTABLE,
     /// 4: VORBIS_COMMENT, 5: CUESHEET, 6: PICTURE
-    pub block_type: u8,
+    pub block_type: Uint<u8, 7>,
 
     /// ブロックデータ
     pub block_data: Vec<u8>,
 }
 
 impl FlacMetadataBlock {
-    /*
-     0       | Streaminfo                                            |
-        +---------+-------------------------------------------------------+
-        | 1       | Padding                                               |
-        +---------+-------------------------------------------------------+
-        | 2       | Application                                           |
-        +---------+-------------------------------------------------------+
-        | 3       | Seek table                                            |
-        +---------+-------------------------------------------------------+
-        | 4       | Vorbis comment                                        |
-        +---------+-------------------------------------------------------+
-        | 5       | Cuesheet                                              |
-        +---------+-------------------------------------------------------+
-        | 6       | Picture
-    */
+    /// ブロックタイプ: STREAMINFO
+    pub const BLOCK_TYPE_STREAMINFO: Uint<u8, 7> = Uint::new(0);
+
+    /// ブロックタイプ: PADDING
+    pub const BLOCK_TYPE_PADDING: Uint<u8, 7> = Uint::new(1);
+
+    /// ブロックタイプ: APPLICATION
+    pub const BLOCK_TYPE_APPLICATION: Uint<u8, 7> = Uint::new(2);
+
+    /// ブロックタイプ: SEEK TABLE
+    pub const BLOCK_TYPE_SEEKTABLE: Uint<u8, 7> = Uint::new(3);
+
+    /// ブロックタイプ: VORBIS COMMENT
+    pub const BLOCK_TYPE_VORBIS_COMMENT: Uint<u8, 7> = Uint::new(4);
+
+    /// ブロックタイプ: CUESHEET
+    pub const BLOCK_TYPE_CUESHEET: Uint<u8, 7> = Uint::new(5);
+
+    /// ブロックタイプ: PICTURE
+    pub const BLOCK_TYPE_PICTURE: Uint<u8, 7> = Uint::new(6);
 }
 
 impl Encode for FlacMetadataBlock {
@@ -4102,23 +4109,15 @@ impl Encode for FlacMetadataBlock {
         }
 
         let mut offset = 0;
-        // LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
-        let first_byte = if self.last_metadata_block_flag {
-            0x80 | (self.block_type & 0x7F)
-        } else {
-            self.block_type & 0x7F
-        };
+        let first_byte = self.last_metadata_block_flag.to_bits() | self.block_type.to_bits();
         offset += first_byte.encode(&mut buf[offset..])?;
 
-        // Length (24 bits, big-endian)
         let length_bytes = [
             ((length >> 16) & 0xFF) as u8,
             ((length >> 8) & 0xFF) as u8,
             (length & 0xFF) as u8,
         ];
         offset += length_bytes.encode(&mut buf[offset..])?;
-
-        // BlockData
         offset += self.block_data.as_slice().encode(&mut buf[offset..])?;
 
         Ok(offset)
@@ -4129,18 +4128,15 @@ impl Decode for FlacMetadataBlock {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
         let mut offset = 0;
 
-        // FirstByte: LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
         let first_byte = u8::decode_at(buf, &mut offset)?;
-        let last_metadata_block_flag = (first_byte & 0x80) != 0;
-        let block_type = first_byte & 0x7F;
+        let last_metadata_block_flag = Uint::from_bits(first_byte);
+        let block_type = Uint::from_bits(first_byte);
 
-        // Length (24 bits, big-endian)
         let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
         let length = ((length_bytes[0] as usize) << 16)
             | ((length_bytes[1] as usize) << 8)
             | (length_bytes[2] as usize);
 
-        // BlockData
         Error::check_buffer_size(offset + length, buf)?;
         let block_data = buf[offset..offset + length].to_vec();
         offset += length;
