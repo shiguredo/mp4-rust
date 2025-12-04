@@ -4065,6 +4065,9 @@ impl FullBox for EsdsBox {
 
 #[track_caller]
 fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result<T> {
+    // [NOTE]
+    // ok_or_else() でも同じことができるが `Error::invalid_data()` をクロージャーで囲ってしまうと、
+    // `check_mandatory_box()` 自体の `track_caller` 指定の意味がなくなってしまうので、あえて if-else で実装している
     if let Some(b) = maybe_box {
         Ok(b)
     } else {
