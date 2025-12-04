@@ -57,6 +57,8 @@ const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
             return "Opus";
         case MP4_SAMPLE_ENTRY_KIND_MP4A:
             return "MP4A (AAC)";
+        case MP4_SAMPLE_ENTRY_KIND_FLAC:
+            return "FLAC";
         default:
             return "Unknown";
     }
@@ -108,6 +110,12 @@ void print_sample_entry_info(const struct Mp4SampleEntry *sample_entry) {
             const struct Mp4SampleEntryMp4a *mp4a = &sample_entry->data.mp4a;
             printf("    Channels: %u, Sample rate: %u Hz\n", mp4a->channel_count,
                    mp4a->sample_rate);
+            break;
+        }
+        case MP4_SAMPLE_ENTRY_KIND_FLAC: {
+            const struct Mp4SampleEntryFlac *flac = &sample_entry->data.flac;
+            printf("    Channels: %u, Sample rate: %u Hz\n", flac->channel_count,
+                   flac->sample_rate);
             break;
         }
         default:
