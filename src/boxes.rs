@@ -4066,9 +4066,11 @@ impl FullBox for EsdsBox {
 
 #[track_caller]
 fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result<T> {
-    maybe_box.ok_or_else(|| {
-        Error::invalid_data(format!(
+    if let Some(b) = maybe_box {
+        Ok(b)
+    } else {
+        Err(Error::invalid_data(format!(
             "Missing mandatory '{expected}' box in '{parent}' box"
-        ))
-    })
+        )))
+    }
 }
