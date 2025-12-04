@@ -3886,7 +3886,7 @@ impl BaseBox for Mp4aBox {
 #[allow(missing_docs)]
 pub struct FlacBox {
     pub audio: AudioSampleEntryFields,
-    //pub dfla_box: DflaBox,
+    pub dfla_box: DflaBox,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -3900,7 +3900,7 @@ impl Encode for FlacBox {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += self.audio.encode(&mut buf[offset..])?;
-        //offset += self.dfla_box.encode(&mut buf[offset..])?;
+        offset += self.dfla_box.encode(&mut buf[offset..])?;
         for b in &self.unknown_boxes {
             offset += b.encode(&mut buf[offset..])?;
         }
@@ -3924,12 +3924,10 @@ impl Decode for FlacBox {
             while offset < payload.len() {
                 let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
                 match child_header.box_type {
-                    /*
-                                    DflaBox::TYPE if dfla_box.is_none() => {
-                                        dfla_box = Some(DflaBox::decode_at(payload, &mut offset)?);
-                                    }
+                    DflaBox::TYPE if dfla_box.is_none() => {
+                        dfla_box = Some(DflaBox::decode_at(payload, &mut offset)?);
+                    }
 
-                    */
                     _ => {
                         unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
                     }
@@ -3939,7 +3937,7 @@ impl Decode for FlacBox {
             Ok((
                 Self {
                     audio,
-                    //dfla_box: check_mandatory_box(dfla_box, "dfLa", "fLaC")?,
+                    dfla_box: check_mandatory_box(dfla_box, "dfLa", "fLaC")?,
                     unknown_boxes,
                 },
                 header.external_size() + payload.len(),
@@ -3956,9 +3954,106 @@ impl BaseBox for FlacBox {
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
-                //.chain(core::iter::once(&self.dfla_box).map(as_box_object))
+                .chain(core::iter::once(&self.dfla_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSpecificBox class (親: [`FlacBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DflaBox {
+    /// FLAC メタデータブロックのリスト
+    /// 最初のブロックは必ず STREAMINFO (block_type=0) でなければならない
+    pub metadata_blocks: Vec<FlacMetadataBlock>,
+}
+
+impl DflaBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"dfLa");
+
+    const VERSION: u8 = 0;
+}
+
+impl Encode for DflaBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+
+        for block in &self.metadata_blocks {
+            offset += block.encode(&mut buf[offset..])?;
+        }
+
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for DflaBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if full_header.version != Self::VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported dfLa version: {}",
+                    full_header.version
+                )));
+            }
+
+            let mut metadata_blocks = Vec::new();
+            while offset < payload.len() {
+                let block = FlacMetadataBlock::decode_at(payload, &mut offset)?;
+                let is_last = block.last_metadata_block_flag;
+                metadata_blocks.push(block);
+                if is_last {
+                    break;
+                }
+            }
+
+            if metadata_blocks.is_empty() {
+                return Err(Error::invalid_data(
+                    "dfLa box must contain at least one metadata block (STREAMINFO)",
+                ));
+            }
+
+            if metadata_blocks[0].block_type != 0 {
+                return Err(Error::invalid_data(
+                    "First metadata block in dfLa must be STREAMINFO (block_type=0)",
+                ));
+            }
+
+            Ok((
+                Self { metadata_blocks },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for DflaBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for DflaBox {
+    fn full_box_version(&self) -> u8 {
+        Self::VERSION
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
     }
 }
 
