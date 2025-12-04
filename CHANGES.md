@@ -11,6 +11,11 @@
 
 ## develop
 
+- [ADD] FLAC 対応を追加する
+  - FLAC を扱うのに必要な以下のボックスへの対応を追加する:
+    - fLaC
+    - dfLa
+  - @sile
 - [CHANGE] MinfBox 構造体の smhd_or_vmhd_box フィールドを Option 型に変更する
   - メディアトラック以外を含む MP4 ファイルの読み込みに対応するための変更
   - @sile
