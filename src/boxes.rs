@@ -1344,7 +1344,8 @@ impl FullBox for HdlrBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MinfBox {
-    pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
+    // 音声・映像トラック以外の場合は None になる
+    pub smhd_or_vmhd_box: Option<Either<SmhdBox, VmhdBox>>,
     pub dinf_box: DinfBox,
     pub stbl_box: StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1359,9 +1360,11 @@ impl Encode for MinfBox {
     fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
-        match &self.smhd_or_vmhd_box {
-            Either::A(b) => offset += b.encode(&mut buf[offset..])?,
-            Either::B(b) => offset += b.encode(&mut buf[offset..])?,
+        if let Some(smhd_or_vmhd_box) = &self.smhd_or_vmhd_box {
+            match smhd_or_vmhd_box {
+                Either::A(b) => offset += b.encode(&mut buf[offset..])?,
+                Either::B(b) => offset += b.encode(&mut buf[offset..])?,
+            }
         }
         offset += self.dinf_box.encode(&mut buf[offset..])?;
         offset += self.stbl_box.encode(&mut buf[offset..])?;
@@ -1409,11 +1412,7 @@ impl Decode for MinfBox {
 
             Ok((
                 Self {
-                    smhd_or_vmhd_box: {
-                        let smhd = smhd_box.map(Either::A);
-                        let vmhd = vmhd_box.map(Either::B);
-                        check_mandatory_box(smhd.or(vmhd), "smhd' or 'vmhd", "minf")?
-                    },
+                    smhd_or_vmhd_box: smhd_box.map(Either::A).or(vmhd_box.map(Either::B)),
                     dinf_box: check_mandatory_box(dinf_box, "dinf", "minf")?,
                     stbl_box: check_mandatory_box(stbl_box, "stbl", "minf")?,
                     unknown_boxes,
@@ -1432,7 +1431,7 @@ impl BaseBox for MinfBox {
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
-                .chain(core::iter::once(&self.smhd_or_vmhd_box).map(as_box_object))
+                .chain(self.smhd_or_vmhd_box.iter().map(as_box_object))
                 .chain(core::iter::once(&self.dinf_box).map(as_box_object))
                 .chain(core::iter::once(&self.stbl_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
@@ -4066,9 +4065,14 @@ impl FullBox for EsdsBox {
 
 #[track_caller]
 fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result<T> {
-    maybe_box.ok_or_else(|| {
-        Error::invalid_data(format!(
+    // [NOTE]
+    // ok_or_else() でも同じことができるが `Error::invalid_data()` をクロージャーで囲ってしまうと、
+    // `check_mandatory_box()` 自体の `track_caller` 指定の意味がなくなってしまうので、あえて if-else で実装している
+    if let Some(b) = maybe_box {
+        Ok(b)
+    } else {
+        Err(Error::invalid_data(format!(
             "Missing mandatory '{expected}' box in '{parent}' box"
-        ))
-    })
+        )))
+    }
 }
