@@ -146,9 +146,9 @@ impl OutputMp4Builder {
         };
         let minf_box = MinfBox {
             smhd_or_vmhd_box: if track.is_audio {
-                Either::A(SmhdBox::default())
+                Some(Either::A(SmhdBox::default()))
             } else {
-                Either::B(VmhdBox::default())
+                Some(Either::B(VmhdBox::default()))
             },
             dinf_box: DinfBox::LOCAL_FILE,
             stbl_box: self.build_stbl_box(track).or_fail()?,
