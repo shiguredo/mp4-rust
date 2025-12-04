@@ -3918,7 +3918,7 @@ impl Decode for FlacBox {
             let mut offset = 0;
             let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
 
-            //let mut dfla_box = None;
+            let mut dfla_box = None;
             let mut unknown_boxes = Vec::new();
 
             while offset < payload.len() {
@@ -4054,6 +4054,105 @@ impl FullBox for DflaBox {
 
     fn full_box_flags(&self) -> FullBoxFlags {
         FullBoxFlags::new(0)
+    }
+}
+
+/// FLAC メタデータブロック
+///
+/// FLAC 仕様の METADATA_BLOCK 構造を表現する
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FlacMetadataBlock {
+    /// 最後のメタデータブロックかどうかを示すフラグ (1 bit)
+    pub last_metadata_block_flag: bool,
+
+    /// ブロックタイプ (7 bits)
+    /// 0: STREAMINFO, 1: PADDING, 2: APPLICATION, 3: SEEKTABLE,
+    /// 4: VORBIS_COMMENT, 5: CUESHEET, 6: PICTURE
+    pub block_type: u8,
+
+    /// ブロックデータ
+    pub block_data: Vec<u8>,
+}
+
+impl FlacMetadataBlock {
+    /*
+     0       | Streaminfo                                            |
+        +---------+-------------------------------------------------------+
+        | 1       | Padding                                               |
+        +---------+-------------------------------------------------------+
+        | 2       | Application                                           |
+        +---------+-------------------------------------------------------+
+        | 3       | Seek table                                            |
+        +---------+-------------------------------------------------------+
+        | 4       | Vorbis comment                                        |
+        +---------+-------------------------------------------------------+
+        | 5       | Cuesheet                                              |
+        +---------+-------------------------------------------------------+
+        | 6       | Picture
+    */
+}
+
+impl Encode for FlacMetadataBlock {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let length = self.block_data.len();
+        if length > 0xFF_FFFF {
+            return Err(Error::invalid_input(
+                "FLAC metadata block data is too large (max 16777215 bytes)",
+            ));
+        }
+
+        let mut offset = 0;
+        // LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
+        let first_byte = if self.last_metadata_block_flag {
+            0x80 | (self.block_type & 0x7F)
+        } else {
+            self.block_type & 0x7F
+        };
+        offset += first_byte.encode(&mut buf[offset..])?;
+
+        // Length (24 bits, big-endian)
+        let length_bytes = [
+            ((length >> 16) & 0xFF) as u8,
+            ((length >> 8) & 0xFF) as u8,
+            (length & 0xFF) as u8,
+        ];
+        offset += length_bytes.encode(&mut buf[offset..])?;
+
+        // BlockData
+        offset += self.block_data.as_slice().encode(&mut buf[offset..])?;
+
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacMetadataBlock {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let mut offset = 0;
+
+        // FirstByte: LastMetadataBlockFlag (1 bit) + BlockType (7 bits)
+        let first_byte = u8::decode_at(buf, &mut offset)?;
+        let last_metadata_block_flag = (first_byte & 0x80) != 0;
+        let block_type = first_byte & 0x7F;
+
+        // Length (24 bits, big-endian)
+        let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
+        let length = ((length_bytes[0] as usize) << 16)
+            | ((length_bytes[1] as usize) << 8)
+            | (length_bytes[2] as usize);
+
+        // BlockData
+        Error::check_buffer_size(offset + length, buf)?;
+        let block_data = buf[offset..offset + length].to_vec();
+        offset += length;
+
+        Ok((
+            Self {
+                last_metadata_block_flag,
+                block_type,
+                block_data,
+            },
+            offset,
+        ))
     }
 }
 
