@@ -108,7 +108,7 @@ jobs:
       - run: cargo clippy --workspace --no-default-features -- -D warnings
 
   build-c-api:
-    name: Build C API
+    name: Build C API Library
     strategy:
       matrix:
         include:
