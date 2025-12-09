@@ -92,7 +92,6 @@ jobs:
           New-Item -ItemType Directory -Path "${dir}/lib" -Force
           New-Item -ItemType Directory -Path "${dir}/include" -Force
           Copy-Item -Path "target/release/mp4.dll" -Destination "${dir}/lib/"
-          Copy-Item -Path "target/release/mp4.dll.lib" -Destination "${dir}/lib/"
           Copy-Item -Path "target/release/mp4.lib" -Destination "${dir}/lib/"
           Copy-Item -Path "crates/c-api/include/mp4.h" -Destination "${dir}/include/"
           Compress-Archive -Path "${dir}" -DestinationPath "mp4-${version}_${platform}.zip"

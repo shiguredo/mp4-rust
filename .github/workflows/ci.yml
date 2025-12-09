@@ -145,7 +145,6 @@ jobs:
           New-Item -ItemType Directory -Path "artifacts/lib" -Force
           New-Item -ItemType Directory -Path "artifacts/include" -Force
           Copy-Item -Path "target/release/mp4.dll" -Destination "artifacts/lib/"
-          Copy-Item -Path "target/release/mp4.dll.lib" -Destination "artifacts/lib/"
           Copy-Item -Path "target/release/mp4.lib" -Destination "artifacts/lib/"
           Copy-Item -Path "crates/c-api/include/mp4.h" -Destination "artifacts/include/"
 
