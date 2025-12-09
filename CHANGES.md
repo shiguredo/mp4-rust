@@ -44,6 +44,10 @@
 
 ### misc
 
+- [ADD] CI で C API ライブラリを artifact としてアップロードする
+  - @voluntas
+- [ADD] Windows 用の C API ライブラリリリースを追加する
+  - @voluntas
 - [ADD] examples/demux.rs を追加する
   - @sile
 - [ADD] Windows と macOS を CI 対象に追加する
