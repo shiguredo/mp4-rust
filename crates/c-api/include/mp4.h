@@ -100,6 +100,10 @@ typedef enum Mp4SampleEntryKind {
    * MP4A (AAC)
    */
   MP4_SAMPLE_ENTRY_KIND_MP4A,
+  /**
+   * FLAC
+   */
+  MP4_SAMPLE_ENTRY_KIND_FLAC,
 } Mp4SampleEntryKind;
 
 /**
@@ -495,6 +499,17 @@ typedef struct Mp4SampleEntryMp4a {
 } Mp4SampleEntryMp4a;
 
 /**
+ * FLAC コーデック用のサンプルエントリー
+ */
+typedef struct Mp4SampleEntryFlac {
+  uint8_t channel_count;
+  uint16_t sample_rate;
+  uint16_t sample_size;
+  const uint8_t *streaminfo_data;
+  uint32_t streaminfo_size;
+} Mp4SampleEntryFlac;
+
+/**
  * MP4 サンプルエントリーの詳細データを格納するユニオン型
  *
  * このユニオン型は、`Mp4SampleEntry` の `kind` フィールドで指定されたコーデック種別に応じて、
@@ -529,6 +544,10 @@ typedef union Mp4SampleEntryData {
    * MP4A（AAC）音声コーデック用のサンプルエントリー
    */
   struct Mp4SampleEntryMp4a mp4a;
+  /**
+   * FLAC 音声コーデック用のサンプルエントリー
+   */
+  struct Mp4SampleEntryFlac flac;
 } Mp4SampleEntryData;
 
 /**

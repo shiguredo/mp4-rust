@@ -743,7 +743,7 @@ impl Mp4FileMuxer {
         };
 
         let minf_box = MinfBox {
-            smhd_or_vmhd_box: Either::A(SmhdBox::default()),
+            smhd_or_vmhd_box: Some(Either::A(SmhdBox::default())),
             dinf_box: DinfBox::LOCAL_FILE,
             stbl_box: self.build_stbl_box(&self.audio_chunks),
             unknown_boxes: Vec::new(),
@@ -779,7 +779,7 @@ impl Mp4FileMuxer {
         };
 
         let minf_box = MinfBox {
-            smhd_or_vmhd_box: Either::B(VmhdBox::default()),
+            smhd_or_vmhd_box: Some(Either::B(VmhdBox::default())),
             dinf_box: DinfBox::LOCAL_FILE,
             stbl_box: self.build_stbl_box(&self.video_chunks),
             unknown_boxes: Vec::new(),
