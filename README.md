@@ -26,7 +26,10 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 - sans I/O 化
   - <https://sans-io.readthedocs.io/index.html>
 - 高レベル API の提供
-- C 互換 API の提供
+- C API の提供
+- Windows / macOS / Linux 対応
+- Opus / FLAC / AAC 対応
+- VP8 / VP9 / AV1 / H.264 / H.265 対応
 
 ## ロードマップ
 
