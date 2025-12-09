@@ -77,7 +77,7 @@ jobs:
         run: |
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
-          cp $(ls target/release/libmp4.* | grep -E '(a|so|dylib)$') mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
+          cp $(ls target/release/libmp4.* | grep -E '\.(a|so|dylib)$') mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
           cp crates/c-api/include/mp4.h mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
           tar -czf mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.tar.gz \
             mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}
@@ -106,6 +106,7 @@ jobs:
 
       - name: Upload Release Asset (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
