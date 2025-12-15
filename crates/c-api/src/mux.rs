@@ -228,16 +228,7 @@ struct Output {
 ///     return 0;
 /// }
 /// ```
-#[repr(C)]
 pub struct Mp4FileMuxer {
-    _private: [u8; 0],
-}
-
-// [NOTE]
-// この構造体を直接公開関数で参照すると cbindgen が、
-// 隠蔽したい内部フィールドまで C のヘッダーファイルに含めてしまうので、
-// 公開用には Mp4FileMuxer を用意して、実際の実装はこちらで行っている
-struct Mp4FileMuxerImpl {
     options: shiguredo_mp4::mux::Mp4FileMuxerOptions,
     inner: Option<shiguredo_mp4::mux::Mp4FileMuxer>,
     last_error_string: Option<CString>,
@@ -245,7 +236,7 @@ struct Mp4FileMuxerImpl {
     next_output_index: usize,
 }
 
-impl Mp4FileMuxerImpl {
+impl Mp4FileMuxer {
     fn set_last_error(&mut self, message: &str) {
         self.last_error_string = CString::new(message).ok();
     }
@@ -329,7 +320,7 @@ pub extern "C" fn mp4_estimate_maximum_moov_box_size(
 /// ```
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
-    let impl_data = Box::new(Mp4FileMuxerImpl {
+    let impl_data = Box::new(Mp4FileMuxer {
         options: shiguredo_mp4::mux::Mp4FileMuxerOptions::default(),
         inner: None,
         last_error_string: None,
@@ -363,7 +354,7 @@ pub extern "C" fn mp4_file_muxer_new() -> *mut Mp4FileMuxer {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_free(muxer: *mut Mp4FileMuxer) {
     if !muxer.is_null() {
-        let _ = unsafe { Box::from_raw(muxer.cast::<Mp4FileMuxerImpl>()) };
+        let _ = unsafe { Box::from_raw(muxer) };
     }
 }
 
@@ -407,7 +398,7 @@ pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
         return c"".as_ptr();
     }
 
-    let muxer = unsafe { &*muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &*muxer };
     let Some(e) = &muxer.last_error_string else {
         return c"".as_ptr();
     };
@@ -472,7 +463,7 @@ pub unsafe extern "C" fn mp4_file_muxer_set_reserved_moov_box_size(
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &mut *muxer };
     muxer.options.reserved_moov_box_size = size as usize;
 
     Mp4Error::MP4_ERROR_OK
@@ -508,7 +499,7 @@ pub unsafe extern "C" fn mp4_file_muxer_initialize(muxer: *mut Mp4FileMuxer) -> 
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &mut *muxer };
 
     if muxer.inner.is_some() {
         muxer.set_last_error("[mp4_file_muxer_initialize] Muxer has already been initialized");
@@ -613,7 +604,7 @@ pub unsafe extern "C" fn mp4_file_muxer_next_output(
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &mut *muxer };
 
     if out_output_offset.is_null() {
         muxer.set_last_error("[mp4_file_muxer_next_output] out_output_offset is null");
@@ -726,7 +717,7 @@ pub unsafe extern "C" fn mp4_file_muxer_append_sample(
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &mut *muxer };
 
     if muxer.next_output_index < muxer.output_list.len() {
         muxer.set_last_error(
@@ -834,7 +825,7 @@ pub unsafe extern "C" fn mp4_file_muxer_finalize(muxer: *mut Mp4FileMuxer) -> Mp
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let muxer = unsafe { &mut *muxer.cast::<Mp4FileMuxerImpl>() };
+    let muxer = unsafe { &mut *muxer };
 
     if muxer.next_output_index < muxer.output_list.len() {
         muxer.set_last_error("[mp4_file_muxer_finalize] Output required before finalizing");

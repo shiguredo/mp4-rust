@@ -623,14 +623,7 @@ impl<A: BaseBox, B: BaseBox> BaseBox for Either<A, B> {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Uint<T, const BITS: u32, const OFFSET: u32 = 0>(T);
 
-impl<T, const BITS: u32, const OFFSET: u32> Uint<T, BITS, OFFSET>
-where
-    T: Shr<u32, Output = T>
-        + Shl<u32, Output = T>
-        + BitAnd<Output = T>
-        + Sub<Output = T>
-        + From<u8>,
-{
+impl<T, const BITS: u32, const OFFSET: u32> Uint<T, BITS, OFFSET> {
     /// 指定された数値を受け取ってインスタンスを作成する
     pub const fn new(v: T) -> Self {
         Self(v)
@@ -640,7 +633,16 @@ where
     pub fn get(self) -> T {
         self.0
     }
+}
 
+impl<T, const BITS: u32, const OFFSET: u32> Uint<T, BITS, OFFSET>
+where
+    T: Shr<u32, Output = T>
+        + Shl<u32, Output = T>
+        + BitAnd<Output = T>
+        + Sub<Output = T>
+        + From<u8>,
+{
     /// `T` が保持するビット列の `OFFSET` 位置から `BITS` 分のビット列に対応する整数値を返す
     pub fn from_bits(v: T) -> Self {
         Self((v >> OFFSET) & ((T::from(1) << BITS) - T::from(1)))
@@ -651,6 +653,25 @@ where
     /// なお `OFFSET` が `0` の場合には、このメソッドは [`Uint::get()`] と等価である
     pub fn to_bits(self) -> T {
         self.0 << OFFSET
+    }
+}
+
+impl<T, const OFFSET: u32> Uint<T, 1, OFFSET>
+where
+    T: From<u8> + Eq,
+{
+    /// このインスタンスの値を対応する boolean 値に変換する
+    pub fn as_bool(self) -> bool {
+        self.get() != T::from(0)
+    }
+}
+
+impl<T, const OFFSET: u32> From<bool> for Uint<T, 1, OFFSET>
+where
+    T: From<bool>,
+{
+    fn from(value: bool) -> Self {
+        Self::new(T::from(value))
     }
 }
 

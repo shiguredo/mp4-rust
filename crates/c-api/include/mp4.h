@@ -100,6 +100,10 @@ typedef enum Mp4SampleEntryKind {
    * MP4A (AAC)
    */
   MP4_SAMPLE_ENTRY_KIND_MP4A,
+  /**
+   * FLAC
+   */
+  MP4_SAMPLE_ENTRY_KIND_FLAC,
 } Mp4SampleEntryKind;
 
 /**
@@ -153,9 +157,138 @@ typedef enum Mp4SampleEntryKind {
  * mp4_file_demuxer_free(demuxer);
  * ```
  */
-typedef struct Mp4FileDemuxer {
-  uint8_t _private[0];
-} Mp4FileDemuxer;
+typedef struct Mp4FileDemuxer Mp4FileDemuxer;
+
+/**
+ * メディアトラック（音声・映像）を含んだ MP4 ファイルの構築（マルチプレックス）処理を行うための構造体
+ *
+ * # 関連関数
+ *
+ * この構造体は、以下の関数を通して操作する必要がある:
+ * - `mp4_file_muxer_new()`: `Mp4FileMuxer` インスタンスを生成する
+ * - `mp4_file_muxer_free()`: リソースを解放する
+ * - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に事前確保する moov ボックスのサイズを設定する
+ * - `mp4_file_muxer_initialize()`: マルチプレックス処理を初期化する
+ * - `mp4_file_muxer_append_sample()`: サンプルを追加する
+ * - `mp4_file_muxer_next_output()`: 出力データを取得する
+ * - `mp4_file_muxer_finalize()`: マルチプレックス処理を完了する
+ * - `mp4_file_muxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
+ *
+ * # 使用例
+ *
+ * ```c
+ * #include <stdio.h>
+ * #include <stdlib.h>
+ * #include <stdint.h>
+ * #include <string.h>
+ * #include "mp4.h"
+ *
+ * int main() {
+ *     // 1. Mp4FileMuxer インスタンスを生成
+ *     Mp4FileMuxer *muxer = mp4_file_muxer_new();
+ *
+ *     // ファイルをオープン
+ *     FILE *fp = fopen("output.mp4", "wb");
+ *     if (fp == NULL) {
+ *         fprintf(stderr, "Failed to open output file\n");
+ *         mp4_file_muxer_free(muxer);
+ *         return 1;
+ *     }
+ *
+ *     // 2. オプション設定（必要に応じて）
+ *     mp4_file_muxer_set_reserved_moov_box_size(muxer, 8192);
+ *
+ *     // 3. マルチプレックス処理を初期化
+ *     Mp4Error ret = mp4_file_muxer_initialize(muxer);
+ *     if (ret != MP4_ERROR_OK) {
+ *         fprintf(stderr, "初期化失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
+ *         mp4_file_muxer_free(muxer);
+ *         fclose(fp);
+ *         return 1;
+ *     }
+ *
+ *     // 4. 初期出力データをファイルに書き込む
+ *     uint64_t output_offset;
+ *     uint32_t output_size;
+ *     const uint8_t *output_data;
+ *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
+ *         if (output_size == 0) break;
+ *         fseek(fp, output_offset, SEEK_SET);
+ *         fwrite(output_data, 1, output_size, fp);
+ *     }
+ *
+ *     // 5. サンプルを追加
+ *
+ *     // サンプルデータを準備（例：4096 バイトのダミー VP8 フレームデータ）
+ *     uint8_t video_sample_data[4096];
+ *     memset(video_sample_data, 0, sizeof(video_sample_data));
+ *
+ *     // サンプルデータをファイルに書き込み
+ *     fwrite(video_sample_data, 1, sizeof(video_sample_data), fp);
+ *
+ *     // VP08（VP8）サンプルエントリーを作成
+ *     Mp4SampleEntryVp08 vp08_data = {
+ *         .width = 1920,
+ *         .height = 1080,
+ *         .bit_depth = 8,
+ *         .chroma_subsampling = 1,  // 4:2:0
+ *         .video_full_range_flag = false,
+ *         .colour_primaries = 1,     // BT.709
+ *         .transfer_characteristics = 1,  // BT.709
+ *         .matrix_coefficients = 1,  // BT.709
+ *     };
+ *
+ *     Mp4SampleEntryData sample_entry_data;
+ *     sample_entry_data.vp08 = vp08_data;
+ *
+ *     Mp4SampleEntry sample_entry = {
+ *         .kind = MP4_SAMPLE_ENTRY_KIND_VP08,
+ *         .data = sample_entry_data,
+ *     };
+ *
+ *     Mp4MuxSample video_sample = {
+ *         .track_kind = MP4_TRACK_KIND_VIDEO,
+ *         .sample_entry = &sample_entry,
+ *         .keyframe = true,
+ *         .timescale = 30,  // 30 fps
+ *         .duration = 1,
+ *         .data_offset = output_offset + output_size,
+ *         .data_size = sizeof(video_sample_data),
+ *     };
+ *     ret = mp4_file_muxer_append_sample(muxer, &video_sample);
+ *     if (ret != MP4_ERROR_OK) {
+ *         fprintf(stderr, "Failed to append sample: %s\n", mp4_file_muxer_get_last_error(muxer));
+ *         mp4_file_muxer_free(muxer);
+ *         fclose(fp);
+ *         return 1;
+ *     }
+ *
+ *     // 6. マルチプレックス処理を完了
+ *     ret = mp4_file_muxer_finalize(muxer);
+ *     if (ret != MP4_ERROR_OK) {
+ *         fprintf(stderr, "ファイナライズ失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
+ *         mp4_file_muxer_free(muxer);
+ *         fclose(fp);
+ *         return 1;
+ *     }
+ *
+ *     // 7. ファイナライズ後のボックスデータをファイルに書き込む
+ *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
+ *         if (output_size == 0) break;
+ *         fseek(fp, output_offset, SEEK_SET);
+ *         fwrite(output_data, 1, output_size, fp);
+ *     }
+ *
+ *     // 8. リソース解放
+ *     mp4_file_muxer_free(muxer);
+ *     fclose(fp);
+ *
+ *     printf("MP4 file created successfully: output.mp4\n");
+ *     return 0;
+ * }
+ * ```
+ */
+typedef struct Mp4FileMuxer Mp4FileMuxer;
 
 /**
  * MP4 デマルチプレックス処理中に抽出されたメディアトラックの情報を表す構造体
@@ -495,6 +628,17 @@ typedef struct Mp4SampleEntryMp4a {
 } Mp4SampleEntryMp4a;
 
 /**
+ * FLAC コーデック用のサンプルエントリー
+ */
+typedef struct Mp4SampleEntryFlac {
+  uint8_t channel_count;
+  uint16_t sample_rate;
+  uint16_t sample_size;
+  const uint8_t *streaminfo_data;
+  uint32_t streaminfo_size;
+} Mp4SampleEntryFlac;
+
+/**
  * MP4 サンプルエントリーの詳細データを格納するユニオン型
  *
  * このユニオン型は、`Mp4SampleEntry` の `kind` フィールドで指定されたコーデック種別に応じて、
@@ -529,6 +673,10 @@ typedef union Mp4SampleEntryData {
    * MP4A（AAC）音声コーデック用のサンプルエントリー
    */
   struct Mp4SampleEntryMp4a mp4a;
+  /**
+   * FLAC 音声コーデック用のサンプルエントリー
+   */
+  struct Mp4SampleEntryFlac flac;
 } Mp4SampleEntryData;
 
 /**
@@ -647,139 +795,6 @@ typedef struct Mp4DemuxSample {
 } Mp4DemuxSample;
 
 /**
- * メディアトラック（音声・映像）を含んだ MP4 ファイルの構築（マルチプレックス）処理を行うための構造体
- *
- * # 関連関数
- *
- * この構造体は、以下の関数を通して操作する必要がある:
- * - `mp4_file_muxer_new()`: `Mp4FileMuxer` インスタンスを生成する
- * - `mp4_file_muxer_free()`: リソースを解放する
- * - `mp4_file_muxer_set_reserved_moov_box_size()`: faststart 用に事前確保する moov ボックスのサイズを設定する
- * - `mp4_file_muxer_initialize()`: マルチプレックス処理を初期化する
- * - `mp4_file_muxer_append_sample()`: サンプルを追加する
- * - `mp4_file_muxer_next_output()`: 出力データを取得する
- * - `mp4_file_muxer_finalize()`: マルチプレックス処理を完了する
- * - `mp4_file_muxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
- *
- * # 使用例
- *
- * ```c
- * #include <stdio.h>
- * #include <stdlib.h>
- * #include <stdint.h>
- * #include <string.h>
- * #include "mp4.h"
- *
- * int main() {
- *     // 1. Mp4FileMuxer インスタンスを生成
- *     Mp4FileMuxer *muxer = mp4_file_muxer_new();
- *
- *     // ファイルをオープン
- *     FILE *fp = fopen("output.mp4", "wb");
- *     if (fp == NULL) {
- *         fprintf(stderr, "Failed to open output file\n");
- *         mp4_file_muxer_free(muxer);
- *         return 1;
- *     }
- *
- *     // 2. オプション設定（必要に応じて）
- *     mp4_file_muxer_set_reserved_moov_box_size(muxer, 8192);
- *
- *     // 3. マルチプレックス処理を初期化
- *     Mp4Error ret = mp4_file_muxer_initialize(muxer);
- *     if (ret != MP4_ERROR_OK) {
- *         fprintf(stderr, "初期化失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
- *         mp4_file_muxer_free(muxer);
- *         fclose(fp);
- *         return 1;
- *     }
- *
- *     // 4. 初期出力データをファイルに書き込む
- *     uint64_t output_offset;
- *     uint32_t output_size;
- *     const uint8_t *output_data;
- *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
- *         if (output_size == 0) break;
- *         fseek(fp, output_offset, SEEK_SET);
- *         fwrite(output_data, 1, output_size, fp);
- *     }
- *
- *     // 5. サンプルを追加
- *
- *     // サンプルデータを準備（例：4096 バイトのダミー VP8 フレームデータ）
- *     uint8_t video_sample_data[4096];
- *     memset(video_sample_data, 0, sizeof(video_sample_data));
- *
- *     // サンプルデータをファイルに書き込み
- *     fwrite(video_sample_data, 1, sizeof(video_sample_data), fp);
- *
- *     // VP08（VP8）サンプルエントリーを作成
- *     Mp4SampleEntryVp08 vp08_data = {
- *         .width = 1920,
- *         .height = 1080,
- *         .bit_depth = 8,
- *         .chroma_subsampling = 1,  // 4:2:0
- *         .video_full_range_flag = false,
- *         .colour_primaries = 1,     // BT.709
- *         .transfer_characteristics = 1,  // BT.709
- *         .matrix_coefficients = 1,  // BT.709
- *     };
- *
- *     Mp4SampleEntryData sample_entry_data;
- *     sample_entry_data.vp08 = vp08_data;
- *
- *     Mp4SampleEntry sample_entry = {
- *         .kind = MP4_SAMPLE_ENTRY_KIND_VP08,
- *         .data = sample_entry_data,
- *     };
- *
- *     Mp4MuxSample video_sample = {
- *         .track_kind = MP4_TRACK_KIND_VIDEO,
- *         .sample_entry = &sample_entry,
- *         .keyframe = true,
- *         .timescale = 30,  // 30 fps
- *         .duration = 1,
- *         .data_offset = output_offset + output_size,
- *         .data_size = sizeof(video_sample_data),
- *     };
- *     ret = mp4_file_muxer_append_sample(muxer, &video_sample);
- *     if (ret != MP4_ERROR_OK) {
- *         fprintf(stderr, "Failed to append sample: %s\n", mp4_file_muxer_get_last_error(muxer));
- *         mp4_file_muxer_free(muxer);
- *         fclose(fp);
- *         return 1;
- *     }
- *
- *     // 6. マルチプレックス処理を完了
- *     ret = mp4_file_muxer_finalize(muxer);
- *     if (ret != MP4_ERROR_OK) {
- *         fprintf(stderr, "ファイナライズ失敗: %s\n", mp4_file_muxer_get_last_error(muxer));
- *         mp4_file_muxer_free(muxer);
- *         fclose(fp);
- *         return 1;
- *     }
- *
- *     // 7. ファイナライズ後のボックスデータをファイルに書き込む
- *     while (mp4_file_muxer_next_output(muxer, &output_offset, &output_size, &output_data) == MP4_ERROR_OK) {
- *         if (output_size == 0) break;
- *         fseek(fp, output_offset, SEEK_SET);
- *         fwrite(output_data, 1, output_size, fp);
- *     }
- *
- *     // 8. リソース解放
- *     mp4_file_muxer_free(muxer);
- *     fclose(fp);
- *
- *     printf("MP4 file created successfully: output.mp4\n");
- *     return 0;
- * }
- * ```
- */
-typedef struct Mp4FileMuxer {
-  uint8_t _private[0];
-} Mp4FileMuxer;
-
-/**
  * MP4 ファイルに追加（マルチプレックス）するメディアサンプルを表す構造体
  *
  * # 使用例
@@ -877,6 +892,10 @@ typedef struct Mp4MuxSample {
    */
   uint32_t data_size;
 } Mp4MuxSample;
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 /**
  * ライブラリのバージョンを取得する
@@ -1584,5 +1603,9 @@ enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
  * ```
  */
 enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
 #endif  /* SHIGUREDO_MP4_H */

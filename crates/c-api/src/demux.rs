@@ -162,16 +162,7 @@ impl Mp4DemuxSample {
 /// // リソース解放
 /// mp4_file_demuxer_free(demuxer);
 /// ```
-#[repr(C)]
 pub struct Mp4FileDemuxer {
-    _private: [u8; 0],
-}
-
-// [NOTE]
-// この構造体を直接公開関数で参照すると cbindgen が、
-// 隠蔽したい内部フィールドまで C のヘッダーファイルに含めてしまうので、
-// 公開用には Mp4FileDemuxer を用意して、実際の実装はこちらで行っている
-struct Mp4FileDemuxerImpl {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
     tracks: Vec<Mp4DemuxTrackInfo>,
     sample_entries: Vec<(
@@ -185,7 +176,7 @@ struct Mp4FileDemuxerImpl {
     last_error_string: Option<CString>,
 }
 
-impl Mp4FileDemuxerImpl {
+impl Mp4FileDemuxer {
     fn set_last_error(&mut self, message: &str) {
         self.last_error_string = CString::new(message).ok();
     }
@@ -212,13 +203,13 @@ impl Mp4FileDemuxerImpl {
 /// ```
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
-    let impl_data = Box::new(Mp4FileDemuxerImpl {
+    let demuxer = Box::new(Mp4FileDemuxer {
         inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
         tracks: Vec::new(),
         sample_entries: Vec::new(),
         last_error_string: None,
     });
-    Box::into_raw(impl_data).cast()
+    Box::into_raw(demuxer)
 }
 
 /// `Mp4FileDemuxer` インスタンスを破棄して、割り当てられたリソースを解放する
@@ -233,7 +224,7 @@ pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_free(demuxer: *mut Mp4FileDemuxer) {
     if !demuxer.is_null() {
-        let _ = unsafe { Box::from_raw(demuxer.cast::<Mp4FileDemuxerImpl>()) };
+        let _ = unsafe { Box::from_raw(demuxer) };
     }
 }
 
@@ -275,7 +266,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_last_error(
         return c"".as_ptr();
     }
 
-    let demuxer = unsafe { &*demuxer.cast::<Mp4FileDemuxerImpl>() };
+    let demuxer = unsafe { &*demuxer };
     let Some(e) = &demuxer.last_error_string else {
         return c"".as_ptr();
     };
@@ -347,7 +338,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_required_input(
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let demuxer = unsafe { &mut *demuxer.cast::<Mp4FileDemuxerImpl>() };
+    let demuxer = unsafe { &mut *demuxer };
 
     if out_required_input_position.is_null() {
         demuxer.set_last_error(
@@ -413,7 +404,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_handle_input(
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let demuxer = unsafe { &mut *demuxer.cast::<Mp4FileDemuxerImpl>() };
+    let demuxer = unsafe { &mut *demuxer };
 
     if input_data.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_handle_input] input_data is null");
@@ -485,7 +476,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let demuxer = unsafe { &mut *demuxer.cast::<Mp4FileDemuxerImpl>() };
+    let demuxer = unsafe { &mut *demuxer };
 
     if out_tracks.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_get_tracks] out_tracks is null");
@@ -585,7 +576,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
-    let demuxer = unsafe { &mut *demuxer.cast::<Mp4FileDemuxerImpl>() };
+    let demuxer = unsafe { &mut *demuxer };
 
     if out_sample.is_null() {
         demuxer.set_last_error("[mp4_file_demuxer_next_sample] out_sample is null");

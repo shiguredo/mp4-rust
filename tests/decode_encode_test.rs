@@ -147,6 +147,27 @@ fn decode_encode_beep_opus_audio_aac() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn decode_encode_beep_flac_audio_mp4() -> Result<()> {
+    let input_bytes = include_bytes!("testdata/beep-flac-audio.mp4");
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
+
+    // デコード時に未処理のボックスがないことを確認する。
+    assert_eq!(collect_unknown_box_types(&file), Vec::new());
+
+    // エンコード結果をデコードしたら同じ MP4 になっていることを確認する。
+    let output_bytes = file.encode_to_vec()?;
+    let (encoded_file, _) = Mp4File::decode(&output_bytes[..])?;
+    assert_eq!(file, encoded_file);
+
+    // エンコード結果のバイト列が正しいことを確認する。
+    assert_eq!(input_bytes.len(), output_bytes.len());
+    assert_eq!(&input_bytes[..], output_bytes);
+
+    Ok(())
+}
+
 fn collect_unknown_box_types(mp4: &Mp4File) -> Vec<BoxType> {
     let mut stack = mp4.iter().collect::<Vec<_>>();
     let mut unknowns = Vec::new();

@@ -4,47 +4,40 @@
 [![Documentation](https://docs.rs/shiguredo_mp4/badge.svg)](https://docs.rs/shiguredo_mp4)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## About Shiguredo's open source software
+## About Shiguredo’s open source software
 
 We will not respond to PRs or issues that have not been discussed on Discord. Also, Discord is only available in Japanese.
 
 Please read <https://github.com/shiguredo/oss> before use.
 
-## 時雨堂のオープンソースソフトウェアについて
+## Overview
 
-利用前に <https://github.com/shiguredo/oss> をお読みください。
+A Rust library for reading and writing MP4 files.
 
-## 概要
+## Features
 
-Rust で実装された MP4 ファイルを読み書きするためのライブラリです。
-
-## 特徴
-
-- 依存ライブラリ 0 で実現
-- `no_std` 環境での利用
+- Implemented with zero dependencies
+- Usable in `no_std` environments  
   - <https://docs.rust-embedded.org/book/intro/no-std.html>
-- sans I/O 化
+- Sans I/O design  
   - <https://sans-io.readthedocs.io/index.html>
-- 高レベル API の提供
-- C API の提供
-- Windows / macOS / Linux 対応
-- Opus / FLAC / AAC 対応
-- VP8 / VP9 / AV1 / H.264 / H.265 対応
+- High-level API
+- C-compatible API
 
-## ロードマップ
+## Roadmap
 
-- AV2 のサポート
-- H.266 (VVC) のサポート
-- Fragmented MP4 のサポート
+- Support for AV2
+- Support for H.266 (VVC)
+- Support for fragmented MP4
 
-## WebAssembly サンプルページ
+## WebAssembly sample pages
 
-WebAssembly を使ったサンプルを GitHub Pages に用意しています。
+We provide GitHub Pages demos using WebAssembly.
 
 - [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
 - [MP4 Transcode](https://shiguredo.github.io/mp4-rust/examples/transcode/)
 
-## 規格書
+## Specifications
 
 - ISO/IEC 14496-1
 - ISO/IEC 14496-1v
@@ -55,7 +48,7 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 - [Encapsulation of Opus in ISO Base Media File Format](https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html)
 - [Encapsulation of FLAC in ISO Base Media File Format](https://github.com/xiph/flac/blob/master/doc/isoflac.txt)
 
-## ライセンス
+## License
 
 Apache License 2.0
 
@@ -74,4 +67,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-```

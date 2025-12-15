@@ -10,6 +10,19 @@ use crate::{
     descriptors::EsDescriptor,
 };
 
+fn with_box_type<F, T>(ty: BoxType, f: F) -> Result<T>
+where
+    F: FnOnce() -> Result<T>,
+{
+    f().map_err(|mut e| {
+        if e.box_type.is_none() {
+            // エラー発生時には、エラーの原因となった（最初の）ボックスの種別の情報をセットする
+            e.box_type = Some(ty);
+        }
+        e
+    })
+}
+
 /// ペイロードの解釈方法が不明なボックスを保持するための構造体
 ///
 /// ペイロードは単なるバイト列として扱われる
@@ -180,26 +193,28 @@ impl Encode for FtypBox {
 
 impl Decode for FtypBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let major_brand = Brand::decode_at(payload, &mut offset)?;
-        let minor_version = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let major_brand = Brand::decode_at(payload, &mut offset)?;
+            let minor_version = u32::decode_at(payload, &mut offset)?;
 
-        let mut compatible_brands = Vec::new();
-        while offset < payload.len() {
-            compatible_brands.push(Brand::decode_at(payload, &mut offset)?);
-        }
+            let mut compatible_brands = Vec::new();
+            while offset < payload.len() {
+                compatible_brands.push(Brand::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((
-            Self {
-                major_brand,
-                minor_version,
-                compatible_brands,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    major_brand,
+                    minor_version,
+                    compatible_brands,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -294,15 +309,17 @@ impl Encode for FreeBox {
 
 impl Decode for FreeBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        Ok((
-            Self {
-                payload: payload.to_vec(),
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    payload: payload.to_vec(),
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -343,15 +360,17 @@ impl Encode for MdatBox {
 
 impl Decode for MdatBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        Ok((
-            Self {
-                payload: payload.to_vec(),
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    payload: payload.to_vec(),
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -397,37 +416,39 @@ impl Encode for MoovBox {
 
 impl Decode for MoovBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut mvhd_box = None;
-        let mut trak_boxes = Vec::new();
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut mvhd_box = None;
+            let mut trak_boxes = Vec::new();
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                MvhdBox::TYPE if mvhd_box.is_none() => {
-                    mvhd_box = Some(MvhdBox::decode_at(payload, &mut offset)?);
-                }
-                TrakBox::TYPE => {
-                    trak_boxes.push(TrakBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    MvhdBox::TYPE if mvhd_box.is_none() => {
+                        mvhd_box = Some(MvhdBox::decode_at(payload, &mut offset)?);
+                    }
+                    TrakBox::TYPE => {
+                        trak_boxes.push(TrakBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                mvhd_box: check_mandatory_box(mvhd_box, "mvhd", "moov")?,
-                trak_boxes,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    mvhd_box: check_mandatory_box(mvhd_box, "mvhd", "moov")?,
+                    trak_boxes,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -506,47 +527,49 @@ impl Encode for MvhdBox {
 
 impl Decode for MvhdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
 
-        let mut this = Self {
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            timescale: NonZeroU32::MIN,
-            duration: 0,
-            rate: Self::DEFAULT_RATE,
-            volume: Self::DEFAULT_VOLUME,
-            matrix: Self::DEFAULT_MATRIX,
-            next_track_id: 0,
-        };
+            let mut this = Self {
+                creation_time: Mp4FileTime::default(),
+                modification_time: Mp4FileTime::default(),
+                timescale: NonZeroU32::MIN,
+                duration: 0,
+                rate: Self::DEFAULT_RATE,
+                volume: Self::DEFAULT_VOLUME,
+                matrix: Self::DEFAULT_MATRIX,
+                next_track_id: 0,
+            };
 
-        if full_header.version == 1 {
-            this.creation_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.modification_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
-            this.duration = u64::decode_at(payload, &mut offset)?;
-        } else {
-            this.creation_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.modification_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
-            this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
-        }
+            if full_header.version == 1 {
+                this.creation_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.modification_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
+                this.duration = u64::decode_at(payload, &mut offset)?;
+            } else {
+                this.creation_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.modification_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
+                this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
+            }
 
-        this.rate = FixedPointNumber::decode_at(payload, &mut offset)?;
-        this.volume = FixedPointNumber::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 2 + 4 * 2]>::decode_at(payload, &mut offset)?;
-        this.matrix = <[i32; 9]>::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 4 * 6]>::decode_at(payload, &mut offset)?;
-        this.next_track_id = u32::decode_at(payload, &mut offset)?;
+            this.rate = FixedPointNumber::decode_at(payload, &mut offset)?;
+            this.volume = FixedPointNumber::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 2 + 4 * 2]>::decode_at(payload, &mut offset)?;
+            this.matrix = <[i32; 9]>::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 4 * 6]>::decode_at(payload, &mut offset)?;
+            this.next_track_id = u32::decode_at(payload, &mut offset)?;
 
-        Ok((this, header.external_size() + payload.len()))
+            Ok((this, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -611,42 +634,44 @@ impl Encode for TrakBox {
 
 impl Decode for TrakBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut tkhd_box = None;
-        let mut edts_box = None;
-        let mut mdia_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut tkhd_box = None;
+            let mut edts_box = None;
+            let mut mdia_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                TkhdBox::TYPE if tkhd_box.is_none() => {
-                    tkhd_box = Some(TkhdBox::decode_at(payload, &mut offset)?);
-                }
-                EdtsBox::TYPE if edts_box.is_none() => {
-                    edts_box = Some(EdtsBox::decode_at(payload, &mut offset)?);
-                }
-                MdiaBox::TYPE if mdia_box.is_none() => {
-                    mdia_box = Some(MdiaBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    TkhdBox::TYPE if tkhd_box.is_none() => {
+                        tkhd_box = Some(TkhdBox::decode_at(payload, &mut offset)?);
+                    }
+                    EdtsBox::TYPE if edts_box.is_none() => {
+                        edts_box = Some(EdtsBox::decode_at(payload, &mut offset)?);
+                    }
+                    MdiaBox::TYPE if mdia_box.is_none() => {
+                        mdia_box = Some(MdiaBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                tkhd_box: check_mandatory_box(tkhd_box, "tkhd", "trak")?,
-                edts_box,
-                mdia_box: check_mandatory_box(mdia_box, "mdia", "trak")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    tkhd_box: check_mandatory_box(tkhd_box, "tkhd", "trak")?,
+                    edts_box,
+                    mdia_box: check_mandatory_box(mdia_box, "mdia", "trak")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -743,62 +768,64 @@ impl Encode for TkhdBox {
 
 impl Decode for TkhdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
 
-        let mut this = Self {
-            flag_track_enabled: false,
-            flag_track_in_movie: false,
-            flag_track_in_preview: false,
-            flag_track_size_is_aspect_ratio: false,
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            track_id: 0,
-            duration: 0,
-            layer: Self::DEFAULT_LAYER,
-            alternate_group: Self::DEFAULT_ALTERNATE_GROUP,
-            volume: Self::DEFAULT_AUDIO_VOLUME,
-            matrix: Self::DEFAULT_MATRIX,
-            width: FixedPointNumber::new(0, 0),
-            height: FixedPointNumber::new(0, 0),
-        };
+            let mut this = Self {
+                flag_track_enabled: false,
+                flag_track_in_movie: false,
+                flag_track_in_preview: false,
+                flag_track_size_is_aspect_ratio: false,
+                creation_time: Mp4FileTime::default(),
+                modification_time: Mp4FileTime::default(),
+                track_id: 0,
+                duration: 0,
+                layer: Self::DEFAULT_LAYER,
+                alternate_group: Self::DEFAULT_ALTERNATE_GROUP,
+                volume: Self::DEFAULT_AUDIO_VOLUME,
+                matrix: Self::DEFAULT_MATRIX,
+                width: FixedPointNumber::new(0, 0),
+                height: FixedPointNumber::new(0, 0),
+            };
 
-        this.flag_track_enabled = full_header.flags.is_set(0);
-        this.flag_track_in_movie = full_header.flags.is_set(1);
-        this.flag_track_in_preview = full_header.flags.is_set(2);
-        this.flag_track_size_is_aspect_ratio = full_header.flags.is_set(3);
+            this.flag_track_enabled = full_header.flags.is_set(0);
+            this.flag_track_in_movie = full_header.flags.is_set(1);
+            this.flag_track_in_preview = full_header.flags.is_set(2);
+            this.flag_track_size_is_aspect_ratio = full_header.flags.is_set(3);
 
-        if full_header.version == 1 {
-            this.creation_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.modification_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.track_id = u32::decode_at(payload, &mut offset)?;
-            let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
-            this.duration = u64::decode_at(payload, &mut offset)?;
-        } else {
-            this.creation_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.modification_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.track_id = u32::decode_at(payload, &mut offset)?;
-            let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
-            this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
-        }
+            if full_header.version == 1 {
+                this.creation_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.modification_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.track_id = u32::decode_at(payload, &mut offset)?;
+                let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
+                this.duration = u64::decode_at(payload, &mut offset)?;
+            } else {
+                this.creation_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.modification_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.track_id = u32::decode_at(payload, &mut offset)?;
+                let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
+                this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
+            }
 
-        let _ = <[u8; 4 * 2]>::decode_at(payload, &mut offset)?;
-        this.layer = i16::decode_at(payload, &mut offset)?;
-        this.alternate_group = i16::decode_at(payload, &mut offset)?;
-        this.volume = FixedPointNumber::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
-        this.matrix = <[i32; 9]>::decode_at(payload, &mut offset)?;
-        this.width = FixedPointNumber::decode_at(payload, &mut offset)?;
-        this.height = FixedPointNumber::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 4 * 2]>::decode_at(payload, &mut offset)?;
+            this.layer = i16::decode_at(payload, &mut offset)?;
+            this.alternate_group = i16::decode_at(payload, &mut offset)?;
+            this.volume = FixedPointNumber::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
+            this.matrix = <[i32; 9]>::decode_at(payload, &mut offset)?;
+            this.width = FixedPointNumber::decode_at(payload, &mut offset)?;
+            this.height = FixedPointNumber::decode_at(payload, &mut offset)?;
 
-        Ok((this, header.external_size() + payload.len()))
+            Ok((this, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -864,32 +891,34 @@ impl Encode for EdtsBox {
 
 impl Decode for EdtsBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut elst_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut elst_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                ElstBox::TYPE if elst_box.is_none() => {
-                    elst_box = Some(ElstBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    ElstBox::TYPE if elst_box.is_none() => {
+                        elst_box = Some(ElstBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                elst_box,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    elst_box,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -953,33 +982,35 @@ impl Encode for ElstBox {
 
 impl Decode for ElstBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
 
-        let mut entries = Vec::new();
-        let count = u32::decode_at(payload, &mut offset)?;
-        for _ in 0..count {
-            let edit_duration;
-            let media_time;
-            if full_header.version == 1 {
-                edit_duration = u64::decode_at(payload, &mut offset)?;
-                media_time = i64::decode_at(payload, &mut offset)?;
-            } else {
-                edit_duration = u32::decode_at(payload, &mut offset)? as u64;
-                media_time = i32::decode_at(payload, &mut offset)? as i64;
+            let mut entries = Vec::new();
+            let count = u32::decode_at(payload, &mut offset)?;
+            for _ in 0..count {
+                let edit_duration;
+                let media_time;
+                if full_header.version == 1 {
+                    edit_duration = u64::decode_at(payload, &mut offset)?;
+                    media_time = i64::decode_at(payload, &mut offset)?;
+                } else {
+                    edit_duration = u32::decode_at(payload, &mut offset)? as u64;
+                    media_time = i32::decode_at(payload, &mut offset)? as i64;
+                }
+                let media_rate = FixedPointNumber::decode_at(payload, &mut offset)?;
+                entries.push(ElstEntry {
+                    edit_duration,
+                    media_time,
+                    media_rate,
+                });
             }
-            let media_rate = FixedPointNumber::decode_at(payload, &mut offset)?;
-            entries.push(ElstEntry {
-                edit_duration,
-                media_time,
-                media_rate,
-            });
-        }
 
-        Ok((Self { entries }, header.external_size() + payload.len()))
+            Ok((Self { entries }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -1038,42 +1069,44 @@ impl Encode for MdiaBox {
 
 impl Decode for MdiaBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut mdhd_box = None;
-        let mut hdlr_box = None;
-        let mut minf_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut mdhd_box = None;
+            let mut hdlr_box = None;
+            let mut minf_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                MdhdBox::TYPE if mdhd_box.is_none() => {
-                    mdhd_box = Some(MdhdBox::decode_at(payload, &mut offset)?);
-                }
-                HdlrBox::TYPE if hdlr_box.is_none() => {
-                    hdlr_box = Some(HdlrBox::decode_at(payload, &mut offset)?);
-                }
-                MinfBox::TYPE if minf_box.is_none() => {
-                    minf_box = Some(MinfBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    MdhdBox::TYPE if mdhd_box.is_none() => {
+                        mdhd_box = Some(MdhdBox::decode_at(payload, &mut offset)?);
+                    }
+                    HdlrBox::TYPE if hdlr_box.is_none() => {
+                        hdlr_box = Some(HdlrBox::decode_at(payload, &mut offset)?);
+                    }
+                    MinfBox::TYPE if minf_box.is_none() => {
+                        minf_box = Some(MinfBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                mdhd_box: check_mandatory_box(mdhd_box, "mdhd", "mdia")?,
-                hdlr_box: check_mandatory_box(hdlr_box, "hdlr", "mdia")?,
-                minf_box: check_mandatory_box(minf_box, "minf", "mdia")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    mdhd_box: check_mandatory_box(mdhd_box, "mdhd", "mdia")?,
+                    hdlr_box: check_mandatory_box(hdlr_box, "hdlr", "mdia")?,
+                    minf_box: check_mandatory_box(minf_box, "minf", "mdia")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1153,46 +1186,48 @@ impl Encode for MdhdBox {
 
 impl Decode for MdhdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
 
-        let mut this = Self {
-            creation_time: Mp4FileTime::default(),
-            modification_time: Mp4FileTime::default(),
-            timescale: NonZeroU32::MIN,
-            duration: 0,
-            language: Self::LANGUAGE_UNDEFINED,
-        };
+            let mut this = Self {
+                creation_time: Mp4FileTime::default(),
+                modification_time: Mp4FileTime::default(),
+                timescale: NonZeroU32::MIN,
+                duration: 0,
+                language: Self::LANGUAGE_UNDEFINED,
+            };
 
-        if full_header.version == 1 {
-            this.creation_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.modification_time =
-                u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
-            this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
-            this.duration = u64::decode_at(payload, &mut offset)?;
-        } else {
-            this.creation_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.modification_time =
-                u32::decode_at(payload, &mut offset).map(|v| Mp4FileTime::from_secs(v as u64))?;
-            this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
-            this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
-        }
+            if full_header.version == 1 {
+                this.creation_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.modification_time =
+                    u64::decode_at(payload, &mut offset).map(Mp4FileTime::from_secs)?;
+                this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
+                this.duration = u64::decode_at(payload, &mut offset)?;
+            } else {
+                this.creation_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.modification_time = u32::decode_at(payload, &mut offset)
+                    .map(|v| Mp4FileTime::from_secs(v as u64))?;
+                this.timescale = NonZeroU32::decode_at(payload, &mut offset)?;
+                this.duration = u32::decode_at(payload, &mut offset).map(|v| v as u64)?;
+            }
 
-        let language = u16::decode_at(payload, &mut offset)?;
-        this.language = [
-            ((language >> 10) & 0b11111) as u8 + 0x60,
-            ((language >> 5) & 0b11111) as u8 + 0x60,
-            (language & 0b11111) as u8 + 0x60,
-        ];
+            let language = u16::decode_at(payload, &mut offset)?;
+            this.language = [
+                ((language >> 10) & 0b11111) as u8 + 0x60,
+                ((language >> 5) & 0b11111) as u8 + 0x60,
+                (language & 0b11111) as u8 + 0x60,
+            ];
 
-        let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
 
-        Ok((this, header.external_size() + payload.len()))
+            Ok((this, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -1266,20 +1301,22 @@ impl Encode for HdlrBox {
 
 impl Decode for HdlrBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
-        let handler_type = <[u8; 4]>::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 4 * 3]>::decode_at(payload, &mut offset)?;
-        let name = payload[offset..].to_vec();
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 4]>::decode_at(payload, &mut offset)?;
+            let handler_type = <[u8; 4]>::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 4 * 3]>::decode_at(payload, &mut offset)?;
+            let name = payload[offset..].to_vec();
 
-        Ok((
-            Self { handler_type, name },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self { handler_type, name },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1307,7 +1344,8 @@ impl FullBox for HdlrBox {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct MinfBox {
-    pub smhd_or_vmhd_box: Either<SmhdBox, VmhdBox>,
+    // 音声・映像トラック以外の場合は None になる
+    pub smhd_or_vmhd_box: Option<Either<SmhdBox, VmhdBox>>,
     pub dinf_box: DinfBox,
     pub stbl_box: StblBox,
     pub unknown_boxes: Vec<UnknownBox>,
@@ -1322,9 +1360,11 @@ impl Encode for MinfBox {
     fn encode(&self, buf: &mut [u8]) -> Result<usize> {
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
-        match &self.smhd_or_vmhd_box {
-            Either::A(b) => offset += b.encode(&mut buf[offset..])?,
-            Either::B(b) => offset += b.encode(&mut buf[offset..])?,
+        if let Some(smhd_or_vmhd_box) = &self.smhd_or_vmhd_box {
+            match smhd_or_vmhd_box {
+                Either::A(b) => offset += b.encode(&mut buf[offset..])?,
+                Either::B(b) => offset += b.encode(&mut buf[offset..])?,
+            }
         }
         offset += self.dinf_box.encode(&mut buf[offset..])?;
         offset += self.stbl_box.encode(&mut buf[offset..])?;
@@ -1338,50 +1378,48 @@ impl Encode for MinfBox {
 
 impl Decode for MinfBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut smhd_box = None;
-        let mut vmhd_box = None;
-        let mut dinf_box = None;
-        let mut stbl_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut smhd_box = None;
+            let mut vmhd_box = None;
+            let mut dinf_box = None;
+            let mut stbl_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                SmhdBox::TYPE if smhd_box.is_none() => {
-                    smhd_box = Some(SmhdBox::decode_at(payload, &mut offset)?);
-                }
-                VmhdBox::TYPE if vmhd_box.is_none() => {
-                    vmhd_box = Some(VmhdBox::decode_at(payload, &mut offset)?);
-                }
-                DinfBox::TYPE if dinf_box.is_none() => {
-                    dinf_box = Some(DinfBox::decode_at(payload, &mut offset)?);
-                }
-                StblBox::TYPE if stbl_box.is_none() => {
-                    stbl_box = Some(StblBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    SmhdBox::TYPE if smhd_box.is_none() => {
+                        smhd_box = Some(SmhdBox::decode_at(payload, &mut offset)?);
+                    }
+                    VmhdBox::TYPE if vmhd_box.is_none() => {
+                        vmhd_box = Some(VmhdBox::decode_at(payload, &mut offset)?);
+                    }
+                    DinfBox::TYPE if dinf_box.is_none() => {
+                        dinf_box = Some(DinfBox::decode_at(payload, &mut offset)?);
+                    }
+                    StblBox::TYPE if stbl_box.is_none() => {
+                        stbl_box = Some(StblBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                smhd_or_vmhd_box: {
-                    let smhd = smhd_box.map(Either::A);
-                    let vmhd = vmhd_box.map(Either::B);
-                    check_mandatory_box(smhd.or(vmhd), "smhd' or 'vmhd", "box")?
+            Ok((
+                Self {
+                    smhd_or_vmhd_box: smhd_box.map(Either::A).or(vmhd_box.map(Either::B)),
+                    dinf_box: check_mandatory_box(dinf_box, "dinf", "minf")?,
+                    stbl_box: check_mandatory_box(stbl_box, "stbl", "minf")?,
+                    unknown_boxes,
                 },
-                dinf_box: check_mandatory_box(dinf_box, "dinf", "minf")?,
-                stbl_box: check_mandatory_box(stbl_box, "stbl", "minf")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1393,7 +1431,7 @@ impl BaseBox for MinfBox {
     fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
         Box::new(
             core::iter::empty()
-                .chain(core::iter::once(&self.smhd_or_vmhd_box).map(as_box_object))
+                .chain(self.smhd_or_vmhd_box.iter().map(as_box_object))
                 .chain(core::iter::once(&self.dinf_box).map(as_box_object))
                 .chain(core::iter::once(&self.stbl_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
@@ -1430,15 +1468,17 @@ impl Encode for SmhdBox {
 
 impl Decode for SmhdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let balance = FixedPointNumber::decode_at(payload, &mut offset)?;
-        let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let balance = FixedPointNumber::decode_at(payload, &mut offset)?;
+            let _ = <[u8; 2]>::decode_at(payload, &mut offset)?;
 
-        Ok((Self { balance }, header.external_size() + payload.len()))
+            Ok((Self { balance }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -1495,28 +1535,28 @@ impl Encode for VmhdBox {
 
 impl Decode for VmhdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        if full_header.flags.get() != 1 {
-            return Err(Error::invalid_data(format!(
-                "Unexpected FullBox header flags of 'vmhd' box: {}",
-                full_header.flags.get()
-            )));
-        }
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
 
-        let graphicsmode = u16::decode_at(payload, &mut offset)?;
-        let opcolor = <[u16; 3]>::decode_at(payload, &mut offset)?;
+            // [NOTE]
+            // ISO/IEC 14496-12 の仕様には「vmhd ボックスの flags は 1 になる」と記載があるが、
+            // 実際には 0 となるファイルも存在するため、ここではそのチェックを行わないようにしている
 
-        Ok((
-            Self {
-                graphicsmode,
-                opcolor,
-            },
-            header.external_size() + payload.len(),
-        ))
+            let graphicsmode = u16::decode_at(payload, &mut offset)?;
+            let opcolor = <[u16; 3]>::decode_at(payload, &mut offset)?;
+
+            Ok((
+                Self {
+                    graphicsmode,
+                    opcolor,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1574,32 +1614,34 @@ impl Encode for DinfBox {
 
 impl Decode for DinfBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut dref_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut dref_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                DrefBox::TYPE if dref_box.is_none() => {
-                    dref_box = Some(DrefBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    DrefBox::TYPE if dref_box.is_none() => {
+                        dref_box = Some(DrefBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                dref_box: check_mandatory_box(dref_box, "dref", "dinf")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    dref_box: check_mandatory_box(dref_box, "dref", "dinf")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1656,35 +1698,37 @@ impl Encode for DrefBox {
 
 impl Decode for DrefBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let entry_count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let entry_count = u32::decode_at(payload, &mut offset)?;
 
-        let mut url_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut url_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        for _ in 0..entry_count {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                UrlBox::TYPE if url_box.is_none() => {
-                    url_box = Some(UrlBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            for _ in 0..entry_count {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    UrlBox::TYPE if url_box.is_none() => {
+                        url_box = Some(UrlBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                url_box,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    url_box,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1742,18 +1786,20 @@ impl Encode for UrlBox {
 
 impl Decode for UrlBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let location = if full_header.flags.is_set(0) {
-            None
-        } else {
-            Some(Utf8String::decode_at(payload, &mut offset)?)
-        };
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let location = if full_header.flags.is_set(0) {
+                None
+            } else {
+                Some(Utf8String::decode_at(payload, &mut offset)?)
+            };
 
-        Ok((Self { location }, header.external_size() + payload.len()))
+            Ok((Self { location }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -1820,65 +1866,67 @@ impl Encode for StblBox {
 
 impl Decode for StblBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let mut stsd_box = None;
-        let mut stts_box = None;
-        let mut stsc_box = None;
-        let mut stsz_box = None;
-        let mut stco_box = None;
-        let mut co64_box = None;
-        let mut stss_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut offset = 0;
+            let mut stsd_box = None;
+            let mut stts_box = None;
+            let mut stsc_box = None;
+            let mut stsz_box = None;
+            let mut stco_box = None;
+            let mut co64_box = None;
+            let mut stss_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                StsdBox::TYPE if stsd_box.is_none() => {
-                    stsd_box = Some(StsdBox::decode_at(payload, &mut offset)?);
-                }
-                SttsBox::TYPE if stts_box.is_none() => {
-                    stts_box = Some(SttsBox::decode_at(payload, &mut offset)?);
-                }
-                StscBox::TYPE if stsc_box.is_none() => {
-                    stsc_box = Some(StscBox::decode_at(payload, &mut offset)?);
-                }
-                StszBox::TYPE if stsz_box.is_none() => {
-                    stsz_box = Some(StszBox::decode_at(payload, &mut offset)?);
-                }
-                StcoBox::TYPE if stco_box.is_none() => {
-                    stco_box = Some(StcoBox::decode_at(payload, &mut offset)?);
-                }
-                Co64Box::TYPE if co64_box.is_none() => {
-                    co64_box = Some(Co64Box::decode_at(payload, &mut offset)?);
-                }
-                StssBox::TYPE if stss_box.is_none() => {
-                    stss_box = Some(StssBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    StsdBox::TYPE if stsd_box.is_none() => {
+                        stsd_box = Some(StsdBox::decode_at(payload, &mut offset)?);
+                    }
+                    SttsBox::TYPE if stts_box.is_none() => {
+                        stts_box = Some(SttsBox::decode_at(payload, &mut offset)?);
+                    }
+                    StscBox::TYPE if stsc_box.is_none() => {
+                        stsc_box = Some(StscBox::decode_at(payload, &mut offset)?);
+                    }
+                    StszBox::TYPE if stsz_box.is_none() => {
+                        stsz_box = Some(StszBox::decode_at(payload, &mut offset)?);
+                    }
+                    StcoBox::TYPE if stco_box.is_none() => {
+                        stco_box = Some(StcoBox::decode_at(payload, &mut offset)?);
+                    }
+                    Co64Box::TYPE if co64_box.is_none() => {
+                        co64_box = Some(Co64Box::decode_at(payload, &mut offset)?);
+                    }
+                    StssBox::TYPE if stss_box.is_none() => {
+                        stss_box = Some(StssBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                stsd_box: check_mandatory_box(stsd_box, "stsd", "stbl")?,
-                stts_box: check_mandatory_box(stts_box, "stts", "stbl")?,
-                stsc_box: check_mandatory_box(stsc_box, "stsc", "stbl")?,
-                stsz_box: check_mandatory_box(stsz_box, "stsz", "stbl")?,
-                stco_or_co64_box: check_mandatory_box(
-                    stco_box.map(Either::A).or(co64_box.map(Either::B)),
-                    "stco' or 'co64",
-                    "stbl",
-                )?,
-                stss_box,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    stsd_box: check_mandatory_box(stsd_box, "stsd", "stbl")?,
+                    stts_box: check_mandatory_box(stts_box, "stts", "stbl")?,
+                    stsc_box: check_mandatory_box(stsc_box, "stsc", "stbl")?,
+                    stsz_box: check_mandatory_box(stsz_box, "stsz", "stbl")?,
+                    stco_or_co64_box: check_mandatory_box(
+                        stco_box.map(Either::A).or(co64_box.map(Either::B)),
+                        "stco' or 'co64",
+                        "stbl",
+                    )?,
+                    stss_box,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -1936,19 +1984,21 @@ impl Encode for StsdBox {
 
 impl Decode for StsdBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let entry_count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let entry_count = u32::decode_at(payload, &mut offset)?;
 
-        let mut entries = Vec::new();
-        for _ in 0..entry_count {
-            entries.push(SampleEntry::decode_at(payload, &mut offset)?);
-        }
+            let mut entries = Vec::new();
+            for _ in 0..entry_count {
+                entries.push(SampleEntry::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((Self { entries }, header.external_size() + payload.len()))
+            Ok((Self { entries }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -1983,6 +2033,7 @@ pub enum SampleEntry {
     Av01(Av01Box),
     Opus(OpusBox),
     Mp4a(Mp4aBox),
+    Flac(FlacBox),
     Unknown(UnknownBox),
 }
 
@@ -1994,6 +2045,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.channelcount as u8),
             Self::Mp4a(b) => Some(b.audio.channelcount as u8),
+            Self::Flac(b) => Some(b.audio.channelcount as u8),
             _ => None,
         }
     }
@@ -2007,10 +2059,14 @@ impl SampleEntry {
     /// このメソッドはサンプリングレートの整数部分のみを返し、小数部分は切り捨てられる。
     /// ただし通常は、MP4 ファイルでは音声のサンプリングレートは常に整数値（例: 44100 Hz, 48000 Hz）であり、
     /// 小数部分が 0 以外の値を持つことはないため、問題ないと想定している。
+    ///
+    /// なお音声コーデックによっては u16 の範囲を超えるサンプリングレートが使用される場合もある。
+    /// その可能性がある場合は、このメソッドではなく、コーデック固有の方法で実際のサンプリングレートを取得すること。
     pub fn audio_sample_rate(&self) -> Option<u16> {
         match self {
             Self::Opus(b) => Some(b.audio.samplerate.integer),
             Self::Mp4a(b) => Some(b.audio.samplerate.integer),
+            Self::Flac(b) => Some(b.audio.samplerate.integer),
             _ => None,
         }
     }
@@ -2022,6 +2078,7 @@ impl SampleEntry {
         match self {
             Self::Opus(b) => Some(b.audio.samplesize),
             Self::Mp4a(b) => Some(b.audio.samplesize),
+            Self::Flac(b) => Some(b.audio.samplesize),
             _ => None,
         }
     }
@@ -2049,6 +2106,7 @@ impl SampleEntry {
             Self::Av01(b) => b,
             Self::Opus(b) => b,
             Self::Mp4a(b) => b,
+            Self::Flac(b) => b,
             Self::Unknown(b) => b,
         }
     }
@@ -2064,6 +2122,7 @@ impl Encode for SampleEntry {
             Self::Av01(b) => b.encode(buf),
             Self::Opus(b) => b.encode(buf),
             Self::Mp4a(b) => b.encode(buf),
+            Self::Flac(b) => b.encode(buf),
             Self::Unknown(b) => b.encode(buf),
         }
     }
@@ -2080,6 +2139,7 @@ impl Decode for SampleEntry {
             Av01Box::TYPE => Av01Box::decode(buf).map(|(b, n)| (Self::Av01(b), n)),
             OpusBox::TYPE => OpusBox::decode(buf).map(|(b, n)| (Self::Opus(b), n)),
             Mp4aBox::TYPE => Mp4aBox::decode(buf).map(|(b, n)| (Self::Mp4a(b), n)),
+            FlacBox::TYPE => FlacBox::decode(buf).map(|(b, n)| (Self::Flac(b), n)),
             _ => UnknownBox::decode(buf).map(|(b, n)| (Self::Unknown(b), n)),
         }
     }
@@ -2213,35 +2273,37 @@ impl Encode for Avc1Box {
 
 impl Decode for Avc1Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut avcc_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut avcc_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                AvccBox::TYPE if avcc_box.is_none() => {
-                    avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    AvccBox::TYPE if avcc_box.is_none() => {
+                        avcc_box = Some(AvccBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                visual,
-                avcc_box: check_mandatory_box(avcc_box, "avcc", "avc1")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    visual,
+                    avcc_box: check_mandatory_box(avcc_box, "avcc", "avc1")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2345,74 +2407,92 @@ impl Encode for AvccBox {
 
 impl Decode for AvccBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let configuration_version = u8::decode_at(payload, &mut offset)?;
-        if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error::invalid_data(format!(
-                "Unsupported avcC configuration version: {configuration_version}"
-            )));
-        }
-
-        let avc_profile_indication = u8::decode_at(payload, &mut offset)?;
-        let profile_compatibility = u8::decode_at(payload, &mut offset)?;
-        let avc_level_indication = u8::decode_at(payload, &mut offset)?;
-        let length_size_minus_one = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
-
-        let sps_count =
-            Uint::<u8, 5>::from_bits(u8::decode_at(payload, &mut offset)?).get() as usize;
-        let mut sps_list = Vec::with_capacity(sps_count);
-        for _ in 0..sps_count {
-            let size = u16::decode_at(payload, &mut offset)? as usize;
-            let sps = payload[offset..offset + size].to_vec();
-            offset += size;
-            sps_list.push(sps);
-        }
-
-        let pps_count = u8::decode_at(payload, &mut offset)? as usize;
-        let mut pps_list = Vec::with_capacity(pps_count);
-        for _ in 0..pps_count {
-            let size = u16::decode_at(payload, &mut offset)? as usize;
-            let pps = payload[offset..offset + size].to_vec();
-            offset += size;
-            pps_list.push(pps);
-        }
-
-        let mut chroma_format = None;
-        let mut bit_depth_luma_minus8 = None;
-        let mut bit_depth_chroma_minus8 = None;
-        let mut sps_ext_list = Vec::new();
-        if !matches!(avc_profile_indication, 66 | 77 | 88) {
-            chroma_format = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
-            bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
-            bit_depth_chroma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
-
-            let sps_ext_count = u8::decode_at(payload, &mut offset)? as usize;
-            for _ in 0..sps_ext_count {
-                let size = u16::decode_at(payload, &mut offset)? as usize;
-                let sps_ext = payload[offset..offset + size].to_vec();
-                offset += size;
-                sps_ext_list.push(sps_ext);
+            let mut offset = 0;
+            let configuration_version = u8::decode_at(payload, &mut offset)?;
+            if configuration_version != Self::CONFIGURATION_VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported avcC configuration version: {configuration_version}"
+                )));
             }
-        }
 
-        Ok((
-            Self {
-                avc_profile_indication,
-                profile_compatibility,
-                avc_level_indication,
-                length_size_minus_one,
-                sps_list,
-                pps_list,
-                chroma_format,
-                bit_depth_luma_minus8,
-                bit_depth_chroma_minus8,
-                sps_ext_list,
-            },
-            header.external_size() + payload.len(),
-        ))
+            let avc_profile_indication = u8::decode_at(payload, &mut offset)?;
+            let profile_compatibility = u8::decode_at(payload, &mut offset)?;
+            let avc_level_indication = u8::decode_at(payload, &mut offset)?;
+            let length_size_minus_one = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+
+            let sps_count =
+                Uint::<u8, 5>::from_bits(u8::decode_at(payload, &mut offset)?).get() as usize;
+            let mut sps_list = Vec::with_capacity(sps_count);
+            for _ in 0..sps_count {
+                let size = u16::decode_at(payload, &mut offset)? as usize;
+                if offset + size > payload.len() {
+                    return Err(Error::invalid_data("SPS data exceeds payload boundary"));
+                }
+                let sps = payload[offset..offset + size].to_vec();
+                offset += size;
+                sps_list.push(sps);
+            }
+
+            let pps_count = u8::decode_at(payload, &mut offset)? as usize;
+            let mut pps_list = Vec::with_capacity(pps_count);
+            for _ in 0..pps_count {
+                let size = u16::decode_at(payload, &mut offset)? as usize;
+                if offset + size > payload.len() {
+                    return Err(Error::invalid_data("PPS data exceeds payload boundary"));
+                }
+                let pps = payload[offset..offset + size].to_vec();
+                offset += size;
+                pps_list.push(pps);
+            }
+
+            let mut chroma_format = None;
+            let mut bit_depth_luma_minus8 = None;
+            let mut bit_depth_chroma_minus8 = None;
+            let mut sps_ext_list = Vec::new();
+
+            // [NOTE]
+            // ISO/IEC 14496-15 の仕様としては、プロファイルが 66 | 77 | 88 以外の場合には、
+            // 以降のフィールドが必須扱いとなっている。
+            // ただし、現実的にはその仕様を守っていないファイルが存在するため、
+            // 「残りのペイロードのサイズが空の場合には、以降の処理をスキップする」というチェックを追加している。
+            if !matches!(avc_profile_indication, 66 | 77 | 88) && offset < payload.len() {
+                chroma_format = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+                bit_depth_luma_minus8 = Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+                bit_depth_chroma_minus8 =
+                    Some(Uint::from_bits(u8::decode_at(payload, &mut offset)?));
+
+                let sps_ext_count = u8::decode_at(payload, &mut offset)? as usize;
+                for _ in 0..sps_ext_count {
+                    let size = u16::decode_at(payload, &mut offset)? as usize;
+                    if offset + size > payload.len() {
+                        return Err(Error::invalid_data("SPS EXT data exceeds payload boundary"));
+                    }
+                    let sps_ext = payload[offset..offset + size].to_vec();
+                    offset += size;
+                    sps_ext_list.push(sps_ext);
+                }
+            }
+
+            Ok((
+                Self {
+                    avc_profile_indication,
+                    profile_compatibility,
+                    avc_level_indication,
+                    length_size_minus_one,
+                    sps_list,
+                    pps_list,
+                    chroma_format,
+                    bit_depth_luma_minus8,
+                    bit_depth_chroma_minus8,
+                    sps_ext_list,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2456,35 +2536,37 @@ impl Encode for Hev1Box {
 
 impl Decode for Hev1Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut hvcc_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut hvcc_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                HvccBox::TYPE if hvcc_box.is_none() => {
-                    hvcc_box = Some(HvccBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    HvccBox::TYPE if hvcc_box.is_none() => {
+                        hvcc_box = Some(HvccBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                visual,
-                hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hev1")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    visual,
+                    hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hev1")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2598,88 +2680,91 @@ impl Encode for HvccBox {
 
 impl Decode for HvccBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let configuration_version = u8::decode_at(payload, &mut offset)?;
-        if configuration_version != Self::CONFIGURATION_VERSION {
-            return Err(Error::invalid_data(format!(
-                "Unsupported hvcC version: {configuration_version}"
-            )));
-        }
-
-        let b = u8::decode_at(payload, &mut offset)?;
-        let general_profile_space = Uint::from_bits(b);
-        let general_tier_flag = Uint::from_bits(b);
-        let general_profile_idc = Uint::from_bits(b);
-
-        let general_profile_compatibility_flags = u32::decode_at(payload, &mut offset)?;
-
-        let mut buf_constraint = [0; 8];
-        buf_constraint[2..].copy_from_slice(&payload[offset..offset + 6]);
-        offset += 6;
-        let general_constraint_indicator_flags =
-            Uint::from_bits(u64::from_be_bytes(buf_constraint));
-
-        let general_level_idc = u8::decode_at(payload, &mut offset)?;
-        let min_spatial_segmentation_idc = Uint::from_bits(u16::decode_at(payload, &mut offset)?);
-        let parallelism_type = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
-        let chroma_format_idc = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
-        let bit_depth_luma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
-        let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
-        let avg_frame_rate = u16::decode_at(payload, &mut offset)?;
-
-        let b = u8::decode_at(payload, &mut offset)?;
-        let constant_frame_rate = Uint::from_bits(b);
-        let num_temporal_layers = Uint::from_bits(b);
-        let temporal_id_nested = Uint::from_bits(b);
-        let length_size_minus_one = Uint::from_bits(b);
-
-        let num_of_arrays = u8::decode_at(payload, &mut offset)?;
-        let mut nalu_arrays = Vec::new();
-        for _ in 0..num_of_arrays {
-            let b = u8::decode_at(payload, &mut offset)?;
-            let array_completeness = Uint::from_bits(b);
-            let nal_unit_type = Uint::from_bits(b);
-
-            let num_nalus = u16::decode_at(payload, &mut offset)?;
-            let mut nalus = Vec::new();
-            for _ in 0..num_nalus {
-                let nal_unit_length = u16::decode_at(payload, &mut offset)? as usize;
-                let nal_unit = payload[offset..offset + nal_unit_length].to_vec();
-                offset += nal_unit_length;
-                nalus.push(nal_unit);
+            let mut offset = 0;
+            let configuration_version = u8::decode_at(payload, &mut offset)?;
+            if configuration_version != Self::CONFIGURATION_VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported hvcC version: {configuration_version}"
+                )));
             }
-            nalu_arrays.push(HvccNalUintArray {
-                array_completeness,
-                nal_unit_type,
-                nalus,
-            });
-        }
 
-        Ok((
-            Self {
-                general_profile_space,
-                general_tier_flag,
-                general_profile_idc,
-                general_profile_compatibility_flags,
-                general_constraint_indicator_flags,
-                general_level_idc,
-                min_spatial_segmentation_idc,
-                parallelism_type,
-                chroma_format_idc,
-                bit_depth_luma_minus8,
-                bit_depth_chroma_minus8,
-                avg_frame_rate,
-                constant_frame_rate,
-                num_temporal_layers,
-                temporal_id_nested,
-                length_size_minus_one,
-                nalu_arrays,
-            },
-            header.external_size() + payload.len(),
-        ))
+            let b = u8::decode_at(payload, &mut offset)?;
+            let general_profile_space = Uint::from_bits(b);
+            let general_tier_flag = Uint::from_bits(b);
+            let general_profile_idc = Uint::from_bits(b);
+
+            let general_profile_compatibility_flags = u32::decode_at(payload, &mut offset)?;
+
+            let mut buf_constraint = [0; 8];
+            buf_constraint[2..].copy_from_slice(&payload[offset..offset + 6]);
+            offset += 6;
+            let general_constraint_indicator_flags =
+                Uint::from_bits(u64::from_be_bytes(buf_constraint));
+
+            let general_level_idc = u8::decode_at(payload, &mut offset)?;
+            let min_spatial_segmentation_idc =
+                Uint::from_bits(u16::decode_at(payload, &mut offset)?);
+            let parallelism_type = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+            let chroma_format_idc = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+            let bit_depth_luma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+            let bit_depth_chroma_minus8 = Uint::from_bits(u8::decode_at(payload, &mut offset)?);
+            let avg_frame_rate = u16::decode_at(payload, &mut offset)?;
+
+            let b = u8::decode_at(payload, &mut offset)?;
+            let constant_frame_rate = Uint::from_bits(b);
+            let num_temporal_layers = Uint::from_bits(b);
+            let temporal_id_nested = Uint::from_bits(b);
+            let length_size_minus_one = Uint::from_bits(b);
+
+            let num_of_arrays = u8::decode_at(payload, &mut offset)?;
+            let mut nalu_arrays = Vec::new();
+            for _ in 0..num_of_arrays {
+                let b = u8::decode_at(payload, &mut offset)?;
+                let array_completeness = Uint::from_bits(b);
+                let nal_unit_type = Uint::from_bits(b);
+
+                let num_nalus = u16::decode_at(payload, &mut offset)?;
+                let mut nalus = Vec::new();
+                for _ in 0..num_nalus {
+                    let nal_unit_length = u16::decode_at(payload, &mut offset)? as usize;
+                    let nal_unit = payload[offset..offset + nal_unit_length].to_vec();
+                    offset += nal_unit_length;
+                    nalus.push(nal_unit);
+                }
+                nalu_arrays.push(HvccNalUintArray {
+                    array_completeness,
+                    nal_unit_type,
+                    nalus,
+                });
+            }
+
+            Ok((
+                Self {
+                    general_profile_space,
+                    general_tier_flag,
+                    general_profile_idc,
+                    general_profile_compatibility_flags,
+                    general_constraint_indicator_flags,
+                    general_level_idc,
+                    min_spatial_segmentation_idc,
+                    parallelism_type,
+                    chroma_format_idc,
+                    bit_depth_luma_minus8,
+                    bit_depth_chroma_minus8,
+                    avg_frame_rate,
+                    constant_frame_rate,
+                    num_temporal_layers,
+                    temporal_id_nested,
+                    length_size_minus_one,
+                    nalu_arrays,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2723,35 +2808,37 @@ impl Encode for Vp08Box {
 
 impl Decode for Vp08Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut vpcc_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut vpcc_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                VpccBox::TYPE if vpcc_box.is_none() => {
-                    vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    VpccBox::TYPE if vpcc_box.is_none() => {
+                        vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                visual,
-                vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp08")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    visual,
+                    vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp08")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2799,35 +2886,37 @@ impl Encode for Vp09Box {
 
 impl Decode for Vp09Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut vpcc_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut vpcc_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                VpccBox::TYPE if vpcc_box.is_none() => {
-                    vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    VpccBox::TYPE if vpcc_box.is_none() => {
+                        vpcc_box = Some(VpccBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                visual,
-                vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp09")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    visual,
+                    vpcc_box: check_mandatory_box(vpcc_box, "vpcC", "vp09")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2888,45 +2977,47 @@ impl Encode for VpccBox {
 
 impl Decode for VpccBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let header_obj = FullBoxHeader::decode_at(payload, &mut offset)?;
-        if header_obj.version != 1 {
-            return Err(Error::invalid_data(format!(
-                "Unexpected full box header version: box=vpcC, version={}",
-                header_obj.version
-            )));
-        }
+            let mut offset = 0;
+            let header_obj = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if header_obj.version != 1 {
+                return Err(Error::invalid_data(format!(
+                    "Unexpected full box header version: box=vpcC, version={}",
+                    header_obj.version
+                )));
+            }
 
-        let profile = u8::decode_at(payload, &mut offset)?;
-        let level = u8::decode_at(payload, &mut offset)?;
+            let profile = u8::decode_at(payload, &mut offset)?;
+            let level = u8::decode_at(payload, &mut offset)?;
 
-        let b = u8::decode_at(payload, &mut offset)?;
-        let bit_depth = Uint::from_bits(b);
-        let chroma_subsampling = Uint::from_bits(b);
-        let video_full_range_flag = Uint::from_bits(b);
-        let colour_primaries = u8::decode_at(payload, &mut offset)?;
-        let transfer_characteristics = u8::decode_at(payload, &mut offset)?;
-        let matrix_coefficients = u8::decode_at(payload, &mut offset)?;
-        let codec_init_size = u16::decode_at(payload, &mut offset)? as usize;
-        let codec_initialization_data = payload[offset..offset + codec_init_size].to_vec();
+            let b = u8::decode_at(payload, &mut offset)?;
+            let bit_depth = Uint::from_bits(b);
+            let chroma_subsampling = Uint::from_bits(b);
+            let video_full_range_flag = Uint::from_bits(b);
+            let colour_primaries = u8::decode_at(payload, &mut offset)?;
+            let transfer_characteristics = u8::decode_at(payload, &mut offset)?;
+            let matrix_coefficients = u8::decode_at(payload, &mut offset)?;
+            let codec_init_size = u16::decode_at(payload, &mut offset)? as usize;
+            let codec_initialization_data = payload[offset..offset + codec_init_size].to_vec();
 
-        Ok((
-            Self {
-                profile,
-                level,
-                bit_depth,
-                chroma_subsampling,
-                video_full_range_flag,
-                colour_primaries,
-                transfer_characteristics,
-                matrix_coefficients,
-                codec_initialization_data,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    profile,
+                    level,
+                    bit_depth,
+                    chroma_subsampling,
+                    video_full_range_flag,
+                    colour_primaries,
+                    transfer_characteristics,
+                    matrix_coefficients,
+                    codec_initialization_data,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -2980,35 +3071,37 @@ impl Encode for Av01Box {
 
 impl Decode for Av01Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut av1c_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut av1c_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                Av1cBox::TYPE if av1c_box.is_none() => {
-                    av1c_box = Some(Av1cBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    Av1cBox::TYPE if av1c_box.is_none() => {
+                        av1c_box = Some(Av1cBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                visual,
-                av1c_box: check_mandatory_box(av1c_box, "av1c", "av01")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    visual,
+                    av1c_box: check_mandatory_box(av1c_box, "av1c", "av01")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3079,61 +3172,64 @@ impl Encode for Av1cBox {
 
 impl Decode for Av1cBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let b = u8::decode_at(payload, &mut offset)?;
-        let marker = Uint::from_bits(b);
-        let version = Uint::from_bits(b);
-        if marker != Self::MARKER {
-            return Err(Error::invalid_data("Unexpected av1C marker"));
-        }
-        if version != Self::VERSION {
-            return Err(Error::invalid_data(format!(
-                "Unsupported av1C version: {}",
-                version.get()
-            )));
-        }
+            let mut offset = 0;
+            let b = u8::decode_at(payload, &mut offset)?;
+            let marker = Uint::from_bits(b);
+            let version = Uint::from_bits(b);
+            if marker != Self::MARKER {
+                return Err(Error::invalid_data("Unexpected av1C marker"));
+            }
+            if version != Self::VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported av1C version: {}",
+                    version.get()
+                )));
+            }
 
-        let b = u8::decode_at(payload, &mut offset)?;
-        let seq_profile = Uint::from_bits(b);
-        let seq_level_idx_0 = Uint::from_bits(b);
+            let b = u8::decode_at(payload, &mut offset)?;
+            let seq_profile = Uint::from_bits(b);
+            let seq_level_idx_0 = Uint::from_bits(b);
 
-        let b = u8::decode_at(payload, &mut offset)?;
-        let seq_tier_0 = Uint::from_bits(b);
-        let high_bitdepth = Uint::from_bits(b);
-        let twelve_bit = Uint::from_bits(b);
-        let monochrome = Uint::from_bits(b);
-        let chroma_subsampling_x = Uint::from_bits(b);
-        let chroma_subsampling_y = Uint::from_bits(b);
-        let chroma_sample_position = Uint::from_bits(b);
+            let b = u8::decode_at(payload, &mut offset)?;
+            let seq_tier_0 = Uint::from_bits(b);
+            let high_bitdepth = Uint::from_bits(b);
+            let twelve_bit = Uint::from_bits(b);
+            let monochrome = Uint::from_bits(b);
+            let chroma_subsampling_x = Uint::from_bits(b);
+            let chroma_subsampling_y = Uint::from_bits(b);
+            let chroma_sample_position = Uint::from_bits(b);
 
-        let b = u8::decode_at(payload, &mut offset)?;
-        let initial_presentation_delay_minus_one = if Uint::<u8, 1, 4>::from_bits(b).get() == 1 {
-            Some(Uint::from_bits(b))
-        } else {
-            None
-        };
+            let b = u8::decode_at(payload, &mut offset)?;
+            let initial_presentation_delay_minus_one = if Uint::<u8, 1, 4>::from_bits(b).get() == 1
+            {
+                Some(Uint::from_bits(b))
+            } else {
+                None
+            };
 
-        let config_obus = payload[offset..].to_vec();
+            let config_obus = payload[offset..].to_vec();
 
-        Ok((
-            Self {
-                seq_profile,
-                seq_level_idx_0,
-                seq_tier_0,
-                high_bitdepth,
-                twelve_bit,
-                monochrome,
-                chroma_subsampling_x,
-                chroma_subsampling_y,
-                chroma_sample_position,
-                initial_presentation_delay_minus_one,
-                config_obus,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    seq_profile,
+                    seq_level_idx_0,
+                    seq_tier_0,
+                    high_bitdepth,
+                    twelve_bit,
+                    monochrome,
+                    chroma_subsampling_x,
+                    chroma_subsampling_y,
+                    chroma_sample_position,
+                    initial_presentation_delay_minus_one,
+                    config_obus,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3205,22 +3301,24 @@ impl Encode for SttsBox {
 
 impl Decode for SttsBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let count = u32::decode_at(payload, &mut offset)? as usize;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)? as usize;
 
-        let mut entries = Vec::with_capacity(count);
-        for _ in 0..count {
-            entries.push(SttsEntry {
-                sample_count: u32::decode_at(payload, &mut offset)?,
-                sample_delta: u32::decode_at(payload, &mut offset)?,
-            });
-        }
+            let mut entries = Vec::with_capacity(count);
+            for _ in 0..count {
+                entries.push(SttsEntry {
+                    sample_count: u32::decode_at(payload, &mut offset)?,
+                    sample_delta: u32::decode_at(payload, &mut offset)?,
+                });
+            }
 
-        Ok((Self { entries }, header.external_size() + payload.len()))
+            Ok((Self { entries }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -3283,23 +3381,25 @@ impl Encode for StscBox {
 
 impl Decode for StscBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)?;
 
-        let mut entries = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            entries.push(StscEntry {
-                first_chunk: NonZeroU32::decode_at(payload, &mut offset)?,
-                sample_per_chunk: u32::decode_at(payload, &mut offset)?,
-                sample_description_index: NonZeroU32::decode_at(payload, &mut offset)?,
-            });
-        }
+            let mut entries = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                entries.push(StscEntry {
+                    first_chunk: NonZeroU32::decode_at(payload, &mut offset)?,
+                    sample_per_chunk: u32::decode_at(payload, &mut offset)?,
+                    sample_description_index: NonZeroU32::decode_at(payload, &mut offset)?,
+                });
+            }
 
-        Ok((Self { entries }, header.external_size() + payload.len()))
+            Ok((Self { entries }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -3369,28 +3469,30 @@ impl Encode for StszBox {
 
 impl Decode for StszBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let sample_size = u32::decode_at(payload, &mut offset)?;
-        let sample_count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let sample_size = u32::decode_at(payload, &mut offset)?;
+            let sample_count = u32::decode_at(payload, &mut offset)?;
 
-        let stsz_box = if let Some(sample_size) = NonZeroU32::new(sample_size) {
-            Self::Fixed {
-                sample_size,
-                sample_count,
-            }
-        } else {
-            let mut entry_sizes = Vec::with_capacity(sample_count as usize);
-            for _ in 0..sample_count {
-                entry_sizes.push(u32::decode_at(payload, &mut offset)?);
-            }
-            Self::Variable { entry_sizes }
-        };
+            let stsz_box = if let Some(sample_size) = NonZeroU32::new(sample_size) {
+                Self::Fixed {
+                    sample_size,
+                    sample_count,
+                }
+            } else {
+                let mut entry_sizes = Vec::with_capacity(sample_count as usize);
+                for _ in 0..sample_count {
+                    entry_sizes.push(u32::decode_at(payload, &mut offset)?);
+                }
+                Self::Variable { entry_sizes }
+            };
 
-        Ok((stsz_box, header.external_size() + payload.len()))
+            Ok((stsz_box, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -3442,22 +3544,24 @@ impl Encode for StcoBox {
 
 impl Decode for StcoBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)?;
 
-        let mut chunk_offsets = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            chunk_offsets.push(u32::decode_at(payload, &mut offset)?);
-        }
+            let mut chunk_offsets = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                chunk_offsets.push(u32::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((
-            Self { chunk_offsets },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self { chunk_offsets },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3509,22 +3613,24 @@ impl Encode for Co64Box {
 
 impl Decode for Co64Box {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)?;
 
-        let mut chunk_offsets = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            chunk_offsets.push(u64::decode_at(payload, &mut offset)?);
-        }
+            let mut chunk_offsets = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                chunk_offsets.push(u64::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((
-            Self { chunk_offsets },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self { chunk_offsets },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3576,22 +3682,24 @@ impl Encode for StssBox {
 
 impl Decode for StssBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let count = u32::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)?;
 
-        let mut sample_numbers = Vec::with_capacity(count as usize);
-        for _ in 0..count {
-            sample_numbers.push(NonZeroU32::decode_at(payload, &mut offset)?);
-        }
+            let mut sample_numbers = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                sample_numbers.push(NonZeroU32::decode_at(payload, &mut offset)?);
+            }
 
-        Ok((
-            Self { sample_numbers },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self { sample_numbers },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3645,35 +3753,37 @@ impl Encode for OpusBox {
 
 impl Decode for OpusBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut dops_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut dops_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                DopsBox::TYPE if dops_box.is_none() => {
-                    dops_box = Some(DopsBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    DopsBox::TYPE if dops_box.is_none() => {
+                        dops_box = Some(DopsBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                audio,
-                dops_box: check_mandatory_box(dops_box, "dops", "Opus")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    audio,
+                    dops_box: check_mandatory_box(dops_box, "dops", "Opus")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3721,35 +3831,37 @@ impl Encode for Mp4aBox {
 
 impl Decode for Mp4aBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
 
-        let mut esds_box = None;
-        let mut unknown_boxes = Vec::new();
+            let mut esds_box = None;
+            let mut unknown_boxes = Vec::new();
 
-        while offset < payload.len() {
-            let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
-            match child_header.box_type {
-                EsdsBox::TYPE if esds_box.is_none() => {
-                    esds_box = Some(EsdsBox::decode_at(payload, &mut offset)?);
-                }
-                _ => {
-                    unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    EsdsBox::TYPE if esds_box.is_none() => {
+                        esds_box = Some(EsdsBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
                 }
             }
-        }
 
-        Ok((
-            Self {
-                audio,
-                esds_box: check_mandatory_box(esds_box, "esds", "mp4a")?,
-                unknown_boxes,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    audio,
+                    esds_box: check_mandatory_box(esds_box, "esds", "mp4a")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3764,6 +3876,286 @@ impl BaseBox for Mp4aBox {
                 .chain(core::iter::once(&self.esds_box).map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSampleEntry class (親: [`StsdBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct FlacBox {
+    pub audio: AudioSampleEntryFields,
+    pub dfla_box: DflaBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl FlacBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"fLaC");
+}
+
+impl Encode for FlacBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += self.audio.encode(&mut buf[offset..])?;
+        offset += self.dfla_box.encode(&mut buf[offset..])?;
+        for b in &self.unknown_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let audio = AudioSampleEntryFields::decode_at(payload, &mut offset)?;
+
+            let mut dfla_box = None;
+            let mut unknown_boxes = Vec::new();
+
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    DflaBox::TYPE if dfla_box.is_none() => {
+                        dfla_box = Some(DflaBox::decode_at(payload, &mut offset)?);
+                    }
+
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
+                }
+            }
+
+            Ok((
+                Self {
+                    audio,
+                    dfla_box: check_mandatory_box(dfla_box, "dfLa", "fLaC")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for FlacBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            core::iter::empty()
+                .chain(core::iter::once(&self.dfla_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSpecificBox class (親: [`FlacBox`])
+///
+/// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DflaBox {
+    /// FLAC メタデータブロックのリスト
+    /// 最初のブロックは必ず STREAMINFO (block_type=0) でなければならない
+    pub metadata_blocks: Vec<FlacMetadataBlock>,
+}
+
+impl DflaBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"dfLa");
+
+    const VERSION: u8 = 0;
+}
+
+impl Encode for DflaBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+
+        for block in &self.metadata_blocks {
+            offset += block.encode(&mut buf[offset..])?;
+        }
+
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for DflaBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if full_header.version != Self::VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported dfLa version: {}",
+                    full_header.version
+                )));
+            }
+
+            let mut metadata_blocks = Vec::new();
+            while offset < payload.len() {
+                let block = FlacMetadataBlock::decode_at(payload, &mut offset)?;
+                let is_last = block.last_metadata_block_flag.as_bool();
+                metadata_blocks.push(block);
+                if is_last {
+                    break;
+                }
+            }
+
+            if offset < payload.len() {
+                return Err(Error::invalid_data(format!(
+                    "Unexpected data after last metadata block ({} bytes remaining)",
+                    payload.len() - offset
+                )));
+            }
+
+            if metadata_blocks.is_empty() {
+                return Err(Error::invalid_data(
+                    "dfLa box must contain at least one metadata block (STREAMINFO)",
+                ));
+            }
+
+            if metadata_blocks[0].block_type != FlacMetadataBlock::BLOCK_TYPE_STREAMINFO {
+                return Err(Error::invalid_data(
+                    "First metadata block in dfLa must be STREAMINFO (block_type=0)",
+                ));
+            }
+
+            Ok((
+                Self { metadata_blocks },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for DflaBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for DflaBox {
+    fn full_box_version(&self) -> u8 {
+        Self::VERSION
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// FLAC メタデータブロック
+///
+/// FLAC 仕様の METADATA_BLOCK 構造を表現する
+///
+/// <https://xiph.org/flac/format.html>
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FlacMetadataBlock {
+    /// 最後のメタデータブロックかどうかを示すフラグ
+    pub last_metadata_block_flag: Uint<u8, 1, 7>,
+
+    /// ブロックタイプ
+    /// 0: STREAMINFO, 1: PADDING, 2: APPLICATION, 3: SEEKTABLE,
+    /// 4: VORBIS_COMMENT, 5: CUESHEET, 6: PICTURE
+    pub block_type: Uint<u8, 7>,
+
+    /// ブロックデータ
+    pub block_data: Vec<u8>,
+}
+
+impl FlacMetadataBlock {
+    /// ブロックタイプ: STREAMINFO
+    pub const BLOCK_TYPE_STREAMINFO: Uint<u8, 7> = Uint::new(0);
+
+    /// ブロックタイプ: PADDING
+    pub const BLOCK_TYPE_PADDING: Uint<u8, 7> = Uint::new(1);
+
+    /// ブロックタイプ: APPLICATION
+    pub const BLOCK_TYPE_APPLICATION: Uint<u8, 7> = Uint::new(2);
+
+    /// ブロックタイプ: SEEK TABLE
+    pub const BLOCK_TYPE_SEEKTABLE: Uint<u8, 7> = Uint::new(3);
+
+    /// ブロックタイプ: VORBIS COMMENT
+    pub const BLOCK_TYPE_VORBIS_COMMENT: Uint<u8, 7> = Uint::new(4);
+
+    /// ブロックタイプ: CUESHEET
+    pub const BLOCK_TYPE_CUESHEET: Uint<u8, 7> = Uint::new(5);
+
+    /// ブロックタイプ: PICTURE
+    pub const BLOCK_TYPE_PICTURE: Uint<u8, 7> = Uint::new(6);
+}
+
+impl Encode for FlacMetadataBlock {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let length = self.block_data.len();
+        if length > 0xFF_FFFF {
+            return Err(Error::invalid_input(
+                "FLAC metadata block data is too large (max 16777215 bytes)",
+            ));
+        }
+
+        let mut offset = 0;
+        let first_byte = self.last_metadata_block_flag.to_bits() | self.block_type.to_bits();
+        offset += first_byte.encode(&mut buf[offset..])?;
+
+        let length_bytes = [
+            ((length >> 16) & 0xFF) as u8,
+            ((length >> 8) & 0xFF) as u8,
+            (length & 0xFF) as u8,
+        ];
+        offset += length_bytes.encode(&mut buf[offset..])?;
+        offset += self.block_data.as_slice().encode(&mut buf[offset..])?;
+
+        Ok(offset)
+    }
+}
+
+impl Decode for FlacMetadataBlock {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let mut offset = 0;
+
+        let first_byte = u8::decode_at(buf, &mut offset)?;
+        let last_metadata_block_flag = Uint::from_bits(first_byte);
+        let block_type = Uint::from_bits(first_byte);
+
+        let length_bytes = <[u8; 3]>::decode_at(buf, &mut offset)?;
+        let length = ((length_bytes[0] as usize) << 16)
+            | ((length_bytes[1] as usize) << 8)
+            | (length_bytes[2] as usize);
+
+        Error::check_buffer_size(offset + length, buf)?;
+        let block_data = buf[offset..offset + length].to_vec();
+        offset += length;
+
+        Ok((
+            Self {
+                last_metadata_block_flag,
+                block_type,
+                block_data,
+            },
+            offset,
+        ))
     }
 }
 
@@ -3857,37 +4249,39 @@ impl Encode for DopsBox {
 
 impl Decode for DopsBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let version = u8::decode_at(payload, &mut offset)?;
-        if version != Self::VERSION {
-            return Err(Error::invalid_data(format!(
-                "Unsupported dOps version: {version}"
-            )));
-        }
+            let mut offset = 0;
+            let version = u8::decode_at(payload, &mut offset)?;
+            if version != Self::VERSION {
+                return Err(Error::invalid_data(format!(
+                    "Unsupported dOps version: {version}"
+                )));
+            }
 
-        let output_channel_count = u8::decode_at(payload, &mut offset)?;
-        let pre_skip = u16::decode_at(payload, &mut offset)?;
-        let input_sample_rate = u32::decode_at(payload, &mut offset)?;
-        let output_gain = i16::decode_at(payload, &mut offset)?;
-        let channel_mapping_family = u8::decode_at(payload, &mut offset)?;
-        if channel_mapping_family != 0 {
-            return Err(Error::unsupported(
-                "`ChannelMappingFamily != 0` in 'dOps' box is not supported",
-            ));
-        }
+            let output_channel_count = u8::decode_at(payload, &mut offset)?;
+            let pre_skip = u16::decode_at(payload, &mut offset)?;
+            let input_sample_rate = u32::decode_at(payload, &mut offset)?;
+            let output_gain = i16::decode_at(payload, &mut offset)?;
+            let channel_mapping_family = u8::decode_at(payload, &mut offset)?;
+            if channel_mapping_family != 0 {
+                return Err(Error::unsupported(
+                    "`ChannelMappingFamily != 0` in 'dOps' box is not supported",
+                ));
+            }
 
-        Ok((
-            Self {
-                output_channel_count,
-                pre_skip,
-                input_sample_rate,
-                output_gain,
-            },
-            header.external_size() + payload.len(),
-        ))
+            Ok((
+                Self {
+                    output_channel_count,
+                    pre_skip,
+                    input_sample_rate,
+                    output_gain,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
     }
 }
 
@@ -3926,14 +4320,16 @@ impl Encode for EsdsBox {
 
 impl Decode for EsdsBox {
     fn decode(buf: &[u8]) -> Result<(Self, usize)> {
-        let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
-        header.box_type.expect(Self::TYPE)?;
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
 
-        let mut offset = 0;
-        let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
-        let es = EsDescriptor::decode_at(payload, &mut offset)?;
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let es = EsDescriptor::decode_at(payload, &mut offset)?;
 
-        Ok((Self { es }, header.external_size() + payload.len()))
+            Ok((Self { es }, header.external_size() + payload.len()))
+        })
     }
 }
 
@@ -3959,9 +4355,14 @@ impl FullBox for EsdsBox {
 
 #[track_caller]
 fn check_mandatory_box<T>(maybe_box: Option<T>, expected: &str, parent: &str) -> Result<T> {
-    maybe_box.ok_or_else(|| {
-        Error::invalid_data(format!(
+    // [NOTE]
+    // ok_or_else() でも同じことができるが `Error::invalid_data()` をクロージャーで囲ってしまうと、
+    // `check_mandatory_box()` 自体の `track_caller` 指定の意味がなくなってしまうので、あえて if-else で実装している
+    if let Some(b) = maybe_box {
+        Ok(b)
+    } else {
+        Err(Error::invalid_data(format!(
             "Missing mandatory '{expected}' box in '{parent}' box"
-        ))
-    })
+        )))
+    }
 }

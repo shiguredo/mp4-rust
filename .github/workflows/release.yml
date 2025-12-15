@@ -58,6 +58,8 @@ jobs:
             runs-on: macos-15
           - name: macos-14_arm64
             runs-on: macos-14
+          - name: windows-2025_x86_64
+            runs-on: windows-2025
     runs-on: ${{ matrix.platform.runs-on }}
     timeout-minutes: 20
     steps:
@@ -70,20 +72,45 @@ jobs:
       - name: Build
         run: cargo build --release --package c-api
 
-      - run: |
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
-          cp $(ls target/release/libmp4.* | grep -E '(a|so|dylib)$') mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
+          cp $(ls target/release/libmp4.* | grep -E '\.(a|so|dylib)$') mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/lib/
           cp crates/c-api/include/mp4.h mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}/include/
           tar -czf mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.tar.gz \
             mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}
 
-      - name: Upload Release Asset
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.github-release.outputs.version }}"
+          $platform = "${{ matrix.platform.name }}"
+          $dir = "mp4-${version}_${platform}"
+          New-Item -ItemType Directory -Path "${dir}/lib" -Force
+          New-Item -ItemType Directory -Path "${dir}/include" -Force
+          Copy-Item -Path "target/release/mp4.dll" -Destination "${dir}/lib/"
+          Copy-Item -Path "target/release/mp4.lib" -Destination "${dir}/lib/"
+          Copy-Item -Path "crates/c-api/include/mp4.h" -Destination "${dir}/include/"
+          Compress-Archive -Path "${dir}" -DestinationPath "mp4-${version}_${platform}.zip"
+
+      - name: Upload Release Asset (Unix)
+        if: runner.os != 'Windows'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ needs.github-release.outputs.version }} \
             mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.tar.gz
+
+      - name: Upload Release Asset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.github-release.outputs.version }} mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.zip
 
   publish:
     needs: [github-release, upload-assets]
