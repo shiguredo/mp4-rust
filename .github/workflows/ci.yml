@@ -116,6 +116,10 @@ jobs:
             artifact-name: ubuntu-24.04_x86_64
           - os: ubuntu-24.04-arm
             artifact-name: ubuntu-24.04_arm64
+          - os: ubuntu-22.04
+            artifact-name: ubuntu-22.04_x86_64
+          - os: ubuntu-22.04-arm
+            artifact-name: ubuntu-22.04_arm64
           - os: windows-2025
             artifact-name: windows-2025_x86_64
           - os: macos-26

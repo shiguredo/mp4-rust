@@ -50,6 +50,8 @@
 - [FIX] C API の不透明型定義を C99 互換に修正する
   - ゼロ長配列 `_private[0]` は C99 で未定義動作のため `_unused` フィールドに変更する
   - @voluntas
+- [ADD] Ubuntu 22.04 用の C API ライブラリビルドを CI に追加する
+  - @voluntas
 - [ADD] CI で C API ライブラリを artifact としてアップロードする
   - @voluntas
 - [ADD] Windows 用の C API ライブラリリリースを追加する
