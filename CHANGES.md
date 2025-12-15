@@ -47,8 +47,9 @@
 - [ADD] C API の C++ 互換性を追加する
   - `extern "C"` ブロックを追加し、C++ から利用可能にする
   - @voluntas
-- [FIX] C API の不透明型定義を C99 互換に修正する
-  - ゼロ長配列 `_private[0]` は C99 で未定義動作のため `_unused` フィールドに変更する
+- [UPDATE] C API の不透明型を cbindgen の forward declaration 機能で実装する
+  - `#[repr(C)]` を外すことで cbindgen が forward declaration のみを出力するようにした
+  - ダミー構造体を削除し、実装構造体を直接使用するようにコードを簡素化した
   - @voluntas
 - [ADD] CI で C API ライブラリを artifact としてアップロードする
   - @voluntas
