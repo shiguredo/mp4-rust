@@ -158,7 +158,7 @@ typedef enum Mp4SampleEntryKind {
  * ```
  */
 typedef struct Mp4FileDemuxer {
-  uint8_t _private[0];
+  uint8_t _unused;
 } Mp4FileDemuxer;
 
 /**
@@ -795,7 +795,7 @@ typedef struct Mp4DemuxSample {
  * ```
  */
 typedef struct Mp4FileMuxer {
-  uint8_t _private[0];
+  uint8_t _unused;
 } Mp4FileMuxer;
 
 /**
@@ -896,6 +896,10 @@ typedef struct Mp4MuxSample {
    */
   uint32_t data_size;
 } Mp4MuxSample;
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 /**
  * ライブラリのバージョンを取得する
@@ -1603,5 +1607,9 @@ enum Mp4Error mp4_file_muxer_append_sample(struct Mp4FileMuxer *muxer,
  * ```
  */
 enum Mp4Error mp4_file_muxer_finalize(struct Mp4FileMuxer *muxer);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
 #endif  /* SHIGUREDO_MP4_H */

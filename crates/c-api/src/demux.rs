@@ -164,7 +164,7 @@ impl Mp4DemuxSample {
 /// ```
 #[repr(C)]
 pub struct Mp4FileDemuxer {
-    _private: [u8; 0],
+    _unused: u8,
 }
 
 // [NOTE]

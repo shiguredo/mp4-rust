@@ -5,6 +5,7 @@ fn main() {
     cbindgen::Builder::new()
         .with_crate(env!("CARGO_MANIFEST_DIR"))
         .with_language(cbindgen::Language::C)
+        .with_cpp_compat(true)
         .with_include_version(true)
         .with_include_guard("SHIGUREDO_MP4_H")
         .with_no_includes()

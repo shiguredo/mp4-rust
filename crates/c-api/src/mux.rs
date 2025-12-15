@@ -230,7 +230,7 @@ struct Output {
 /// ```
 #[repr(C)]
 pub struct Mp4FileMuxer {
-    _private: [u8; 0],
+    _unused: u8,
 }
 
 // [NOTE]
