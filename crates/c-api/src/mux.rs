@@ -4,8 +4,6 @@ use std::{
     num::NonZeroU32,
 };
 
-use shiguredo_mp4::mux::Mp4FileMuxer as InnerMuxer;
-
 use crate::{basic_types::Mp4TrackKind, boxes::Mp4SampleEntry, error::Mp4Error};
 
 /// MP4 ファイルに追加（マルチプレックス）するメディアサンプルを表す構造体
@@ -232,7 +230,7 @@ struct Output {
 /// ```
 pub struct Mp4FileMuxer {
     options: shiguredo_mp4::mux::Mp4FileMuxerOptions,
-    inner: Option<InnerMuxer>,
+    inner: Option<shiguredo_mp4::mux::Mp4FileMuxer>,
     last_error_string: Option<CString>,
     output_list: Vec<Output>,
     next_output_index: usize,

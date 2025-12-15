@@ -2,7 +2,6 @@
 use std::ffi::{CString, c_char};
 
 use shiguredo_mp4::BaseBox;
-use shiguredo_mp4::demux::Mp4FileDemuxer as InnerDemuxer;
 
 use crate::{
     basic_types::Mp4TrackKind,
@@ -164,7 +163,7 @@ impl Mp4DemuxSample {
 /// mp4_file_demuxer_free(demuxer);
 /// ```
 pub struct Mp4FileDemuxer {
-    inner: InnerDemuxer,
+    inner: shiguredo_mp4::demux::Mp4FileDemuxer,
     tracks: Vec<Mp4DemuxTrackInfo>,
     sample_entries: Vec<(
         shiguredo_mp4::boxes::SampleEntry,
@@ -205,7 +204,7 @@ impl Mp4FileDemuxer {
 #[unsafe(no_mangle)]
 pub extern "C" fn mp4_file_demuxer_new() -> *mut Mp4FileDemuxer {
     let demuxer = Box::new(Mp4FileDemuxer {
-        inner: InnerDemuxer::new(),
+        inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
         tracks: Vec::new(),
         sample_entries: Vec::new(),
         last_error_string: None,
