@@ -284,6 +284,12 @@ pub struct Mp4FileDemuxer {
     track_infos: Vec<TrackInfo>,
     tracks: Vec<TrackState>,
     handle_input_error: Option<DemuxError>,
+    /// 前回の `handle_input()` 呼び出し時の状態を記録する
+    ///
+    /// (返された RequiredInput, 提供された Input の position, 提供された Input の data.len())
+    /// を記録し、同じ RequiredInput が返り、かつ前回のデータが要求を満たしていた場合に
+    /// 無限ループとしてエラーを返す
+    last_input_state: Option<(RequiredInput, u64, usize)>,
 }
 
 impl Mp4FileDemuxer {
@@ -295,6 +301,7 @@ impl Mp4FileDemuxer {
             track_infos: Vec::new(),
             tracks: Vec::new(),
             handle_input_error: None,
+            last_input_state: None,
         }
     }
 
@@ -320,13 +327,42 @@ impl Mp4FileDemuxer {
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
     pub fn handle_input(&mut self, input: Input) {
-        if let Err(e) = self.handle_input_inner(input)
-            && !matches!(e, DemuxError::InputRequired(_))
-        {
-            // 入力処理中に（入力不足以外の）エラーが出た場合は required_input() との
-            // 相互呼び出しで無限ループするのを避けるためにエラー情報を覚えておく
-            // （このメソッド自体が Result を返すと、呼び出し元のハンドリングが複雑になるのでそれは避ける）
-            self.handle_input_error = Some(e);
+        match self.handle_input_inner(input) {
+            Ok(()) => {
+                // 入力処理が成功したので、前回の状態をクリアする
+                self.last_input_state = None;
+            }
+            Err(DemuxError::InputRequired(required)) => {
+                // 前回の状態と比較して無限ループを検出する
+                let is_infinite_loop = self
+                    .last_input_state
+                    .as_ref()
+                    .is_some_and(|(last_required, last_pos, last_len)| {
+                        // 同じ RequiredInput が返された
+                        *last_required == required
+                            // かつ、前回提供されたデータの位置が要求と一致
+                            && *last_pos == required.position
+                            // かつ、前回提供されたデータが要求サイズを満たしていた
+                            && required
+                                .size
+                                .map_or(true, |required_size| *last_len >= required_size)
+                    });
+
+                if is_infinite_loop {
+                    self.handle_input_error = Some(DemuxError::DecodeError(Error::invalid_data(
+                        "no progress despite sufficient input (possibly corrupted data)",
+                    )));
+                } else {
+                    // 今回の状態を記録
+                    self.last_input_state = Some((required, input.position, input.data.len()));
+                }
+            }
+            Err(e) => {
+                // 入力処理中に（入力不足以外の）エラーが出た場合は required_input() との
+                // 相互呼び出しで無限ループするのを避けるためにエラー情報を覚えておく
+                // （このメソッド自体が Result を返すと、呼び出し元のハンドリングが複雑になるのでそれは避ける）
+                self.handle_input_error = Some(e);
+            }
         }
     }
 

@@ -2731,6 +2731,11 @@ impl Decode for HvccBox {
                 let mut nalus = Vec::new();
                 for _ in 0..num_nalus {
                     let nal_unit_length = u16::decode_at(payload, &mut offset)? as usize;
+                    if offset + nal_unit_length > payload.len() {
+                        return Err(Error::invalid_data(
+                            "NAL unit data exceeds payload boundary",
+                        ));
+                    }
                     let nal_unit = payload[offset..offset + nal_unit_length].to_vec();
                     offset += nal_unit_length;
                     nalus.push(nal_unit);
@@ -3001,6 +3006,11 @@ impl Decode for VpccBox {
             let transfer_characteristics = u8::decode_at(payload, &mut offset)?;
             let matrix_coefficients = u8::decode_at(payload, &mut offset)?;
             let codec_init_size = u16::decode_at(payload, &mut offset)? as usize;
+            if offset + codec_init_size > payload.len() {
+                return Err(Error::invalid_data(
+                    "codec initialization data exceeds payload boundary",
+                ));
+            }
             let codec_initialization_data = payload[offset..offset + codec_init_size].to_vec();
 
             Ok((
