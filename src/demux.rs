@@ -334,10 +334,8 @@ impl Mp4FileDemuxer {
             }
             Err(DemuxError::InputRequired(required)) => {
                 // 前回の状態と比較して無限ループを検出する
-                let is_infinite_loop = self
-                    .last_input_state
-                    .as_ref()
-                    .is_some_and(|(last_required, last_pos, last_len)| {
+                let is_infinite_loop = self.last_input_state.as_ref().is_some_and(
+                    |(last_required, last_pos, last_len)| {
                         // 同じ RequiredInput が返された
                         *last_required == required
                             // かつ、前回提供されたデータの位置が要求と一致
@@ -346,7 +344,8 @@ impl Mp4FileDemuxer {
                             && required
                                 .size
                                 .map_or(true, |required_size| *last_len >= required_size)
-                    });
+                    },
+                );
 
                 if is_infinite_loop {
                     self.handle_input_error = Some(DemuxError::DecodeError(Error::invalid_data(
