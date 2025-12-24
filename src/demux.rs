@@ -343,7 +343,7 @@ impl Mp4FileDemuxer {
                             // かつ、前回提供されたデータが要求サイズを満たしていた
                             && required
                                 .size
-                                .map_or(true, |required_size| *last_len >= required_size)
+                                .is_none_or(|required_size| *last_len >= required_size)
                     },
                 );
 
