@@ -2700,6 +2700,11 @@ impl Decode for HvccBox {
             let general_profile_compatibility_flags = u32::decode_at(payload, &mut offset)?;
 
             let mut buf_constraint = [0; 8];
+            if offset + 6 > payload.len() {
+                return Err(Error::invalid_data(
+                    "general_constraint_indicator_flags exceeds payload boundary",
+                ));
+            }
             buf_constraint[2..].copy_from_slice(&payload[offset..offset + 6]);
             offset += 6;
             let general_constraint_indicator_flags =
