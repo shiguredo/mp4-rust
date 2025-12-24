@@ -1,0 +1,86 @@
+[package]
+name = "shiguredo_mp4_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.shiguredo_mp4]
+path = ".."
+
+[[bin]]
+name = "fuzz_box_header"
+path = "fuzz_targets/fuzz_box_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mp4_file"
+path = "fuzz_targets/fuzz_mp4_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_ftyp_box"
+path = "fuzz_targets/fuzz_ftyp_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_root_box"
+path = "fuzz_targets/fuzz_root_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_hvcc_box"
+path = "fuzz_targets/fuzz_hvcc_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_vpcc_box"
+path = "fuzz_targets/fuzz_vpcc_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_avcc_box"
+path = "fuzz_targets/fuzz_avcc_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_av1c_box"
+path = "fuzz_targets/fuzz_av1c_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_esds_box"
+path = "fuzz_targets/fuzz_esds_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dfla_box"
+path = "fuzz_targets/fuzz_dfla_box.rs"
+test = false
+doc = false
+bench = false
