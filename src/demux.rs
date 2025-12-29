@@ -348,16 +348,22 @@ impl Mp4FileDemuxer {
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
     ///
+    /// このメソッドは [`Mp4FileDemuxer::required_input()`] で要求された位置に対応するファイルデータを受け取り、
+    /// デマルチプレックス処理を進める
+    ///
     /// # NOTE
     ///
     /// `input` 引数では [`Mp4FileDemuxer::required_input()`] が指定した範囲を包含する入力データを
-    /// 渡す必要がある。
+    /// 渡す必要がある
+    ///
+    /// このメソッドはデータの部分的な消費を行わないため、呼び出し元が必要なデータを
+    /// 一度に全て渡す必要がある（つまり、呼び出し元で固定長のバッファを使って複数回に分けてデータを供給することはできない）
     ///
     /// もし、異なる範囲や、不十分なデータサイズの入力（つまり [`RequiredInput::is_satisfied_by()`] が `false` になる入力）が渡された場合には、
-    /// [`Mp4FileDemuxer`] はエラー状態に遷移する。
+    /// [`Mp4FileDemuxer`] はエラー状態に遷移する
     ///
     /// エラー状態に遷移した後は、 [`Mp4FileDemuxer::required_input()`] は常に `None` を返し、
-    /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる。
+    /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる
     pub fn handle_input(&mut self, input: Input) {
         if self.handle_input_error.is_none()
             && let Some(required) = self.required_input()
