@@ -240,3 +240,72 @@ mod boundary_tests {
         assert!(result.is_ok());
     }
 }
+
+/// Proptest で発見された regression ケースの単体テスト
+#[cfg(test)]
+mod regression_tests {
+    use super::*;
+
+    /// 空データで無限ループが発生する
+    /// proptest shrinks to: data = []
+    #[test]
+    fn regression_empty_data() {
+        let result = demux_with_loop_detection(&[], 100);
+        assert!(result.is_ok(), "空データで無限ループ: {:?}", result.err());
+    }
+
+    /// 8 バイトに切り詰めると無限ループが発生する
+    /// proptest shrinks to: corruption = Truncate { new_len: 8 }
+    #[test]
+    fn regression_truncate_8_bytes() {
+        let corrupted = &TEST_MP4_H264[..8];
+        let result = demux_with_loop_detection(corrupted, 100);
+        assert!(
+            result.is_ok(),
+            "8バイト切り詰めで無限ループ: {:?}",
+            result.err()
+        );
+    }
+
+    /// ヘッダーの最初のバイトを 1 に変更すると無限ループが発生する
+    /// proptest shrinks to: offset = 0, value = 1
+    #[test]
+    fn regression_header_first_byte_corruption() {
+        let mut corrupted = TEST_MP4_H264.to_vec();
+        corrupted[0] = 1;
+        let result = demux_with_loop_detection(&corrupted, 100);
+        assert!(
+            result.is_ok(),
+            "ヘッダー破損で無限ループ: {:?}",
+            result.err()
+        );
+    }
+
+    /// サイズフィールドを [0, 0, 6, 100] に破損すると無限ループが発生する
+    /// proptest shrinks to: size_bytes = [0, 0, 6, 100]
+    #[test]
+    fn regression_extreme_size_field() {
+        let mut corrupted = TEST_MP4_H264.to_vec();
+        if corrupted.len() >= 4 {
+            corrupted[0..4].copy_from_slice(&[0, 0, 6, 100]);
+        }
+        let result = demux_with_loop_detection(&corrupted, 100);
+        assert!(
+            result.is_ok(),
+            "サイズフィールド破損で無限ループ: {:?}",
+            result.err()
+        );
+    }
+
+    /// AAC MP4 を 8 バイトに切り詰めると無限ループが発生する
+    #[test]
+    fn regression_aac_truncate_8_bytes() {
+        let corrupted = &TEST_MP4_AAC[..8];
+        let result = demux_with_loop_detection(corrupted, 100);
+        assert!(
+            result.is_ok(),
+            "AAC 8バイト切り詰めで無限ループ: {:?}",
+            result.err()
+        );
+    }
+}
