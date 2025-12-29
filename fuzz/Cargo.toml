@@ -189,3 +189,80 @@ path = "fuzz_targets/fuzz_elst_box.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_mvhd_box"
+path = "fuzz_targets/fuzz_mvhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tkhd_box"
+path = "fuzz_targets/fuzz_tkhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mdhd_box"
+path = "fuzz_targets/fuzz_mdhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_hdlr_box"
+path = "fuzz_targets/fuzz_hdlr_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_smhd_box"
+path = "fuzz_targets/fuzz_smhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_vmhd_box"
+path = "fuzz_targets/fuzz_vmhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_stss_box"
+path = "fuzz_targets/fuzz_stss_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_url_box"
+path = "fuzz_targets/fuzz_url_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dref_box"
+path = "fuzz_targets/fuzz_dref_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_free_box"
+path = "fuzz_targets/fuzz_free_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_unknown_box"
+path = "fuzz_targets/fuzz_unknown_box.rs"
+test = false
+doc = false
+bench = false

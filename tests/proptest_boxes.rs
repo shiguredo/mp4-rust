@@ -5,10 +5,10 @@ use std::num::NonZeroU32;
 use proptest::prelude::*;
 use shiguredo_mp4::{
     boxes::{
-        Brand, Co64Box, ElstBox, ElstEntry, FtypBox, StcoBox, StscBox, StscEntry, SttsBox,
-        SttsEntry,
+        Brand, Co64Box, ElstBox, ElstEntry, FtypBox, HdlrBox, MdhdBox, MvhdBox, SmhdBox, StcoBox,
+        StscBox, StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox, VmhdBox,
     },
-    Decode, Encode, FixedPointNumber,
+    Decode, Encode, FixedPointNumber, Mp4FileTime,
 };
 
 /// SttsEntry を生成する Strategy
@@ -202,6 +202,283 @@ proptest! {
             prop_assert_eq!(orig.get(), dec.get());
         }
     }
+
+    // ===== MvhdBox のテスト =====
+
+    /// MvhdBox (version 0) の encode/decode roundtrip
+    #[test]
+    fn mvhd_box_v0_roundtrip(
+        creation_time in 0u64..=(u32::MAX as u64),
+        modification_time in 0u64..=(u32::MAX as u64),
+        timescale in 1u32..=u32::MAX,
+        duration in 0u64..=(u32::MAX as u64),
+        rate_int in any::<i16>(),
+        rate_frac in any::<u16>(),
+        volume_int in any::<i8>(),
+        volume_frac in any::<u8>(),
+        matrix in any::<[i32; 9]>(),
+        next_track_id in any::<u32>()
+    ) {
+        let mvhd = MvhdBox {
+            creation_time: Mp4FileTime::from_secs(creation_time),
+            modification_time: Mp4FileTime::from_secs(modification_time),
+            timescale: NonZeroU32::new(timescale).unwrap(),
+            duration,
+            rate: FixedPointNumber::new(rate_int, rate_frac),
+            volume: FixedPointNumber::new(volume_int, volume_frac),
+            matrix,
+            next_track_id,
+        };
+        let encoded = mvhd.encode_to_vec().unwrap();
+        let (decoded, size) = MvhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.creation_time.as_secs(), creation_time);
+        prop_assert_eq!(decoded.modification_time.as_secs(), modification_time);
+        prop_assert_eq!(decoded.timescale.get(), timescale);
+        prop_assert_eq!(decoded.duration, duration);
+        prop_assert_eq!(decoded.rate.integer, rate_int);
+        prop_assert_eq!(decoded.rate.fraction, rate_frac);
+        prop_assert_eq!(decoded.volume.integer, volume_int);
+        prop_assert_eq!(decoded.volume.fraction, volume_frac);
+        prop_assert_eq!(decoded.matrix, matrix);
+        prop_assert_eq!(decoded.next_track_id, next_track_id);
+    }
+
+    /// MvhdBox (version 1) の encode/decode roundtrip
+    #[test]
+    fn mvhd_box_v1_roundtrip(
+        creation_time in any::<u64>(),
+        modification_time in any::<u64>(),
+        timescale in 1u32..=u32::MAX,
+        duration in any::<u64>(),
+        rate_int in any::<i16>(),
+        rate_frac in any::<u16>(),
+        volume_int in any::<i8>(),
+        volume_frac in any::<u8>(),
+        matrix in any::<[i32; 9]>(),
+        next_track_id in any::<u32>()
+    ) {
+        let mvhd = MvhdBox {
+            creation_time: Mp4FileTime::from_secs(creation_time),
+            modification_time: Mp4FileTime::from_secs(modification_time),
+            timescale: NonZeroU32::new(timescale).unwrap(),
+            duration,
+            rate: FixedPointNumber::new(rate_int, rate_frac),
+            volume: FixedPointNumber::new(volume_int, volume_frac),
+            matrix,
+            next_track_id,
+        };
+        let encoded = mvhd.encode_to_vec().unwrap();
+        let (decoded, size) = MvhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.creation_time.as_secs(), creation_time);
+        prop_assert_eq!(decoded.modification_time.as_secs(), modification_time);
+        prop_assert_eq!(decoded.timescale.get(), timescale);
+        prop_assert_eq!(decoded.duration, duration);
+        prop_assert_eq!(decoded.rate.integer, rate_int);
+        prop_assert_eq!(decoded.rate.fraction, rate_frac);
+        prop_assert_eq!(decoded.volume.integer, volume_int);
+        prop_assert_eq!(decoded.volume.fraction, volume_frac);
+        prop_assert_eq!(decoded.matrix, matrix);
+        prop_assert_eq!(decoded.next_track_id, next_track_id);
+    }
+
+    // ===== TkhdBox のテスト =====
+
+    /// TkhdBox (version 0) の encode/decode roundtrip
+    #[test]
+    fn tkhd_box_v0_roundtrip(
+        flag_track_enabled in any::<bool>(),
+        flag_track_in_movie in any::<bool>(),
+        flag_track_in_preview in any::<bool>(),
+        flag_track_size_is_aspect_ratio in any::<bool>(),
+        creation_time in 0u64..=(u32::MAX as u64),
+        modification_time in 0u64..=(u32::MAX as u64),
+        track_id in any::<u32>(),
+        duration in 0u64..=(u32::MAX as u64),
+        layer in any::<i16>(),
+        alternate_group in any::<i16>(),
+        volume_int in any::<i8>(),
+        volume_frac in any::<u8>(),
+        matrix in any::<[i32; 9]>(),
+        width_int in any::<i16>(),
+        width_frac in any::<u16>(),
+        height_int in any::<i16>(),
+        height_frac in any::<u16>()
+    ) {
+        let tkhd = TkhdBox {
+            flag_track_enabled,
+            flag_track_in_movie,
+            flag_track_in_preview,
+            flag_track_size_is_aspect_ratio,
+            creation_time: Mp4FileTime::from_secs(creation_time),
+            modification_time: Mp4FileTime::from_secs(modification_time),
+            track_id,
+            duration,
+            layer,
+            alternate_group,
+            volume: FixedPointNumber::new(volume_int, volume_frac),
+            matrix,
+            width: FixedPointNumber::new(width_int, width_frac),
+            height: FixedPointNumber::new(height_int, height_frac),
+        };
+        let encoded = tkhd.encode_to_vec().unwrap();
+        let (decoded, size) = TkhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.flag_track_enabled, flag_track_enabled);
+        prop_assert_eq!(decoded.flag_track_in_movie, flag_track_in_movie);
+        prop_assert_eq!(decoded.flag_track_in_preview, flag_track_in_preview);
+        prop_assert_eq!(decoded.flag_track_size_is_aspect_ratio, flag_track_size_is_aspect_ratio);
+        prop_assert_eq!(decoded.creation_time.as_secs(), creation_time);
+        prop_assert_eq!(decoded.modification_time.as_secs(), modification_time);
+        prop_assert_eq!(decoded.track_id, track_id);
+        prop_assert_eq!(decoded.duration, duration);
+        prop_assert_eq!(decoded.layer, layer);
+        prop_assert_eq!(decoded.alternate_group, alternate_group);
+        prop_assert_eq!(decoded.volume.integer, volume_int);
+        prop_assert_eq!(decoded.volume.fraction, volume_frac);
+        prop_assert_eq!(decoded.matrix, matrix);
+        prop_assert_eq!(decoded.width.integer, width_int);
+        prop_assert_eq!(decoded.width.fraction, width_frac);
+        prop_assert_eq!(decoded.height.integer, height_int);
+        prop_assert_eq!(decoded.height.fraction, height_frac);
+    }
+
+    // ===== MdhdBox のテスト =====
+
+    /// MdhdBox (version 0) の encode/decode roundtrip
+    #[test]
+    fn mdhd_box_v0_roundtrip(
+        creation_time in 0u64..=(u32::MAX as u64),
+        modification_time in 0u64..=(u32::MAX as u64),
+        timescale in 1u32..=u32::MAX,
+        duration in 0u64..=(u32::MAX as u64),
+        language in prop::array::uniform3(0x61u8..=0x7Au8)
+    ) {
+        let mdhd = MdhdBox {
+            creation_time: Mp4FileTime::from_secs(creation_time),
+            modification_time: Mp4FileTime::from_secs(modification_time),
+            timescale: NonZeroU32::new(timescale).unwrap(),
+            duration,
+            language,
+        };
+        let encoded = mdhd.encode_to_vec().unwrap();
+        let (decoded, size) = MdhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.creation_time.as_secs(), creation_time);
+        prop_assert_eq!(decoded.modification_time.as_secs(), modification_time);
+        prop_assert_eq!(decoded.timescale.get(), timescale);
+        prop_assert_eq!(decoded.duration, duration);
+        prop_assert_eq!(decoded.language, language);
+    }
+
+    /// MdhdBox (version 1) の encode/decode roundtrip
+    #[test]
+    fn mdhd_box_v1_roundtrip(
+        creation_time in any::<u64>(),
+        modification_time in any::<u64>(),
+        timescale in 1u32..=u32::MAX,
+        duration in any::<u64>(),
+        language in prop::array::uniform3(0x61u8..=0x7Au8)
+    ) {
+        let mdhd = MdhdBox {
+            creation_time: Mp4FileTime::from_secs(creation_time),
+            modification_time: Mp4FileTime::from_secs(modification_time),
+            timescale: NonZeroU32::new(timescale).unwrap(),
+            duration,
+            language,
+        };
+        let encoded = mdhd.encode_to_vec().unwrap();
+        let (decoded, size) = MdhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.creation_time.as_secs(), creation_time);
+        prop_assert_eq!(decoded.modification_time.as_secs(), modification_time);
+        prop_assert_eq!(decoded.timescale.get(), timescale);
+        prop_assert_eq!(decoded.duration, duration);
+        prop_assert_eq!(decoded.language, language);
+    }
+
+    // ===== HdlrBox のテスト =====
+
+    /// HdlrBox の encode/decode roundtrip
+    #[test]
+    fn hdlr_box_roundtrip(
+        handler_type in any::<[u8; 4]>(),
+        name in prop::collection::vec(any::<u8>(), 0..100)
+    ) {
+        let hdlr = HdlrBox {
+            handler_type,
+            name: name.clone(),
+        };
+        let encoded = hdlr.encode_to_vec().unwrap();
+        let (decoded, size) = HdlrBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.handler_type, handler_type);
+        prop_assert_eq!(decoded.name, name);
+    }
+
+    // ===== SmhdBox のテスト =====
+
+    /// SmhdBox の encode/decode roundtrip
+    #[test]
+    fn smhd_box_roundtrip(
+        balance_int in any::<u8>(),
+        balance_frac in any::<u8>()
+    ) {
+        let smhd = SmhdBox {
+            balance: FixedPointNumber::new(balance_int, balance_frac),
+        };
+        let encoded = smhd.encode_to_vec().unwrap();
+        let (decoded, size) = SmhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.balance.integer, balance_int);
+        prop_assert_eq!(decoded.balance.fraction, balance_frac);
+    }
+
+    // ===== VmhdBox のテスト =====
+
+    /// VmhdBox の encode/decode roundtrip
+    #[test]
+    fn vmhd_box_roundtrip(
+        graphicsmode in any::<u16>(),
+        opcolor in any::<[u16; 3]>()
+    ) {
+        let vmhd = VmhdBox {
+            graphicsmode,
+            opcolor,
+        };
+        let encoded = vmhd.encode_to_vec().unwrap();
+        let (decoded, size) = VmhdBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.graphicsmode, graphicsmode);
+        prop_assert_eq!(decoded.opcolor, opcolor);
+    }
+
+    // ===== StssBox のテスト =====
+
+    /// StssBox の encode/decode roundtrip
+    #[test]
+    fn stss_box_roundtrip(sample_numbers in prop::collection::vec(1u32..=u32::MAX, 0..100)) {
+        let stss = StssBox {
+            sample_numbers: sample_numbers.iter().map(|&n| NonZeroU32::new(n).unwrap()).collect(),
+        };
+        let encoded = stss.encode_to_vec().unwrap();
+        let (decoded, size) = StssBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.sample_numbers.len(), sample_numbers.len());
+        for (orig, dec) in sample_numbers.iter().zip(decoded.sample_numbers.iter()) {
+            prop_assert_eq!(*orig, dec.get());
+        }
+    }
 }
 
 // ===== 境界値テスト =====
@@ -332,5 +609,168 @@ mod boundary_tests {
         let (decoded, _) = FtypBox::decode(&encoded).unwrap();
         assert_eq!(decoded.major_brand.get(), [0x00, 0x00, 0x00, 0x00]);
         assert_eq!(decoded.compatible_brands[0].get(), [0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+
+    /// MvhdBox: デフォルト値
+    #[test]
+    fn mvhd_box_defaults() {
+        let mvhd = MvhdBox {
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            timescale: NonZeroU32::new(1000).unwrap(),
+            duration: 0,
+            rate: MvhdBox::DEFAULT_RATE,
+            volume: MvhdBox::DEFAULT_VOLUME,
+            matrix: MvhdBox::DEFAULT_MATRIX,
+            next_track_id: 1,
+        };
+        let encoded = mvhd.encode_to_vec().unwrap();
+        let (decoded, _) = MvhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.rate.integer, 1);
+        assert_eq!(decoded.rate.fraction, 0);
+        assert_eq!(decoded.volume.integer, 1);
+        assert_eq!(decoded.volume.fraction, 0);
+        assert_eq!(decoded.matrix, MvhdBox::DEFAULT_MATRIX);
+    }
+
+    /// TkhdBox: フラグの組み合わせ
+    #[test]
+    fn tkhd_box_flags() {
+        let tkhd = TkhdBox {
+            flag_track_enabled: true,
+            flag_track_in_movie: true,
+            flag_track_in_preview: false,
+            flag_track_size_is_aspect_ratio: true,
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            track_id: 1,
+            duration: 0,
+            layer: TkhdBox::DEFAULT_LAYER,
+            alternate_group: TkhdBox::DEFAULT_ALTERNATE_GROUP,
+            volume: TkhdBox::DEFAULT_AUDIO_VOLUME,
+            matrix: TkhdBox::DEFAULT_MATRIX,
+            width: FixedPointNumber::new(1920, 0),
+            height: FixedPointNumber::new(1080, 0),
+        };
+        let encoded = tkhd.encode_to_vec().unwrap();
+        let (decoded, _) = TkhdBox::decode(&encoded).unwrap();
+        assert!(decoded.flag_track_enabled);
+        assert!(decoded.flag_track_in_movie);
+        assert!(!decoded.flag_track_in_preview);
+        assert!(decoded.flag_track_size_is_aspect_ratio);
+    }
+
+    /// MdhdBox: 言語コードの境界
+    #[test]
+    fn mdhd_box_language_boundary() {
+        // 最小値 'aaa' (0x61)
+        let mdhd_min = MdhdBox {
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            timescale: NonZeroU32::new(48000).unwrap(),
+            duration: 0,
+            language: [0x61, 0x61, 0x61],
+        };
+        let encoded = mdhd_min.encode_to_vec().unwrap();
+        let (decoded, _) = MdhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.language, [0x61, 0x61, 0x61]);
+
+        // 最大値 'zzz' (0x7A)
+        let mdhd_max = MdhdBox {
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            timescale: NonZeroU32::new(48000).unwrap(),
+            duration: 0,
+            language: [0x7A, 0x7A, 0x7A],
+        };
+        let encoded = mdhd_max.encode_to_vec().unwrap();
+        let (decoded, _) = MdhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.language, [0x7A, 0x7A, 0x7A]);
+
+        // 標準的な "und" (undefined)
+        let mdhd_und = MdhdBox {
+            creation_time: Mp4FileTime::from_secs(0),
+            modification_time: Mp4FileTime::from_secs(0),
+            timescale: NonZeroU32::new(48000).unwrap(),
+            duration: 0,
+            language: MdhdBox::LANGUAGE_UNDEFINED,
+        };
+        let encoded = mdhd_und.encode_to_vec().unwrap();
+        let (decoded, _) = MdhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.language, *b"und");
+    }
+
+    /// HdlrBox: 空の name
+    #[test]
+    fn hdlr_box_empty_name() {
+        let hdlr = HdlrBox {
+            handler_type: HdlrBox::HANDLER_TYPE_VIDE,
+            name: vec![],
+        };
+        let encoded = hdlr.encode_to_vec().unwrap();
+        let (decoded, _) = HdlrBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.handler_type, *b"vide");
+        assert!(decoded.name.is_empty());
+    }
+
+    /// HdlrBox: ハンドラータイプ
+    #[test]
+    fn hdlr_box_handler_types() {
+        for handler_type in [HdlrBox::HANDLER_TYPE_SOUN, HdlrBox::HANDLER_TYPE_VIDE] {
+            let hdlr = HdlrBox {
+                handler_type,
+                name: b"test\0".to_vec(),
+            };
+            let encoded = hdlr.encode_to_vec().unwrap();
+            let (decoded, _) = HdlrBox::decode(&encoded).unwrap();
+            assert_eq!(decoded.handler_type, handler_type);
+        }
+    }
+
+    /// SmhdBox: デフォルト値
+    #[test]
+    fn smhd_box_default() {
+        let smhd = SmhdBox {
+            balance: SmhdBox::DEFAULT_BALANCE,
+        };
+        let encoded = smhd.encode_to_vec().unwrap();
+        let (decoded, _) = SmhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.balance.integer, 0);
+        assert_eq!(decoded.balance.fraction, 0);
+    }
+
+    /// VmhdBox: デフォルト値
+    #[test]
+    fn vmhd_box_default() {
+        let vmhd = VmhdBox {
+            graphicsmode: VmhdBox::DEFAULT_GRAPHICSMODE,
+            opcolor: VmhdBox::DEFAULT_OPCOLOR,
+        };
+        let encoded = vmhd.encode_to_vec().unwrap();
+        let (decoded, _) = VmhdBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.graphicsmode, 0);
+        assert_eq!(decoded.opcolor, [0, 0, 0]);
+    }
+
+    /// StssBox: 空のリスト
+    #[test]
+    fn stss_box_empty() {
+        let stss = StssBox {
+            sample_numbers: vec![],
+        };
+        let encoded = stss.encode_to_vec().unwrap();
+        let (decoded, _) = StssBox::decode(&encoded).unwrap();
+        assert!(decoded.sample_numbers.is_empty());
+    }
+
+    /// StssBox: 最大値
+    #[test]
+    fn stss_box_max_value() {
+        let stss = StssBox {
+            sample_numbers: vec![NonZeroU32::MAX],
+        };
+        let encoded = stss.encode_to_vec().unwrap();
+        let (decoded, _) = StssBox::decode(&encoded).unwrap();
+        assert_eq!(decoded.sample_numbers[0], NonZeroU32::MAX);
     }
 }
