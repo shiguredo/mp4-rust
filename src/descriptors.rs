@@ -53,6 +53,9 @@ impl Decode for EsDescriptor {
 
         let url_string = if url_flag.get() == 1 {
             let len = u8::decode_at(buf, &mut offset)? as usize;
+            if offset + len > buf.len() {
+                return Err(Error::invalid_data("URL string exceeds buffer boundary"));
+            }
             let s = String::from_utf8(buf[offset..offset + len].to_vec())
                 .map_err(|_| Error::invalid_data("Invalid UTF-8 in URL string"))?;
             offset += len;
@@ -157,6 +160,11 @@ impl Decode for DecoderConfigDescriptor {
 
         let buffer_size_db = {
             let mut temp = [0; 4];
+            if offset + 3 > buf.len() {
+                return Err(Error::invalid_data(
+                    "buffer_size_db exceeds buffer boundary",
+                ));
+            }
             temp[1..].copy_from_slice(&buf[offset..offset + 3]);
             offset += 3;
             Uint::from_bits(u32::from_be_bytes(temp))
@@ -234,6 +242,11 @@ impl Decode for DecoderSpecificInfo {
             )));
         }
 
+        if offset + size > buf.len() {
+            return Err(Error::invalid_data(
+                "DecoderSpecificInfo payload exceeds buffer boundary",
+            ));
+        }
         let payload = buf[offset..offset + size].to_vec();
         offset += size;
 
