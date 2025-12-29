@@ -2644,7 +2644,7 @@ impl Decode for Hvc1Box {
             Ok((
                 Self {
                     visual,
-                    hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hev1")?,
+                    hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hvc1")?,
                     unknown_boxes,
                 },
                 header.external_size() + payload.len(),
