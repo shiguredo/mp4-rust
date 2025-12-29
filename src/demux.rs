@@ -319,6 +319,17 @@ impl Mp4FileDemuxer {
     }
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
+    ///
+    /// # NOTE
+    ///
+    /// `input` 引数では [`Mp4FileDemuxer::required_input()`] が指定した範囲を包含する入力データを
+    /// 渡す必要がある。
+    ///
+    /// もし、異なる範囲や、不十分なデータサイズの入力が渡された場合には、
+    /// [`Mp4FileDemuxer`] はエラー状態に遷移する。
+    ///
+    /// エラー状態に遷移した後は、 [`Mp4FileDemuxer::required_input()`] は常に `None` を返し、
+    /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる。
     pub fn handle_input(&mut self, input: Input) {
         if let Err(e) = self.handle_input_inner(input)
             && !matches!(e, DemuxError::InputRequired(_))
