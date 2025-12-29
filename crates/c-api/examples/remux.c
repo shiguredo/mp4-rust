@@ -35,6 +35,8 @@ const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
             return "AVC1 (H.264)";
         case MP4_SAMPLE_ENTRY_KIND_HEV1:
             return "HEV1 (H.265/HEVC)";
+        case MP4_SAMPLE_ENTRY_KIND_HVC1:
+            return "HVC1 (H.265/HEVC)";
         case MP4_SAMPLE_ENTRY_KIND_VP08:
             return "VP08 (VP8)";
         case MP4_SAMPLE_ENTRY_KIND_VP09:
