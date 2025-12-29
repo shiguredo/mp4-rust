@@ -364,6 +364,9 @@ impl Mp4FileDemuxer {
     ///
     /// エラー状態に遷移した後は、 [`Mp4FileDemuxer::required_input()`] は常に `None` を返し、
     /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる
+    ///
+    /// なお [`Mp4FileDemuxer::required_input()`] で指定された範囲よりも多くのデータを渡す分には問題はない
+    /// （極端なケースでは、入力ファイル全体のデータを一度に渡してしまっても構わない）
     pub fn handle_input(&mut self, input: Input) {
         if self.handle_input_error.is_none()
             && let Some(required) = self.required_input()
