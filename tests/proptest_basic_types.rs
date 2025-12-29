@@ -708,15 +708,11 @@ mod codec_box_boundary_tests {
         );
     }
 
-    /// HvccBox: NAL unit length がペイロード境界を超える場合 (panic テスト)
+    /// HvccBox: NAL unit length がペイロード境界を超える場合
     ///
-    /// 修正前: panic (slice index out of bounds)
-    /// 修正後: Error を返す
-    ///
-    /// NOTE: feature/fix-infinite-loop ブランチの修正がマージされたら
-    ///       #[should_panic] を削除して assert!(result.is_err()) に変更すること
+    /// ボックスサイズを固定して、ペイロードが正確に計算されるケース
+    /// NAL unit length が不正な場合は Error を返す
     #[test]
-    #[should_panic(expected = "range end index")]
     fn hvcc_box_nal_unit_length_exceeds_payload_with_fixed_size() {
         // ボックスサイズを固定して、ペイロードが正確に計算されるようにする
         let mut buf = Vec::new();
@@ -817,15 +813,11 @@ mod codec_box_boundary_tests {
         );
     }
 
-    /// VpccBox: codec_init_size がペイロード境界を超える場合 (panic テスト)
+    /// VpccBox: codec_init_size がペイロード境界を超える場合
     ///
-    /// 修正前: panic (slice index out of bounds)
-    /// 修正後: Error を返す
-    ///
-    /// NOTE: feature/fix-infinite-loop ブランチの修正がマージされたら
-    ///       #[should_panic] を削除して assert!(result.is_err()) に変更すること
+    /// ボックスサイズを固定して、ペイロードが正確に計算されるケース
+    /// codec_init_size が不正な場合は Error を返す
     #[test]
-    #[should_panic(expected = "range end index")]
     fn vpcc_box_codec_init_size_exceeds_payload_with_fixed_size() {
         // ボックスサイズを固定して、ペイロードが正確に計算されるようにする
         let mut buf = Vec::new();
