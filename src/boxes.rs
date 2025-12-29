@@ -2676,7 +2676,7 @@ pub struct HvccNalUintArray {
     pub nalus: Vec<Vec<u8>>,
 }
 
-/// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`])
+/// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`], [`Hvc1Box`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HvccBox {
