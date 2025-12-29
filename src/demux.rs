@@ -136,6 +136,34 @@ impl RequiredInput {
             data,
         }
     }
+
+    /// 引数の [`Input`] が、この [`RequiredInput`] の要求を満たしているかどうかを確認する
+    pub fn is_satisfied_by(self, input: Input) -> bool {
+        let Some(offset) = self.position.checked_sub(input.position) else {
+            // 入力データの開始位置が、要求位置よりも後ろにある
+            return false;
+        };
+
+        if offset > input.data.len() as u64 {
+            // 入力データの終端位置が、要求位置よりも前にある
+            return false;
+        }
+
+        // [NOTE] ここまで来たら「要求位置が入力データの範囲の含まれていること」は確実
+
+        let Some(required_size) = self.size else {
+            // 要求サイズがない場合はここで終了（入力にファイル終端までのデータが含まれていると想定する）
+            return true;
+        };
+
+        let end = offset + required_size as u64;
+        if end > input.data.len() as u64 {
+            // 要求の終端位置が入力データに含まれていなかった（入力データの終端位置より後ろだった）
+            return false;
+        }
+
+        true
+    }
 }
 
 /// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
@@ -325,12 +353,27 @@ impl Mp4FileDemuxer {
     /// `input` 引数では [`Mp4FileDemuxer::required_input()`] が指定した範囲を包含する入力データを
     /// 渡す必要がある。
     ///
-    /// もし、異なる範囲や、不十分なデータサイズの入力が渡された場合には、
+    /// もし、異なる範囲や、不十分なデータサイズの入力（つまり [`RequiredInput::is_satisfied_by()`] が `false` になる入力）が渡された場合には、
     /// [`Mp4FileDemuxer`] はエラー状態に遷移する。
     ///
     /// エラー状態に遷移した後は、 [`Mp4FileDemuxer::required_input()`] は常に `None` を返し、
     /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる。
     pub fn handle_input(&mut self, input: Input) {
+        if self.handle_input_error.is_none()
+            && let Some(required) = self.required_input()
+            && !required.is_satisfied_by(input)
+        {
+            let reason = format!(
+                "required input position={}, size={:?}, but got position={}, size={}",
+                required.position,
+                required.size,
+                input.position,
+                input.data.len(),
+            );
+            self.handle_input_error = Some(DemuxError::DecodeError(Error::invalid_input(reason)));
+            return;
+        }
+
         if let Err(e) = self.handle_input_inner(input)
             && !matches!(e, DemuxError::InputRequired(_))
         {
