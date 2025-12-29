@@ -266,3 +266,31 @@ path = "fuzz_targets/fuzz_unknown_box.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_dinf_box"
+path = "fuzz_targets/fuzz_dinf_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_edts_box"
+path = "fuzz_targets/fuzz_edts_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mdat_box"
+path = "fuzz_targets/fuzz_mdat_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_stsd_box"
+path = "fuzz_targets/fuzz_stsd_box.rs"
+test = false
+doc = false
+bench = false

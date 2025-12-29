@@ -5,10 +5,11 @@ use std::num::NonZeroU32;
 use proptest::prelude::*;
 use shiguredo_mp4::{
     boxes::{
-        Brand, Co64Box, ElstBox, ElstEntry, FtypBox, HdlrBox, MdhdBox, MvhdBox, SmhdBox, StcoBox,
-        StscBox, StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox, VmhdBox,
+        Brand, Co64Box, DinfBox, DrefBox, EdtsBox, ElstBox, ElstEntry, FtypBox, HdlrBox, MdhdBox,
+        MvhdBox, SmhdBox, StcoBox, StscBox, StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox,
+        UrlBox, VmhdBox,
     },
-    Decode, Encode, FixedPointNumber, Mp4FileTime,
+    Decode, Encode, FixedPointNumber, Mp4FileTime, Utf8String,
 };
 
 /// SttsEntry を生成する Strategy
@@ -479,6 +480,90 @@ proptest! {
             prop_assert_eq!(*orig, dec.get());
         }
     }
+
+    // ===== UrlBox のテスト =====
+
+    /// UrlBox (ローカルファイル) の encode/decode roundtrip
+    #[test]
+    fn url_box_local_roundtrip(_dummy in Just(())) {
+        let url = UrlBox::LOCAL_FILE;
+        let encoded = url.encode_to_vec().unwrap();
+        let (decoded, size) = UrlBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert!(decoded.location.is_none());
+    }
+
+    /// UrlBox (リモート URL) の encode/decode roundtrip
+    #[test]
+    fn url_box_remote_roundtrip(location in "[a-zA-Z0-9:/._-]{1,100}") {
+        let url = UrlBox {
+            location: Some(Utf8String::new(&location).unwrap()),
+        };
+        let encoded = url.encode_to_vec().unwrap();
+        let (decoded, size) = UrlBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.location.as_ref().map(|s| s.get()), Some(location.as_str()));
+    }
+
+    // ===== DrefBox のテスト =====
+
+    /// DrefBox の encode/decode roundtrip
+    #[test]
+    fn dref_box_roundtrip(_dummy in Just(())) {
+        // DrefBox::LOCAL_FILE は UrlBox::LOCAL_FILE を持つ
+        let dref = DrefBox::LOCAL_FILE;
+        let encoded = dref.encode_to_vec().unwrap();
+        let (decoded, size) = DrefBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert!(decoded.url_box.is_some());
+    }
+
+    // ===== DinfBox のテスト =====
+
+    /// DinfBox の encode/decode roundtrip
+    #[test]
+    fn dinf_box_roundtrip(_dummy in Just(())) {
+        let dinf = DinfBox::LOCAL_FILE;
+        let encoded = dinf.encode_to_vec().unwrap();
+        let (decoded, size) = DinfBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert!(decoded.dref_box.url_box.is_some());
+    }
+
+    // ===== EdtsBox のテスト =====
+
+    /// EdtsBox (空) の encode/decode roundtrip
+    #[test]
+    fn edts_box_empty_roundtrip(_dummy in Just(())) {
+        let edts = EdtsBox {
+            elst_box: None,
+            unknown_boxes: vec![],
+        };
+        let encoded = edts.encode_to_vec().unwrap();
+        let (decoded, size) = EdtsBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert!(decoded.elst_box.is_none());
+    }
+
+    /// EdtsBox (ElstBox 付き) の encode/decode roundtrip
+    #[test]
+    fn edts_box_with_elst_roundtrip(entries in prop::collection::vec(arb_elst_entry_v0(), 0..10)) {
+        let edts = EdtsBox {
+            elst_box: Some(ElstBox { entries: entries.clone() }),
+            unknown_boxes: vec![],
+        };
+        let encoded = edts.encode_to_vec().unwrap();
+        let (decoded, size) = EdtsBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert!(decoded.elst_box.is_some());
+        prop_assert_eq!(decoded.elst_box.unwrap().entries.len(), entries.len());
+    }
 }
 
 // ===== 境界値テスト =====
@@ -772,5 +857,47 @@ mod boundary_tests {
         let encoded = stss.encode_to_vec().unwrap();
         let (decoded, _) = StssBox::decode(&encoded).unwrap();
         assert_eq!(decoded.sample_numbers[0], NonZeroU32::MAX);
+    }
+
+    /// UrlBox: ローカルファイル
+    #[test]
+    fn url_box_local_file() {
+        let url = UrlBox::LOCAL_FILE;
+        let encoded = url.encode_to_vec().unwrap();
+        let (decoded, _) = UrlBox::decode(&encoded).unwrap();
+        assert!(decoded.location.is_none());
+    }
+
+    /// DrefBox: ローカルファイル
+    #[test]
+    fn dref_box_local_file() {
+        let dref = DrefBox::LOCAL_FILE;
+        let encoded = dref.encode_to_vec().unwrap();
+        let (decoded, _) = DrefBox::decode(&encoded).unwrap();
+        assert!(decoded.url_box.is_some());
+        assert!(decoded.url_box.unwrap().location.is_none());
+    }
+
+    /// DinfBox: ローカルファイル
+    #[test]
+    fn dinf_box_local_file() {
+        let dinf = DinfBox::LOCAL_FILE;
+        let encoded = dinf.encode_to_vec().unwrap();
+        let (decoded, _) = DinfBox::decode(&encoded).unwrap();
+        assert!(decoded.dref_box.url_box.is_some());
+        assert!(decoded.unknown_boxes.is_empty());
+    }
+
+    /// EdtsBox: 空
+    #[test]
+    fn edts_box_empty() {
+        let edts = EdtsBox {
+            elst_box: None,
+            unknown_boxes: vec![],
+        };
+        let encoded = edts.encode_to_vec().unwrap();
+        let (decoded, _) = EdtsBox::decode(&encoded).unwrap();
+        assert!(decoded.elst_box.is_none());
+        assert!(decoded.unknown_boxes.is_empty());
     }
 }
