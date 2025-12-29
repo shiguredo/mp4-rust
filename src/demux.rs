@@ -42,7 +42,7 @@
 use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 
 use crate::{
     BoxHeader, Decode, Error, TrackKind,
