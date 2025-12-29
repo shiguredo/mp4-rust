@@ -770,23 +770,14 @@ mod tests {
 
     #[test]
     fn test_required_input_is_satisfied_by_critical_boundary_case() {
-        // **レビュー指摘：境界値チェックの不整合を確認するケース**
-        // position = 100, input.position = 0, input.data.len() = 100
-        // この場合、要求位置がデータの範囲外（[0, 100)）であるべき
+        // 要求位置がデータ範囲の末尾を超える境界値ケース
+        // offset が input.data.len() と等しい場合も範囲外と判定する必要がある
         let required = RequiredInput::new(100, Some(50));
         let input = Input {
             position: 0,
-            data: &[0u8; 100], // データは位置 0-99 のみ
+            data: &[0u8; 100],
         };
-        // offset = 100 - 0 = 100
-        // input.data.len() = 100
-        // 現在の実装：`offset > input.data.len()` → `100 > 100` → false → true を返す（バグ！）
-        // 正しくは：false を返すべき（要求位置がデータ範囲外）
-
-        // このテストは現在の実装のバグを実証する
-        let result = required.is_satisfied_by(input);
-        // バグがある場合は true が返される
-        assert!(!result, "境界値チェックが正しく機能していません");
+        assert!(!required.is_satisfied_by(input));
     }
 
     #[test]
