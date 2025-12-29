@@ -2028,6 +2028,7 @@ impl FullBox for StsdBox {
 pub enum SampleEntry {
     Avc1(Avc1Box),
     Hev1(Hev1Box),
+    Hvc1(Hvc1Box),
     Vp08(Vp08Box),
     Vp09(Vp09Box),
     Av01(Av01Box),
@@ -2090,6 +2091,7 @@ impl SampleEntry {
         match self {
             Self::Avc1(b) => Some((b.visual.width, b.visual.height)),
             Self::Hev1(b) => Some((b.visual.width, b.visual.height)),
+            Self::Hvc1(b) => Some((b.visual.width, b.visual.height)),
             Self::Vp08(b) => Some((b.visual.width, b.visual.height)),
             Self::Vp09(b) => Some((b.visual.width, b.visual.height)),
             Self::Av01(b) => Some((b.visual.width, b.visual.height)),
@@ -2101,6 +2103,7 @@ impl SampleEntry {
         match self {
             Self::Avc1(b) => b,
             Self::Hev1(b) => b,
+            Self::Hvc1(b) => b,
             Self::Vp08(b) => b,
             Self::Vp09(b) => b,
             Self::Av01(b) => b,
@@ -2117,6 +2120,7 @@ impl Encode for SampleEntry {
         match self {
             Self::Avc1(b) => b.encode(buf),
             Self::Hev1(b) => b.encode(buf),
+            Self::Hvc1(b) => b.encode(buf),
             Self::Vp08(b) => b.encode(buf),
             Self::Vp09(b) => b.encode(buf),
             Self::Av01(b) => b.encode(buf),
@@ -2134,6 +2138,7 @@ impl Decode for SampleEntry {
         match header.box_type {
             Avc1Box::TYPE => Avc1Box::decode(buf).map(|(b, n)| (Self::Avc1(b), n)),
             Hev1Box::TYPE => Hev1Box::decode(buf).map(|(b, n)| (Self::Hev1(b), n)),
+            Hvc1Box::TYPE => Hvc1Box::decode(buf).map(|(b, n)| (Self::Hvc1(b), n)),
             Vp08Box::TYPE => Vp08Box::decode(buf).map(|(b, n)| (Self::Vp08(b), n)),
             Vp09Box::TYPE => Vp09Box::decode(buf).map(|(b, n)| (Self::Vp09(b), n)),
             Av01Box::TYPE => Av01Box::decode(buf).map(|(b, n)| (Self::Av01(b), n)),
@@ -2584,6 +2589,84 @@ impl BaseBox for Hev1Box {
     }
 }
 
+/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`])
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct Hvc1Box {
+    pub visual: VisualSampleEntryFields,
+    pub hvcc_box: HvccBox,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl Hvc1Box {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"hvc1");
+}
+
+impl Encode for Hvc1Box {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += self.visual.encode(&mut buf[offset..])?;
+        offset += self.hvcc_box.encode(&mut buf[offset..])?;
+        for b in &self.unknown_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for Hvc1Box {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let visual = VisualSampleEntryFields::decode_at(payload, &mut offset)?;
+
+            let mut hvcc_box = None;
+            let mut unknown_boxes = Vec::new();
+
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    HvccBox::TYPE if hvcc_box.is_none() => {
+                        hvcc_box = Some(HvccBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
+                }
+            }
+
+            Ok((
+                Self {
+                    visual,
+                    hvcc_box: check_mandatory_box(hvcc_box, "hvcc", "hvc1")?,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for Hvc1Box {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            core::iter::empty()
+                .chain(core::iter::once(&self.hvcc_box).map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
 /// [`HvccBox`] 内の NAL ユニット配列を保持する構造体
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -2593,7 +2676,7 @@ pub struct HvccNalUintArray {
     pub nalus: Vec<Vec<u8>>,
 }
 
-/// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`])
+/// [ISO/IEC 14496-15] HVCConfigurationBox class (親: [`Hev1Box`], [`Hvc1Box`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct HvccBox {

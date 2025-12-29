@@ -47,6 +47,8 @@ const char *get_sample_entry_kind_name(enum Mp4SampleEntryKind kind) {
             return "AVC1 (H.264)";
         case MP4_SAMPLE_ENTRY_KIND_HEV1:
             return "HEV1 (H.265/HEVC)";
+        case MP4_SAMPLE_ENTRY_KIND_HVC1:
+            return "HVC1 (H.265/HEVC)";
         case MP4_SAMPLE_ENTRY_KIND_VP08:
             return "VP08 (VP8)";
         case MP4_SAMPLE_ENTRY_KIND_VP09:
@@ -84,6 +86,15 @@ void print_sample_entry_info(const struct Mp4SampleEntry *sample_entry) {
                    hev1->general_level_idc);
             printf("    Chroma format: %u, Bit depth (luma): %u\n", hev1->chroma_format_idc,
                    hev1->bit_depth_luma_minus8 + 8);
+            break;
+        }
+        case MP4_SAMPLE_ENTRY_KIND_HVC1: {
+            const struct Mp4SampleEntryHvc1 *hvc1 = &sample_entry->data.hvc1;
+            printf("    Resolution: %ux%u\n", hvc1->width, hvc1->height);
+            printf("    Profile: %u, Level: %u\n", hvc1->general_profile_idc,
+                   hvc1->general_level_idc);
+            printf("    Chroma format: %u, Bit depth (luma): %u\n", hvc1->chroma_format_idc,
+                   hvc1->bit_depth_luma_minus8 + 8);
             break;
         }
         case MP4_SAMPLE_ENTRY_KIND_VP09: {
