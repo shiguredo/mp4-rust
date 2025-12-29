@@ -531,6 +531,8 @@ impl Mp4FileDemuxer {
 mod tests {
     use super::*;
 
+    use crate::ErrorKind;
+
     fn read_tracks_from_file_data(file_data: &[u8]) -> Vec<TrackInfo> {
         let input = Input {
             position: 0,
@@ -609,5 +611,21 @@ mod tests {
 
         assert_eq!(tracks.len(), 1);
         assert!(matches!(tracks[0].kind, TrackKind::Video));
+    }
+
+    #[test]
+    fn test_handle_input_with_empty_data() {
+        let empty_input = Input {
+            position: 0,
+            data: &[], // 空のデータ
+        };
+        let mut demuxer = Mp4FileDemuxer::new();
+        demuxer.handle_input(empty_input);
+
+        // 空のデータではトラック情報が取得できないはず
+        let Err(DemuxError::DecodeError(err)) = demuxer.tracks() else {
+            panic!();
+        };
+        assert_eq!(err.kind, ErrorKind::InvalidInput);
     }
 }
