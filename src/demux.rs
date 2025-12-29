@@ -373,9 +373,13 @@ impl Mp4FileDemuxer {
             && !required.is_satisfied_by(input)
         {
             let reason = format!(
-                "required input position={}, size={:?}, but got position={}, size={}",
+                "required input position={}{}, but got position={} and size={}",
                 required.position,
-                required.size,
+                if let Some(size) = required.size {
+                    format!(" and size={size}")
+                } else {
+                    "".to_owned()
+                },
                 input.position,
                 input.data.len(),
             );
