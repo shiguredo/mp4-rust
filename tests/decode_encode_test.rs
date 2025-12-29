@@ -48,6 +48,32 @@ fn decode_encode_black_h265_video_mp4() -> Result<()> {
 }
 
 #[test]
+fn decode_encode_black_h265_hvc1_video_mp4() -> Result<()> {
+    let input_bytes = include_bytes!("testdata/black-h265-hvc1-video.mp4");
+    let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
+    assert_eq!(file_size, input_bytes.len());
+
+    // デコード時に未処理のボックスがないことを確認する。
+    assert_eq!(collect_unknown_box_types(&file), Vec::new());
+
+    // エンコード結果をデコードしたら同じ MP4 になっていることを確認する。
+    let mut output_bytes = file.encode_to_vec()?;
+    let (encoded_file, _) = Mp4File::decode(&output_bytes[..])?;
+    assert_eq!(file, encoded_file);
+
+    // エンコード結果のバイト列が正しいことを確認する。
+    assert_eq!(input_bytes.len(), output_bytes.len());
+
+    // ボックスの順番は入れ替わるのでソートした結果を比較する
+    let mut input_bytes = input_bytes.to_vec();
+    input_bytes.sort();
+    output_bytes.sort();
+    assert_eq!(&input_bytes[..], output_bytes);
+
+    Ok(())
+}
+
+#[test]
 fn decode_encode_black_vp9_video_mp4() -> Result<()> {
     let input_bytes = include_bytes!("testdata/black-vp9-video.mp4");
     let (file, file_size) = Mp4File::decode(&input_bytes[..])?;
