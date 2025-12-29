@@ -6,7 +6,7 @@ test:
 
 # Property-Based Testing を実行する
 pbt:
-	cargo test --test proptest_basic_types --test proptest_boxes
+	cargo test --test 'proptest_*'
 
 # Fuzzing を全ターゲットで 30 秒ずつ実行する
 fuzzing:
