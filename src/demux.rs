@@ -156,7 +156,13 @@ impl RequiredInput {
             return true;
         };
 
-        let end = offset + required_size as u64;
+        let Some(end) = offset.checked_add(required_size as u64) else {
+            // 基本はここには来ないはずだけど、入力データが壊れていて
+            // required_size に極端に大きな値が設定される可能性もなくはないので、
+            // 念のためにハンドリングしておく
+            return false;
+        };
+
         if end > input.data.len() as u64 {
             // 要求の終端位置が入力データに含まれていなかった（入力データの終端位置より後ろだった）
             return false;
