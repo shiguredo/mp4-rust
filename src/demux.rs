@@ -372,16 +372,15 @@ impl Mp4FileDemuxer {
             && let Some(required) = self.required_input()
             && !required.is_satisfied_by(input)
         {
+            let size_desc = required
+                .size
+                .map(|s| format!("at least {s} bytes"))
+                .unwrap_or_else(|| "data up to EOF".to_owned());
             let reason = format!(
-                "required input position={}{}, but got position={} and size={}",
+                "handle_input() error: provided input does not contain the required data (expected {size_desc} starting at position {}, but got {} bytes starting at position {})",
                 required.position,
-                if let Some(size) = required.size {
-                    format!(" and size={size}")
-                } else {
-                    "".to_owned()
-                },
-                input.position,
                 input.data.len(),
+                input.position,
             );
             self.handle_input_error = Some(DemuxError::DecodeError(Error::invalid_input(reason)));
             return;
