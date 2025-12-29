@@ -42,7 +42,7 @@
 use core::{num::NonZeroU32, time::Duration};
 
 #[cfg(not(feature = "std"))]
-use alloc::{format, vec::Vec};
+use alloc::{borrow::ToOwned, format, vec::Vec};
 
 use crate::{
     BoxHeader, Decode, Error, TrackKind,
@@ -378,7 +378,7 @@ impl Mp4FileDemuxer {
                 if let Some(size) = required.size {
                     format!(" and size={size}")
                 } else {
-                    "".to_string()
+                    "".to_owned()
                 },
                 input.position,
                 input.data.len(),
