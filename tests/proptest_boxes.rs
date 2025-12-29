@@ -206,7 +206,6 @@ proptest! {
 
 // ===== 境界値テスト =====
 
-#[cfg(test)]
 mod boundary_tests {
     use super::*;
 

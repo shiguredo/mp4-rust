@@ -197,7 +197,6 @@ proptest! {
     }
 }
 
-#[cfg(test)]
 mod boundary_tests {
     use super::*;
 
@@ -242,7 +241,6 @@ mod boundary_tests {
 }
 
 /// Proptest で発見された regression ケースの単体テスト
-#[cfg(test)]
 mod regression_tests {
     use super::*;
 
