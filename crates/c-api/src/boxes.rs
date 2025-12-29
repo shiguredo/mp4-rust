@@ -861,7 +861,7 @@ impl Mp4SampleEntryHev1 {
 /// Mp4SampleEntry entry = // ...;
 ///
 /// if (entry.kind == MP4_SAMPLE_ENTRY_KIND_HVC1) {
-///     Mp4SampleEntryHvc1 *hev1 = &entry.data.hvc1;
+///     Mp4SampleEntryHvc1 *hvc1 = &entry.data.hvc1;
 ///
 ///     // すべての NALU 配列を処理
 ///     uint32_t nalu_index = 0;
