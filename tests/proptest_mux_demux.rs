@@ -372,7 +372,9 @@ mod boundary_tests {
             data_offset,
             data_size: 100,
         };
-        muxer.append_sample(&sample).expect("failed to append sample");
+        muxer
+            .append_sample(&sample)
+            .expect("failed to append sample");
 
         let initial_bytes = muxer.initial_boxes_bytes().to_vec();
         let finalized = muxer.finalize().expect("failed to finalize");
@@ -413,7 +415,9 @@ mod boundary_tests {
             data_offset,
             data_size: 1024,
         };
-        muxer.append_sample(&sample).expect("failed to append sample");
+        muxer
+            .append_sample(&sample)
+            .expect("failed to append sample");
 
         let initial_bytes = muxer.initial_boxes_bytes().to_vec();
         let finalized = muxer.finalize().expect("failed to finalize");

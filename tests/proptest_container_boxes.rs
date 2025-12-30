@@ -93,7 +93,9 @@ fn minimal_stsc_box() -> StscBox {
 
 /// 最小限の StszBox を生成
 fn minimal_stsz_box() -> StszBox {
-    StszBox::Variable { entry_sizes: vec![] }
+    StszBox::Variable {
+        entry_sizes: vec![],
+    }
 }
 
 /// 最小限の StcoBox を生成

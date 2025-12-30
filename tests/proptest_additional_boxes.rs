@@ -20,18 +20,20 @@ use shiguredo_mp4::{
 /// AudioSampleEntryFields を生成する Strategy
 fn arb_audio_sample_entry() -> impl Strategy<Value = AudioSampleEntryFields> {
     (
-        1u16..=u16::MAX,  // data_reference_index
-        1u16..=8u16,      // channelcount
-        any::<u16>(),     // samplesize
-        any::<u16>(),     // samplerate integer
-        any::<u16>(),     // samplerate fraction
+        1u16..=u16::MAX, // data_reference_index
+        1u16..=8u16,     // channelcount
+        any::<u16>(),    // samplesize
+        any::<u16>(),    // samplerate integer
+        any::<u16>(),    // samplerate fraction
     )
-        .prop_map(|(dri, channelcount, samplesize, sr_int, sr_frac)| AudioSampleEntryFields {
-            data_reference_index: NonZeroU16::new(dri).unwrap(),
-            channelcount,
-            samplesize,
-            samplerate: FixedPointNumber::new(sr_int, sr_frac),
-        })
+        .prop_map(
+            |(dri, channelcount, samplesize, sr_int, sr_frac)| AudioSampleEntryFields {
+                data_reference_index: NonZeroU16::new(dri).unwrap(),
+                channelcount,
+                samplesize,
+                samplerate: FixedPointNumber::new(sr_int, sr_frac),
+            },
+        )
 }
 
 /// VisualSampleEntryFields を生成する Strategy
@@ -562,7 +564,10 @@ mod boundary_tests {
         };
         let encoded = mp4a.encode_to_vec().unwrap();
         let (decoded, _) = Mp4aBox::decode(&encoded).unwrap();
-        assert_eq!(decoded.esds_box.es.dec_config_descr.object_type_indication, 0x40);
+        assert_eq!(
+            decoded.esds_box.es.dec_config_descr.object_type_indication,
+            0x40
+        );
     }
 
     /// Avc1Box: 1080p H.264 Baseline Profile
@@ -580,7 +585,7 @@ mod boundary_tests {
                 depth: VisualSampleEntryFields::DEFAULT_DEPTH,
             },
             avcc_box: AvccBox {
-                avc_profile_indication: 66,  // Baseline Profile
+                avc_profile_indication: 66, // Baseline Profile
                 profile_compatibility: 0,
                 avc_level_indication: 40,
                 length_size_minus_one: Uint::new(3),
