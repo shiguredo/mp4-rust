@@ -307,12 +307,16 @@ fn decode_tag_and_size(buf: &[u8]) -> Result<(u8, usize, usize)> {
     let mut offset = 0;
     let tag = u8::decode_at(buf, &mut offset)?;
 
-    let mut size = 0;
+    let mut size: usize = 0;
     let mut has_next_byte = true;
     while has_next_byte {
         let b = u8::decode_at(buf, &mut offset)?;
         has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-        size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+
+        let new_size_base = size
+            .checked_shl(7)
+            .ok_or_else(|| Error::invalid_data("Descriptor size overflow"))?;
+        size = new_size_base | Uint::<u8, 7>::from_bits(b).get() as usize
     }
 
     Ok((tag, size, offset))
