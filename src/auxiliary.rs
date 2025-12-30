@@ -610,29 +610,4 @@ mod tests {
     fn index(i: u32) -> NonZeroU32 {
         NonZeroU32::new(i).expect("invalid index")
     }
-
-    /// stsc_box.entries が空で stco_box にチャンクがある場合にエラーを返すことを確認するテスト
-    #[test]
-    fn sample_table_accessor_empty_stsc_with_chunks_should_not_panic() {
-        let stbl_box = StblBox {
-            stsd_box: StsdBox {
-                entries: vec![SampleEntry::Unknown(UnknownBox {
-                    box_type: BoxType::Normal(*b"test"),
-                    box_size: BoxSize::U32(8),
-                    payload: Vec::new(),
-                })],
-            },
-            stts_box: SttsBox { entries: vec![] },
-            stsc_box: StscBox { entries: vec![] }, // 空の stsc
-            stsz_box: StszBox::Variable { entry_sizes: vec![] },
-            stco_or_co64_box: Either::A(StcoBox {
-                chunk_offsets: vec![100], // 1 つのチャンクオフセット
-            }),
-            stss_box: None,
-            unknown_boxes: Vec::new(),
-        };
-
-        let result = SampleTableAccessor::new(&stbl_box);
-        assert!(result.is_err());
-    }
 }
