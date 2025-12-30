@@ -241,12 +241,12 @@ impl Decode for DecoderSpecificInfo {
             )));
         }
 
-        if offset.saturating_add(size) > buf.len() {
+        if size > buf[offset..].len() {
             return Err(Error::invalid_data(
                 "DecoderSpecificInfo payload exceeds buffer boundary",
             ));
         }
-        let payload = buf[offset..offset + size].to_vec();
+        let payload = buf[offset..][..size].to_vec();
         offset += size;
 
         Ok((Self { payload }, offset))
