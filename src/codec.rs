@@ -1,15 +1,8 @@
-#[cfg(feature = "std")]
-use std::{
-    backtrace::Backtrace,
+use alloc::{string::String, vec, vec::Vec};
+use core::{
     num::{NonZeroU16, NonZeroU32},
     panic::Location,
 };
-
-#[cfg(not(feature = "std"))]
-use alloc::{string::String, vec, vec::Vec};
-
-#[cfg(not(feature = "std"))]
-use core::num::{NonZeroU16, NonZeroU32};
 
 use crate::BoxType;
 
@@ -42,17 +35,10 @@ pub struct Error {
     pub reason: String,
 
     /// エラーが作成されたソースコードの場所
-    #[cfg(feature = "std")]
     pub location: &'static Location<'static>,
 
     /// エラーが発生した MP4 ボックスの種類
     pub box_type: Option<BoxType>,
-
-    /// エラー発生箇所を示すバックトレース
-    ///
-    /// バックトレースは `RUST_BACKTRACE` 環境変数が設定されていない場合には取得されない
-    #[cfg(feature = "std")]
-    pub backtrace: Backtrace,
 }
 
 impl Error {
@@ -68,11 +54,8 @@ impl Error {
         Self {
             kind,
             reason: reason.into(),
-            #[cfg(feature = "std")]
-            location: std::panic::Location::caller(),
+            location: Location::caller(),
             box_type: None,
-            #[cfg(feature = "std")]
-            backtrace: Backtrace::capture(),
         }
     }
 
@@ -124,20 +107,13 @@ impl core::fmt::Display for Error {
             write!(f, "{:?}: {}", self.kind, self.reason)?;
         }
 
-        #[cfg(feature = "std")]
-        {
-            write!(f, " (at {}:{})", self.location.file(), self.location.line())?;
-            if self.backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-                write!(f, "\n\nBacktrace:\n{}", self.backtrace)?;
-            }
-        }
+        write!(f, " (at {}:{})", self.location.file(), self.location.line())?;
 
         Ok(())
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
+impl core::error::Error for Error {}
 
 /// バイト列に変換可能な型を表現するためのトレイト
 pub trait Encode {

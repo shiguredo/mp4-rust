@@ -13,10 +13,6 @@ categories = ["no-std"]
 
 [dependencies]
 
-[features]
-default = ["std"]
-std = []
-
 [dev-dependencies]
 proptest = "1.9"
 

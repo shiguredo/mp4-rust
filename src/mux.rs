@@ -16,8 +16,6 @@
 //! use shiguredo_mp4::mux::{Mp4FileMuxer, Sample};
 //! use shiguredo_mp4::TrackKind;
 //!
-//! #[cfg(not(feature = "std"))] fn main() {}
-//! #[cfg(feature = "std")]
 //! # fn main() -> Result<(), Box<dyn 'static + std::error::Error>> {
 //! let mut muxer = Mp4FileMuxer::new()?;
 //!
@@ -54,10 +52,8 @@
 //! # Ok(())
 //! # }
 //! ```
-use core::{num::NonZeroU32, time::Duration};
-
-#[cfg(not(feature = "std"))]
 use alloc::{vec, vec::Vec};
+use core::{num::NonZeroU32, time::Duration};
 
 use crate::{
     BoxHeader, BoxSize, Either, Encode, Error, FixedPointNumber, Mp4FileTime, TrackKind,
@@ -111,25 +107,15 @@ pub struct Mp4FileMuxerOptions {
 
     /// ファイル作成時刻（構築される MP4 ファイル内のメタデータとして使われる）
     ///
-    /// デフォルト値は以下の通り:
-    /// - `std` feature が有効な場合: 現在のシステム時刻
-    /// - `std` feature が無効な場合: UNIX エポック（1970年1月1日 00:00:00 UTC）
+    /// デフォルト値は UNIX エポック（1970年1月1日 00:00:00 UTC）
     pub creation_timestamp: Duration,
 }
 
 impl Default for Mp4FileMuxerOptions {
     fn default() -> Self {
-        #[cfg(feature = "std")]
-        let creation_timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap_or(Duration::ZERO);
-
-        #[cfg(not(feature = "std"))]
-        let creation_timestamp = Duration::ZERO;
-
         Self {
             reserved_moov_box_size: 0,
-            creation_timestamp,
+            creation_timestamp: Duration::ZERO,
         }
     }
 }
@@ -314,9 +300,8 @@ impl core::fmt::Display for MuxError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for MuxError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for MuxError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         if let MuxError::EncodeError(error) = self {
             Some(error)
         } else {

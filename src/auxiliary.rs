@@ -1,8 +1,6 @@
 //! MP4 の仕様とは直接は関係がない、実装上便利な補助的なコンポーネントを集めたモジュール
-use core::num::NonZeroU32;
-
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+use core::num::NonZeroU32;
 
 use crate::{
     BoxType, Either,
@@ -123,7 +121,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             sample_data_offsets: Vec::new(),
         };
 
-        let mut sample_data_offsets = Vec::with_capacity(sample_count as usize);
+        let mut sample_data_offsets = Vec::new();
         for chunk in this.chunks() {
             let mut offset = chunk.offset();
             for sample in chunk.samples() {
@@ -310,8 +308,7 @@ impl core::fmt::Display for SampleTableAccessorError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for SampleTableAccessorError {}
+impl core::error::Error for SampleTableAccessorError {}
 
 /// [`StblBox`] 内の個々のサンプルの情報を取得するための構造体
 #[derive(Debug)]
@@ -469,7 +466,6 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(not(feature = "std"))]
     use alloc::vec;
 
     use crate::{
