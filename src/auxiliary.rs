@@ -564,4 +564,36 @@ mod tests {
     fn index(i: u32) -> NonZeroU32 {
         NonZeroU32::new(i).expect("invalid index")
     }
+
+    /// stsc_box.entries が空で stco_box にチャンクがある場合の減算オーバーフローを再現するテスト
+    ///
+    /// バグ: binary_search が Err(0) を返した場合、`j - 1` で減算オーバーフローが発生する
+    /// TODO: このバグを修正したら #[should_panic] を削除し、assert!(result.is_err()) を有効にする
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn sample_table_accessor_empty_stsc_with_chunks_should_not_panic() {
+        let stbl_box = StblBox {
+            stsd_box: StsdBox {
+                entries: vec![SampleEntry::Unknown(UnknownBox {
+                    box_type: BoxType::Normal(*b"test"),
+                    box_size: BoxSize::U32(8),
+                    payload: Vec::new(),
+                })],
+            },
+            stts_box: SttsBox { entries: vec![] },
+            stsc_box: StscBox { entries: vec![] }, // 空の stsc
+            stsz_box: StszBox::Variable { entry_sizes: vec![] },
+            stco_or_co64_box: Either::A(StcoBox {
+                chunk_offsets: vec![100], // 1 つのチャンクオフセット
+            }),
+            stss_box: None,
+            unknown_boxes: Vec::new(),
+        };
+
+        // このテストは現在パニックする（バグ）
+        // 修正後はエラーを返すべき
+        let _result = SampleTableAccessor::new(&stbl_box);
+        // パニックせずにエラーを返すことを確認
+        // assert!(result.is_err());
+    }
 }

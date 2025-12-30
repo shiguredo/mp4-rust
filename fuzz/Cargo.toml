@@ -294,3 +294,38 @@ path = "fuzz_targets/fuzz_stsd_box.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_moov_box"
+path = "fuzz_targets/fuzz_moov_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_trak_box"
+path = "fuzz_targets/fuzz_trak_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mdia_box"
+path = "fuzz_targets/fuzz_mdia_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_minf_box"
+path = "fuzz_targets/fuzz_minf_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_stbl_box"
+path = "fuzz_targets/fuzz_stbl_box.rs"
+test = false
+doc = false
+bench = false
