@@ -39,10 +39,8 @@
 //!     // sample_data を処理...
 //! }
 //! ```
-use core::{num::NonZeroU32, time::Duration};
-
-#[cfg(not(feature = "std"))]
 use alloc::{borrow::ToOwned, format, vec::Vec};
+use core::{num::NonZeroU32, time::Duration};
 
 use crate::{
     BoxHeader, Decode, Error, TrackKind,
@@ -276,9 +274,8 @@ impl core::fmt::Display for DemuxError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DemuxError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for DemuxError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             DemuxError::DecodeError(error) => Some(error),
             DemuxError::SampleTableError(error) => Some(error),
