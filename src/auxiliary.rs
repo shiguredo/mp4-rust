@@ -47,6 +47,11 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             Either::B(b) => b.chunk_offsets.len() as u32,
         };
 
+        if chunk_count > 0 && stbl_box_ref.stsc_box.entries.is_empty() {
+            // チャンクは存在するのに stsc エントリーが空のケース
+            return Err(SampleTableAccessorError::ChunksExistButNoSamples { chunk_count });
+        }
+
         if let Some(x) = stbl_box_ref.stsc_box.entries.first()
             && x.first_chunk.get() != 1
         {
@@ -260,6 +265,12 @@ pub enum SampleTableAccessorError {
 
     /// [`StscBox`] のチャンクインデックスが短調増加していない
     ChunkIndicesNotMonotonicallyIncreasing,
+
+    /// チャンクは存在するのに stsc エントリーが存在しない
+    ChunksExistButNoSamples {
+        /// チャンク数
+        chunk_count: u32,
+    },
 }
 
 impl core::fmt::Display for SampleTableAccessorError {
@@ -302,6 +313,12 @@ impl core::fmt::Display for SampleTableAccessorError {
                 write!(
                     f,
                     "Chunk indices in `stsc` box is not monotonically increasing"
+                )
+            }
+            SampleTableAccessorError::ChunksExistButNoSamples { chunk_count } => {
+                write!(
+                    f,
+                    "Chunks exist ({chunk_count} chunks) but stsc has no entries"
                 )
             }
         }
@@ -562,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_table_accessor_empty_stsc_with_chunks_should_not_panic() {
+    fn sample_table_accessor_empty_stsc_with_chunks_should_error() {
         let stbl_box = StblBox {
             stsd_box: StsdBox {
                 entries: vec![SampleEntry::Unknown(UnknownBox {
@@ -583,11 +600,11 @@ mod tests {
             unknown_boxes: Vec::new(),
         };
 
-        // このテストは現在パニックする（バグ）
-        // 修正後はエラーを返すべき
-        let _result = SampleTableAccessor::new(&stbl_box);
-        // パニックせずにエラーを返すことを確認
-        // assert!(result.is_err());
+        let result = SampleTableAccessor::new(&stbl_box);
+        assert!(matches!(
+            result,
+            Err(SampleTableAccessorError::ChunksExistButNoSamples { chunk_count: 1 })
+        ));
     }
 
     fn index(i: u32) -> NonZeroU32 {
