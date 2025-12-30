@@ -1,8 +1,6 @@
 //! ボックス群
-use core::num::{NonZeroU16, NonZeroU32};
-
-#[cfg(not(feature = "std"))]
 use alloc::{boxed::Box, format, vec::Vec};
+use core::num::{NonZeroU16, NonZeroU32};
 
 use crate::{
     BaseBox, BoxHeader, BoxSize, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
