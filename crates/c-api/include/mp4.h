@@ -1135,6 +1135,21 @@ enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer
  * - `MP4_ERROR_OK`: 正常に入力データが受け取られた
  *   - この場合でも `mp4_file_demuxer_get_required_input()` を使って、追加の入力が必要かどうかを確認する必要がある
  * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ *
+ * # エラー状態への遷移
+ *
+ * 入力データの内容や範囲が不正な場合には `Mp4FileDemuxer` はエラー状態に遷移する。
+ *
+ * これは以下のようなケースで発生する:
+ * - `input_position` が `mp4_file_demuxer_get_required_input()` で取得した位置と異なる
+ * - `input_data_size` が要求されたサイズより不足している
+ * - 入力ファイルデータが MP4 形式として不正である（ボックスのデコード失敗など）
+ * - サポートされていないコーデックが使用されている
+ *
+ * エラー状態に遷移した後は、
+ * - `mp4_file_demuxer_get_required_input()` は `out_required_input_size` に 0 を設定する
+ * - `mp4_file_demuxer_get_tracks()` および `mp4_file_demuxer_next_sample()` の呼び出しはエラーを返す
+ * - `mp4_file_demuxer_get_last_error()` でエラーメッセージを確認できる
  */
 enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
                                             uint64_t input_position,
