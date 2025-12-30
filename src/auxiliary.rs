@@ -123,7 +123,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             sample_data_offsets: Vec::new(),
         };
 
-        let mut sample_data_offsets = Vec::with_capacity(sample_count as usize);
+        let mut sample_data_offsets = Vec::new();
         for chunk in this.chunks() {
             let mut offset = chunk.offset();
             for sample in chunk.samples() {

@@ -2431,7 +2431,7 @@ impl Decode for AvccBox {
 
             let sps_count =
                 Uint::<u8, 5>::from_bits(u8::decode_at(payload, &mut offset)?).get() as usize;
-            let mut sps_list = Vec::with_capacity(sps_count);
+            let mut sps_list = Vec::new();
             for _ in 0..sps_count {
                 let size = u16::decode_at(payload, &mut offset)? as usize;
                 if offset + size > payload.len() {
@@ -2443,7 +2443,7 @@ impl Decode for AvccBox {
             }
 
             let pps_count = u8::decode_at(payload, &mut offset)? as usize;
-            let mut pps_list = Vec::with_capacity(pps_count);
+            let mut pps_list = Vec::new();
             for _ in 0..pps_count {
                 let size = u16::decode_at(payload, &mut offset)? as usize;
                 if offset + size > payload.len() {
@@ -3407,7 +3407,7 @@ impl Decode for SttsBox {
             let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
             let count = u32::decode_at(payload, &mut offset)? as usize;
 
-            let mut entries = Vec::with_capacity(count);
+            let mut entries = Vec::new();
             for _ in 0..count {
                 entries.push(SttsEntry {
                     sample_count: u32::decode_at(payload, &mut offset)?,
@@ -3487,7 +3487,7 @@ impl Decode for StscBox {
             let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
             let count = u32::decode_at(payload, &mut offset)?;
 
-            let mut entries = Vec::with_capacity(count as usize);
+            let mut entries = Vec::new();
             for _ in 0..count {
                 entries.push(StscEntry {
                     first_chunk: NonZeroU32::decode_at(payload, &mut offset)?,
@@ -3582,7 +3582,7 @@ impl Decode for StszBox {
                     sample_count,
                 }
             } else {
-                let mut entry_sizes = Vec::with_capacity(sample_count as usize);
+                let mut entry_sizes = Vec::new();
                 for _ in 0..sample_count {
                     entry_sizes.push(u32::decode_at(payload, &mut offset)?);
                 }
@@ -3650,7 +3650,7 @@ impl Decode for StcoBox {
             let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
             let count = u32::decode_at(payload, &mut offset)?;
 
-            let mut chunk_offsets = Vec::with_capacity(count as usize);
+            let mut chunk_offsets = Vec::new();
             for _ in 0..count {
                 chunk_offsets.push(u32::decode_at(payload, &mut offset)?);
             }
@@ -3719,7 +3719,7 @@ impl Decode for Co64Box {
             let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
             let count = u32::decode_at(payload, &mut offset)?;
 
-            let mut chunk_offsets = Vec::with_capacity(count as usize);
+            let mut chunk_offsets = Vec::new();
             for _ in 0..count {
                 chunk_offsets.push(u64::decode_at(payload, &mut offset)?);
             }
@@ -3788,7 +3788,7 @@ impl Decode for StssBox {
             let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
             let count = u32::decode_at(payload, &mut offset)?;
 
-            let mut sample_numbers = Vec::with_capacity(count as usize);
+            let mut sample_numbers = Vec::new();
             for _ in 0..count {
                 sample_numbers.push(NonZeroU32::decode_at(payload, &mut offset)?);
             }
