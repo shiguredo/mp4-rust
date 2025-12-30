@@ -13,6 +13,7 @@
 
 - [CHANGE] `std` feature フラグを削除する
   - sans I/O 対応に伴いほぼ不要となったので削除する
+  - 今後は no_std 前提の crate とする
   - これによって、`std` 有効時に使えていた以下の機能は廃止となる:
     - `Error` 構造体の `backtrace` フィールド（`std::backtrace::Backtrace`):
       - そもそもほぼ使うことがなかったのと、以下理由による削除は問題ないと判断:
