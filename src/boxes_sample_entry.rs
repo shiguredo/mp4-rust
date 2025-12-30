@@ -5,8 +5,8 @@ use alloc::{boxed::Box, format, vec::Vec};
 use core::num::NonZeroU16;
 
 use crate::{
-    BaseBox, BoxHeader, BoxType, Decode, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Result, Uint,
+    BaseBox, BoxHeader, BoxType, Decode, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
+    FullBoxHeader, Result, Uint,
     basic_types::as_box_object,
     boxes::{EsdsBox, UnknownBox, check_mandatory_box, with_box_type},
 };
