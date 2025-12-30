@@ -52,10 +52,10 @@ impl Decode for EsDescriptor {
 
         let url_string = if url_flag.get() == 1 {
             let len = u8::decode_at(buf, &mut offset)? as usize;
-            if offset + len > buf.len() {
+            if len > buf[offset..].len() {
                 return Err(Error::invalid_data("URL string exceeds buffer boundary"));
             }
-            let s = String::from_utf8(buf[offset..offset + len].to_vec())
+            let s = String::from_utf8(buf[offset..][..len].to_vec())
                 .map_err(|_| Error::invalid_data("Invalid UTF-8 in URL string"))?;
             offset += len;
             Some(s)
@@ -159,12 +159,12 @@ impl Decode for DecoderConfigDescriptor {
 
         let buffer_size_db = {
             let mut temp = [0; 4];
-            if offset + 3 > buf.len() {
+            if 3 > buf[offset..].len() {
                 return Err(Error::invalid_data(
                     "buffer_size_db exceeds buffer boundary",
                 ));
             }
-            temp[1..].copy_from_slice(&buf[offset..offset + 3]);
+            temp[1..].copy_from_slice(&buf[offset..][..3]);
             offset += 3;
             Uint::from_bits(u32::from_be_bytes(temp))
         };
@@ -241,12 +241,12 @@ impl Decode for DecoderSpecificInfo {
             )));
         }
 
-        if offset + size > buf.len() {
+        if size > buf[offset..].len() {
             return Err(Error::invalid_data(
                 "DecoderSpecificInfo payload exceeds buffer boundary",
             ));
         }
-        let payload = buf[offset..offset + size].to_vec();
+        let payload = buf[offset..][..size].to_vec();
         offset += size;
 
         Ok((Self { payload }, offset))
@@ -307,12 +307,16 @@ fn decode_tag_and_size(buf: &[u8]) -> Result<(u8, usize, usize)> {
     let mut offset = 0;
     let tag = u8::decode_at(buf, &mut offset)?;
 
-    let mut size = 0;
+    let mut size: usize = 0;
     let mut has_next_byte = true;
     while has_next_byte {
         let b = u8::decode_at(buf, &mut offset)?;
         has_next_byte = Uint::<u8, 1, 7>::from_bits(b).get() == 1;
-        size = (size << 7) | Uint::<u8, 7>::from_bits(b).get() as usize
+
+        let new_size_base = size
+            .checked_shl(7)
+            .ok_or_else(|| Error::invalid_data("Descriptor size overflow"))?;
+        size = new_size_base | Uint::<u8, 7>::from_bits(b).get() as usize
     }
 
     Ok((tag, size, offset))
@@ -356,6 +360,8 @@ fn encode_tag_and_size(buf: &mut [u8], tag: u8, mut size: usize) -> Result<usize
 mod tests {
     use super::*;
 
+    use crate::boxes::EsdsBox;
+
     #[test]
     fn tag_and_size() {
         let mut buf = [0; 32];
@@ -365,5 +371,27 @@ mod tests {
         assert_eq!(tag, 12);
         assert_eq!(size, 123456);
         assert_eq!(consumed, encoded_size);
+    }
+
+    // 過去に見つかったバグのリグレッションテスト
+    #[test]
+    fn decoder_specific_info_size_overflow() {
+        let crash_input: &[u8] = &[
+            0, 0, 0, 171, 101, 115, 100, 115, 224, 206, 255, 64, 3, 93, 47, 115, 224, 202, 191, 0,
+            0, 1, 4, 10, 0, 254, 255, 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 5, 255, 255, 255, 255, 255,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 111, 255, 255, 255, 255, 255, 255,
+            255, 255, 145, 145, 145, 0, 0, 0, 0, 0, 0, 0, 19, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+            145, 145, 145, 145, 145, 145, 145, 145, 145, 145,
+        ];
+
+        // オーバーフローでパニックせずにエラーを返すべき
+        assert!(EsdsBox::decode(crash_input).is_err());
     }
 }
