@@ -2,8 +2,8 @@
 
 use proptest::prelude::*;
 use shiguredo_mp4::{
-    descriptors::{DecoderConfigDescriptor, DecoderSpecificInfo, EsDescriptor, SlConfigDescriptor},
     Decode, Encode, Uint,
+    descriptors::{DecoderConfigDescriptor, DecoderSpecificInfo, EsDescriptor, SlConfigDescriptor},
 };
 
 /// DecoderSpecificInfo を生成する Strategy
@@ -48,15 +48,22 @@ fn arb_decoder_config_descriptor() -> impl Strategy<Value = DecoderConfigDescrip
 /// EsDescriptor を生成する Strategy
 fn arb_es_descriptor() -> impl Strategy<Value = EsDescriptor> {
     (
-        1u16..=u16::MAX,  // es_id (0 は予約)
-        0u8..32,          // stream_priority: 5 bits
-        prop::option::of(1u16..=u16::MAX), // depends_on_es_id
+        1u16..=u16::MAX,                       // es_id (0 は予約)
+        0u8..32,                               // stream_priority: 5 bits
+        prop::option::of(1u16..=u16::MAX),     // depends_on_es_id
         prop::option::of("[a-zA-Z0-9]{0,20}"), // url_string (ASCII のみ)
-        prop::option::of(1u16..=u16::MAX), // ocr_es_id
+        prop::option::of(1u16..=u16::MAX),     // ocr_es_id
         arb_decoder_config_descriptor(),
     )
         .prop_map(
-            |(es_id, stream_priority, depends_on_es_id, url_string, ocr_es_id, dec_config_descr)| {
+            |(
+                es_id,
+                stream_priority,
+                depends_on_es_id,
+                url_string,
+                ocr_es_id,
+                dec_config_descr,
+            )| {
                 EsDescriptor {
                     es_id,
                     stream_priority: Uint::new(stream_priority),
@@ -140,7 +147,8 @@ mod boundary_tests {
     #[test]
     fn decoder_config_descriptor_aac_defaults() {
         let desc = DecoderConfigDescriptor {
-            object_type_indication: DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3,
+            object_type_indication:
+                DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3,
             stream_type: DecoderConfigDescriptor::STREAM_TYPE_AUDIO,
             up_stream: DecoderConfigDescriptor::UP_STREAM_FALSE,
             buffer_size_db: Uint::new(0),

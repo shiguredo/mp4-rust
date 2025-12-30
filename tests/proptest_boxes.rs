@@ -4,12 +4,12 @@ use std::num::NonZeroU32;
 
 use proptest::prelude::*;
 use shiguredo_mp4::{
+    Decode, Encode, FixedPointNumber, Mp4FileTime, Utf8String,
     boxes::{
         Brand, Co64Box, DinfBox, DrefBox, EdtsBox, ElstBox, ElstEntry, FtypBox, HdlrBox, MdhdBox,
         MvhdBox, SmhdBox, StcoBox, StscBox, StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox,
         UrlBox, VmhdBox,
     },
-    Decode, Encode, FixedPointNumber, Mp4FileTime, Utf8String,
 };
 
 /// SttsEntry を生成する Strategy
@@ -39,11 +39,13 @@ fn arb_elst_entry_v0() -> impl Strategy<Value = ElstEntry> {
         any::<i16>(),
         any::<i16>(),
     )
-        .prop_map(|(edit_duration, media_time, rate_int, rate_frac)| ElstEntry {
-            edit_duration,
-            media_time,
-            media_rate: FixedPointNumber::new(rate_int, rate_frac),
-        })
+        .prop_map(
+            |(edit_duration, media_time, rate_int, rate_frac)| ElstEntry {
+                edit_duration,
+                media_time,
+                media_rate: FixedPointNumber::new(rate_int, rate_frac),
+            },
+        )
 }
 
 /// ElstEntry (version 1) を生成する Strategy

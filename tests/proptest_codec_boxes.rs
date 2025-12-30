@@ -2,9 +2,9 @@
 
 use proptest::prelude::*;
 use shiguredo_mp4::{
+    Decode, Encode, Uint,
     boxes::{Av1cBox, AvccBox, DopsBox, EsdsBox, HvccBox, HvccNalUintArray, VpccBox},
     descriptors::{DecoderConfigDescriptor, DecoderSpecificInfo, EsDescriptor, SlConfigDescriptor},
-    Decode, Encode, Uint,
 };
 
 // ===== Strategy 定義 =====
@@ -13,9 +13,9 @@ use shiguredo_mp4::{
 fn arb_avcc_box_baseline() -> impl Strategy<Value = AvccBox> {
     (
         prop_oneof![Just(66u8), Just(77u8), Just(88u8)], // Baseline, Main, Extended
-        any::<u8>(),                                      // profile_compatibility
-        any::<u8>(),                                      // avc_level_indication
-        0u8..4,                                           // length_size_minus_one (2 bits)
+        any::<u8>(),                                     // profile_compatibility
+        any::<u8>(),                                     // avc_level_indication
+        0u8..4,                                          // length_size_minus_one (2 bits)
         prop::collection::vec(prop::collection::vec(any::<u8>(), 0..50), 0..5), // sps_list
         prop::collection::vec(prop::collection::vec(any::<u8>(), 0..50), 0..5), // pps_list
     )
@@ -53,9 +53,9 @@ fn arb_avcc_box_high() -> impl Strategy<Value = AvccBox> {
         0u8..4,
         prop::collection::vec(prop::collection::vec(any::<u8>(), 0..50), 0..5),
         prop::collection::vec(prop::collection::vec(any::<u8>(), 0..50), 0..5),
-        0u8..4,  // chroma_format (2 bits)
-        0u8..8,  // bit_depth_luma_minus8 (3 bits)
-        0u8..8,  // bit_depth_chroma_minus8 (3 bits)
+        0u8..4, // chroma_format (2 bits)
+        0u8..8, // bit_depth_luma_minus8 (3 bits)
+        0u8..8, // bit_depth_chroma_minus8 (3 bits)
         prop::collection::vec(prop::collection::vec(any::<u8>(), 0..30), 0..3), // sps_ext_list
     )
         .prop_map(
@@ -90,41 +90,41 @@ fn arb_avcc_box_high() -> impl Strategy<Value = AvccBox> {
 /// HvccNalUintArray を生成する Strategy
 fn arb_hvcc_nalu_array() -> impl Strategy<Value = HvccNalUintArray> {
     (
-        any::<bool>(),                                                   // array_completeness
-        0u8..64,                                                         // nal_unit_type (6 bits)
+        any::<bool>(), // array_completeness
+        0u8..64,       // nal_unit_type (6 bits)
         prop::collection::vec(prop::collection::vec(any::<u8>(), 1..30), 0..3), // nalus
     )
-        .prop_map(|(array_completeness, nal_unit_type, nalus)| {
-            HvccNalUintArray {
+        .prop_map(
+            |(array_completeness, nal_unit_type, nalus)| HvccNalUintArray {
                 array_completeness: Uint::new(array_completeness as u8),
                 nal_unit_type: Uint::new(nal_unit_type),
                 nalus,
-            }
-        })
+            },
+        )
 }
 
 /// HvccBox を生成する Strategy
 fn arb_hvcc_box() -> impl Strategy<Value = HvccBox> {
     // proptest のタプルは 12 要素まで。2 つに分割する
     let part1 = (
-        0u8..4,       // general_profile_space (2 bits)
-        any::<bool>(), // general_tier_flag
-        0u8..32,      // general_profile_idc (5 bits)
-        any::<u32>(), // general_profile_compatibility_flags
+        0u8..4,                                               // general_profile_space (2 bits)
+        any::<bool>(),                                        // general_tier_flag
+        0u8..32,                                              // general_profile_idc (5 bits)
+        any::<u32>(),                                         // general_profile_compatibility_flags
         any::<u64>().prop_map(|v| v & 0x0000_FFFF_FFFF_FFFF), // 48 bits
-        any::<u8>(),  // general_level_idc
-        0u16..4096,   // min_spatial_segmentation_idc (12 bits)
-        0u8..4,       // parallelism_type (2 bits)
+        any::<u8>(),                                          // general_level_idc
+        0u16..4096, // min_spatial_segmentation_idc (12 bits)
+        0u8..4,     // parallelism_type (2 bits)
     );
     let part2 = (
-        0u8..4,       // chroma_format_idc (2 bits)
-        0u8..8,       // bit_depth_luma_minus8 (3 bits)
-        0u8..8,       // bit_depth_chroma_minus8 (3 bits)
-        any::<u16>(), // avg_frame_rate
-        0u8..4,       // constant_frame_rate (2 bits)
-        0u8..8,       // num_temporal_layers (3 bits)
+        0u8..4,        // chroma_format_idc (2 bits)
+        0u8..8,        // bit_depth_luma_minus8 (3 bits)
+        0u8..8,        // bit_depth_chroma_minus8 (3 bits)
+        any::<u16>(),  // avg_frame_rate
+        0u8..4,        // constant_frame_rate (2 bits)
+        0u8..8,        // num_temporal_layers (3 bits)
         any::<bool>(), // temporal_id_nested
-        0u8..4,       // length_size_minus_one (2 bits)
+        0u8..4,        // length_size_minus_one (2 bits)
         prop::collection::vec(arb_hvcc_nalu_array(), 0..3),
     );
 
@@ -178,14 +178,14 @@ fn arb_hvcc_box() -> impl Strategy<Value = HvccBox> {
 /// VpccBox を生成する Strategy
 fn arb_vpcc_box() -> impl Strategy<Value = VpccBox> {
     (
-        any::<u8>(), // profile
-        any::<u8>(), // level
-        0u8..16,     // bit_depth (4 bits)
-        0u8..8,      // chroma_subsampling (3 bits)
-        any::<bool>(), // video_full_range_flag
-        any::<u8>(), // colour_primaries
-        any::<u8>(), // transfer_characteristics
-        any::<u8>(), // matrix_coefficients
+        any::<u8>(),                               // profile
+        any::<u8>(),                               // level
+        0u8..16,                                   // bit_depth (4 bits)
+        0u8..8,                                    // chroma_subsampling (3 bits)
+        any::<bool>(),                             // video_full_range_flag
+        any::<u8>(),                               // colour_primaries
+        any::<u8>(),                               // transfer_characteristics
+        any::<u8>(),                               // matrix_coefficients
         prop::collection::vec(any::<u8>(), 0..50), // codec_initialization_data
     )
         .prop_map(
@@ -218,16 +218,16 @@ fn arb_vpcc_box() -> impl Strategy<Value = VpccBox> {
 /// Av1cBox を生成する Strategy
 fn arb_av1c_box() -> impl Strategy<Value = Av1cBox> {
     (
-        0u8..8,      // seq_profile (3 bits)
-        0u8..32,     // seq_level_idx_0 (5 bits)
-        any::<bool>(), // seq_tier_0
-        any::<bool>(), // high_bitdepth
-        any::<bool>(), // twelve_bit
-        any::<bool>(), // monochrome
-        any::<bool>(), // chroma_subsampling_x
-        any::<bool>(), // chroma_subsampling_y
-        0u8..4,      // chroma_sample_position (2 bits)
-        prop::option::of(0u8..16), // initial_presentation_delay_minus_one (4 bits)
+        0u8..8,                                    // seq_profile (3 bits)
+        0u8..32,                                   // seq_level_idx_0 (5 bits)
+        any::<bool>(),                             // seq_tier_0
+        any::<bool>(),                             // high_bitdepth
+        any::<bool>(),                             // twelve_bit
+        any::<bool>(),                             // monochrome
+        any::<bool>(),                             // chroma_subsampling_x
+        any::<bool>(),                             // chroma_subsampling_y
+        0u8..4,                                    // chroma_sample_position (2 bits)
+        prop::option::of(0u8..16),                 // initial_presentation_delay_minus_one (4 bits)
         prop::collection::vec(any::<u8>(), 0..50), // config_obus
     )
         .prop_map(
@@ -283,12 +283,12 @@ fn arb_dops_box() -> impl Strategy<Value = DopsBox> {
 /// EsdsBox を生成する Strategy
 fn arb_esds_box() -> impl Strategy<Value = EsdsBox> {
     (
-        1u16..=u16::MAX,  // es_id
-        0u8..32,          // stream_priority (5 bits)
-        0u8..64,          // stream_type (6 bits)
-        any::<u32>().prop_map(|v| v & 0x00FF_FFFF), // buffer_size_db (24 bits)
-        any::<u32>(),     // max_bitrate
-        any::<u32>(),     // avg_bitrate
+        1u16..=u16::MAX,                                             // es_id
+        0u8..32,                                                     // stream_priority (5 bits)
+        0u8..64,                                                     // stream_type (6 bits)
+        any::<u32>().prop_map(|v| v & 0x00FF_FFFF),                  // buffer_size_db (24 bits)
+        any::<u32>(),                                                // max_bitrate
+        any::<u32>(),                                                // avg_bitrate
         prop::option::of(prop::collection::vec(any::<u8>(), 0..30)), // dec_specific_info
     )
         .prop_map(
@@ -567,7 +567,12 @@ mod boundary_tests {
         };
         let encoded = av1c.encode_to_vec().unwrap();
         let (decoded, _) = Av1cBox::decode(&encoded).unwrap();
-        assert_eq!(decoded.initial_presentation_delay_minus_one.map(|u| u.get()), Some(4));
+        assert_eq!(
+            decoded
+                .initial_presentation_delay_minus_one
+                .map(|u| u.get()),
+            Some(4)
+        );
     }
 
     /// DopsBox: 最小構成 (mono)
