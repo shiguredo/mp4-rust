@@ -241,7 +241,7 @@ impl Decode for DecoderSpecificInfo {
             )));
         }
 
-        if offset + size > buf.len() {
+        if offset.saturating_add(size) > buf.len() {
             return Err(Error::invalid_data(
                 "DecoderSpecificInfo payload exceeds buffer boundary",
             ));
