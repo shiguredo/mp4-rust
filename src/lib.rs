@@ -7,6 +7,8 @@ extern crate alloc;
 mod auxiliary;
 mod basic_types;
 pub mod boxes;
+mod boxes_moov_tree;
+mod boxes_sample_entry;
 mod codec;
 pub mod demux;
 pub mod descriptors;
