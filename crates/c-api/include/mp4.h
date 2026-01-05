@@ -81,6 +81,10 @@ typedef enum Mp4SampleEntryKind {
    */
   MP4_SAMPLE_ENTRY_KIND_HEV1,
   /**
+   * HVC1 (H.265/HEVC)
+   */
+  MP4_SAMPLE_ENTRY_KIND_HVC1,
+  /**
    * VP08 (VP8)
    */
   MP4_SAMPLE_ENTRY_KIND_VP08,
@@ -432,6 +436,66 @@ typedef struct Mp4SampleEntryHev1 {
 } Mp4SampleEntryHev1;
 
 /**
+ * HVC1（H.265/HEVC）コーデック用のサンプルエントリー
+ *
+ * H.265 ビデオコーデックの詳細情報を保持する構造体で、
+ * 解像度、プロファイル、レベル、NALU パラメータセットなどの情報が含まれる
+ *
+ * 各フィールドの詳細については MP4 やコーデックの仕様を参照のこと
+ *
+ * # 使用例
+ *
+ * NALU リストへのアクセス例:
+ * ```c
+ * Mp4SampleEntry entry = // ...;
+ *
+ * if (entry.kind == MP4_SAMPLE_ENTRY_KIND_HVC1) {
+ *     Mp4SampleEntryHvc1 *hvc1 = &entry.data.hvc1;
+ *
+ *     // すべての NALU 配列を処理
+ *     uint32_t nalu_index = 0;
+ *     for (uint32_t i = 0; i < hvc1->nalu_array_count; i++) {
+ *         uint8_t nalu_type = hvc1->nalu_types[i];
+ *         uint32_t nalu_count = hvc1->nalu_counts[i];
+ *
+ *         // この NALU タイプのすべてのユニットを処理
+ *         for (uint32_t j = 0; j < nalu_count; j++) {
+ *             const uint8_t *nalu_data = hvc1->nalu_data[nalu_index];
+ *             uint32_t nalu_size = hvc1->nalu_sizes[nalu_index];
+ *             // NALU データを処理...
+ *             nalu_index++;
+ *         }
+ *     }
+ * }
+ * ```
+ */
+typedef struct Mp4SampleEntryHvc1 {
+  uint16_t width;
+  uint16_t height;
+  uint8_t general_profile_space;
+  uint8_t general_tier_flag;
+  uint8_t general_profile_idc;
+  uint32_t general_profile_compatibility_flags;
+  uint64_t general_constraint_indicator_flags;
+  uint8_t general_level_idc;
+  uint8_t chroma_format_idc;
+  uint8_t bit_depth_luma_minus8;
+  uint8_t bit_depth_chroma_minus8;
+  uint16_t min_spatial_segmentation_idc;
+  uint8_t parallelism_type;
+  uint16_t avg_frame_rate;
+  uint8_t constant_frame_rate;
+  uint8_t num_temporal_layers;
+  uint8_t temporal_id_nested;
+  uint8_t length_size_minus_one;
+  uint32_t nalu_array_count;
+  const uint8_t *nalu_types;
+  const uint32_t *nalu_counts;
+  const uint8_t *const *nalu_data;
+  const uint32_t *nalu_sizes;
+} Mp4SampleEntryHvc1;
+
+/**
  * VP08（VP8）コーデック用のサンプルエントリー
  *
  * VP8 ビデオコーデックの詳細情報を保持する構造体で、
@@ -653,6 +717,10 @@ typedef union Mp4SampleEntryData {
    * HEV1（H.265/HEVC）コーデック用のサンプルエントリー
    */
   struct Mp4SampleEntryHev1 hev1;
+  /**
+   * HVC1（H.265/HEVC）コーデック用のサンプルエントリー
+   */
+  struct Mp4SampleEntryHvc1 hvc1;
   /**
    * VP08（VP8）コーデック用のサンプルエントリー
    */
@@ -1067,6 +1135,21 @@ enum Mp4Error mp4_file_demuxer_get_required_input(struct Mp4FileDemuxer *demuxer
  * - `MP4_ERROR_OK`: 正常に入力データが受け取られた
  *   - この場合でも `mp4_file_demuxer_get_required_input()` を使って、追加の入力が必要かどうかを確認する必要がある
  * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ *
+ * # エラー状態への遷移
+ *
+ * 入力データの内容や範囲が不正な場合には `Mp4FileDemuxer` はエラー状態に遷移する。
+ *
+ * これは以下のようなケースで発生する:
+ * - `input_position` が `mp4_file_demuxer_get_required_input()` で取得した位置と異なる
+ * - `input_data_size` が要求されたサイズより不足している
+ * - 入力ファイルデータが MP4 形式として不正である（ボックスのデコード失敗など）
+ * - サポートされていないコーデックが使用されている
+ *
+ * エラー状態に遷移した後は、
+ * - `mp4_file_demuxer_get_required_input()` は `out_required_input_size` に 0 を設定する
+ * - `mp4_file_demuxer_get_tracks()` および `mp4_file_demuxer_next_sample()` の呼び出しはエラーを返す
+ * - `mp4_file_demuxer_get_last_error()` でエラーメッセージを確認できる
  */
 enum Mp4Error mp4_file_demuxer_handle_input(struct Mp4FileDemuxer *demuxer,
                                             uint64_t input_position,

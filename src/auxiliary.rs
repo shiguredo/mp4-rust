@@ -1,8 +1,6 @@
 //! MP4 の仕様とは直接は関係がない、実装上便利な補助的なコンポーネントを集めたモジュール
-use core::num::NonZeroU32;
-
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+use core::num::NonZeroU32;
 
 use crate::{
     BoxType, Either,
@@ -48,6 +46,11 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             Either::A(b) => b.chunk_offsets.len() as u32,
             Either::B(b) => b.chunk_offsets.len() as u32,
         };
+
+        if chunk_count > 0 && stbl_box_ref.stsc_box.entries.is_empty() {
+            // チャンクは存在するのに stsc エントリーが空のケース
+            return Err(SampleTableAccessorError::ChunksExistButNoSamples { chunk_count });
+        }
 
         if let Some(x) = stbl_box_ref.stsc_box.entries.first()
             && x.first_chunk.get() != 1
@@ -123,7 +126,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
             sample_data_offsets: Vec::new(),
         };
 
-        let mut sample_data_offsets = Vec::with_capacity(sample_count as usize);
+        let mut sample_data_offsets = Vec::new();
         for chunk in this.chunks() {
             let mut offset = chunk.offset();
             for sample in chunk.samples() {
@@ -262,6 +265,12 @@ pub enum SampleTableAccessorError {
 
     /// [`StscBox`] のチャンクインデックスが短調増加していない
     ChunkIndicesNotMonotonicallyIncreasing,
+
+    /// チャンクは存在するのに stsc エントリーが存在しない
+    ChunksExistButNoSamples {
+        /// チャンク数
+        chunk_count: u32,
+    },
 }
 
 impl core::fmt::Display for SampleTableAccessorError {
@@ -306,12 +315,17 @@ impl core::fmt::Display for SampleTableAccessorError {
                     "Chunk indices in `stsc` box is not monotonically increasing"
                 )
             }
+            SampleTableAccessorError::ChunksExistButNoSamples { chunk_count } => {
+                write!(
+                    f,
+                    "Chunks exist ({chunk_count} chunks) but stsc has no entries"
+                )
+            }
         }
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for SampleTableAccessorError {}
+impl core::error::Error for SampleTableAccessorError {}
 
 /// [`StblBox`] 内の個々のサンプルの情報を取得するための構造体
 #[derive(Debug)]
@@ -469,7 +483,6 @@ impl<'a, T: AsRef<StblBox>> ChunkAccessor<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(not(feature = "std"))]
     use alloc::vec;
 
     use crate::{
@@ -563,6 +576,35 @@ mod tests {
                 .get_sample_by_timestamp(file_duraiton + 1)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn sample_table_accessor_empty_stsc_with_chunks_should_error() {
+        let stbl_box = StblBox {
+            stsd_box: StsdBox {
+                entries: vec![SampleEntry::Unknown(UnknownBox {
+                    box_type: BoxType::Normal(*b"test"),
+                    box_size: BoxSize::U32(8),
+                    payload: Vec::new(),
+                })],
+            },
+            stts_box: SttsBox { entries: vec![] },
+            stsc_box: StscBox { entries: vec![] }, // 空の stsc
+            stsz_box: StszBox::Variable {
+                entry_sizes: vec![],
+            },
+            stco_or_co64_box: Either::A(StcoBox {
+                chunk_offsets: vec![100], // 1 つのチャンクオフセット
+            }),
+            stss_box: None,
+            unknown_boxes: Vec::new(),
+        };
+
+        let result = SampleTableAccessor::new(&stbl_box);
+        assert!(matches!(
+            result,
+            Err(SampleTableAccessorError::ChunksExistButNoSamples { chunk_count: 1 })
+        ));
     }
 
     fn index(i: u32) -> NonZeroU32 {

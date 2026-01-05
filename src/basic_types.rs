@@ -1,10 +1,8 @@
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 use core::{
     ops::{BitAnd, Shl, Shr, Sub},
     time::Duration,
 };
-
-#[cfg(not(feature = "std"))]
-use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 
 use crate::{
     Decode, Encode, Error, Result,
@@ -13,7 +11,7 @@ use crate::{
 
 /// 全てのボックスが実装するトレイト
 ///
-/// 本来なら `Box` という名前が適切だが、それだと標準ライブラリの [`std::boxed::Box`] と名前が
+/// 本来なら `Box` という名前が適切だが、それだと標準ライブラリの [`core::boxed::Box`] と名前が
 /// 衝突してしまうので、それを避けるために `BaseBox` としている
 pub trait BaseBox {
     /// ボックスの種別

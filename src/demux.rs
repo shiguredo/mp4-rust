@@ -39,10 +39,8 @@
 //!     // sample_data を処理...
 //! }
 //! ```
+use alloc::{borrow::ToOwned, format, vec::Vec};
 use core::{num::NonZeroU32, time::Duration};
-
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
 
 use crate::{
     BoxHeader, Decode, Error, TrackKind,
@@ -135,6 +133,40 @@ impl RequiredInput {
             position: self.position,
             data,
         }
+    }
+
+    /// 引数の [`Input`] が、この [`RequiredInput`] の要求を満たしているかどうかを確認する
+    pub fn is_satisfied_by(self, input: Input) -> bool {
+        let Some(offset) = self.position.checked_sub(input.position) else {
+            // 入力データの開始位置が、要求位置よりも後ろにある
+            return false;
+        };
+
+        if offset > input.data.len() as u64 {
+            // 入力データの終端位置が、要求位置よりも前にある
+            return false;
+        }
+
+        // [NOTE] ここまで来たら「要求位置が入力データの範囲の含まれていること」は確実
+
+        let Some(required_size) = self.size else {
+            // 要求サイズがない場合はここで終了（入力にファイル終端までのデータが含まれていると想定する）
+            return true;
+        };
+
+        let Some(end) = offset.checked_add(required_size as u64) else {
+            // 基本はここには来ないはずだけど、入力データが壊れていて
+            // required_size に極端に大きな値が設定される可能性もなくはないので、
+            // 念のためにハンドリングしておく
+            return false;
+        };
+
+        if end > input.data.len() as u64 {
+            // 要求の終端位置が入力データに含まれていなかった（入力データの終端位置より後ろだった）
+            return false;
+        }
+
+        true
     }
 }
 
@@ -242,9 +274,8 @@ impl core::fmt::Display for DemuxError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DemuxError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for DemuxError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             DemuxError::DecodeError(error) => Some(error),
             DemuxError::SampleTableError(error) => Some(error),
@@ -319,7 +350,45 @@ impl Mp4FileDemuxer {
     }
 
     /// ファイルデータを入力として受け取り、デマルチプレックス処理を進める
+    ///
+    /// このメソッドは [`Mp4FileDemuxer::required_input()`] で要求された位置に対応するファイルデータを受け取り、
+    /// デマルチプレックス処理を進める
+    ///
+    /// # NOTE
+    ///
+    /// `input` 引数では [`Mp4FileDemuxer::required_input()`] が指定した範囲を包含する入力データを
+    /// 渡す必要がある
+    ///
+    /// このメソッドはデータの部分的な消費を行わないため、呼び出し元が必要なデータを
+    /// 一度に全て渡す必要がある（つまり、呼び出し元で固定長のバッファを使って複数回に分けてデータを供給することはできない）
+    ///
+    /// もし、異なる範囲や、不十分なデータサイズの入力（つまり [`RequiredInput::is_satisfied_by()`] が `false` になる入力）が渡された場合には、
+    /// [`Mp4FileDemuxer`] はエラー状態に遷移する
+    ///
+    /// エラー状態に遷移した後は、 [`Mp4FileDemuxer::required_input()`] は常に `None` を返し、
+    /// [`Mp4FileDemuxer::tracks()] や [`Mp4FileDemuxer::next_sample()] の次の呼び出しはエラーを返すようになる
+    ///
+    /// なお [`Mp4FileDemuxer::required_input()`] で指定された範囲よりも多くのデータを渡す分には問題はない
+    /// （極端なケースでは、入力ファイル全体のデータを一度に渡してしまっても構わない）
     pub fn handle_input(&mut self, input: Input) {
+        if self.handle_input_error.is_none()
+            && let Some(required) = self.required_input()
+            && !required.is_satisfied_by(input)
+        {
+            let size_desc = required
+                .size
+                .map(|s| format!("at least {s} bytes"))
+                .unwrap_or_else(|| "data up to EOF".to_owned());
+            let reason = format!(
+                "handle_input() error: provided input does not contain the required data (expected {size_desc} starting at position {}, but got {} bytes starting at position {})",
+                required.position,
+                input.data.len(),
+                input.position,
+            );
+            self.handle_input_error = Some(DemuxError::DecodeError(Error::invalid_input(reason)));
+            return;
+        }
+
         if let Err(e) = self.handle_input_inner(input)
             && !matches!(e, DemuxError::InputRequired(_))
         {
@@ -531,6 +600,8 @@ impl Mp4FileDemuxer {
 mod tests {
     use super::*;
 
+    use crate::ErrorKind;
+
     fn read_tracks_from_file_data(file_data: &[u8]) -> Vec<TrackInfo> {
         let input = Input {
             position: 0,
@@ -609,5 +680,207 @@ mod tests {
 
         assert_eq!(tracks.len(), 1);
         assert!(matches!(tracks[0].kind, TrackKind::Video));
+    }
+
+    #[test]
+    fn test_handle_input_with_empty_data() {
+        let empty_input = Input {
+            position: 0,
+            data: &[], // 空のデータ
+        };
+        let mut demuxer = Mp4FileDemuxer::new();
+        demuxer.handle_input(empty_input);
+
+        // 空のデータではトラック情報が取得できないはず
+        let Err(DemuxError::DecodeError(err)) = demuxer.tracks() else {
+            panic!();
+        };
+        assert_eq!(err.kind, ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_basic() {
+        // 基本ケース：要求をちょうど満たす入力
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 100,
+            data: &[0u8; 50],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_with_extra_data() {
+        // 要求より多くのデータを渡す場合
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 100,
+            data: &[0u8; 100], // 50バイト以上を提供
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_with_earlier_position() {
+        // 要求位置より前のデータを含む入力
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 50,      // 要求位置より前から始まる
+            data: &[0u8; 100], // 位置 50 から 150 までのデータを含む
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_position_too_late() {
+        // 入力の開始位置が要求位置より後ろの場合
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 150, // 要求位置より後ろから始まる
+            data: &[0u8; 50],
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_insufficient_data() {
+        // 要求サイズに達しないデータを渡す場合
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 100,
+            data: &[0u8; 30], // 50バイト必要だが30バイトしかない
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_size_none() {
+        // サイズ指定なし（ファイル終端まで）の場合
+        let required = RequiredInput::new(100, None);
+        let input = Input {
+            position: 100,
+            data: &[0u8; 50],
+        };
+        // サイズ指定がないため、どのサイズでも満たされる
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_critical_boundary_case() {
+        // 要求位置がデータ範囲の末尾を超える境界値ケース
+        // offset が input.data.len() と等しい場合も範囲外と判定する必要がある
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 0,
+            data: &[0u8; 100],
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_exact_boundary() {
+        // offset がちょうどデータの長さと等しい場合
+        let required = RequiredInput::new(100, Some(1));
+        let input = Input {
+            position: 0,
+            data: &[0u8; 100], // データは位置 0-99 のみ
+        };
+        // offset = 100, input.data.len() = 100
+        // 要求：位置 100 から 1 バイト
+        // しかしデータは位置 99 までしかない
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_with_size_none_and_partial_data() {
+        // サイズ指定なしで、要求位置がデータの途中の場合
+        let required = RequiredInput::new(50, None);
+        let input = Input {
+            position: 0,
+            data: &[0u8; 100],
+        };
+        // offset = 50, input.data.len() = 100
+        // offset < input.data.len() なので true を返すべき
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_size_zero() {
+        // サイズが0の場合
+        let required = RequiredInput::new(100, Some(0));
+        let input = Input {
+            position: 100,
+            data: &[0u8; 0],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_large_position() {
+        // 大きなポジション値でのテスト
+        let required = RequiredInput::new(1_000_000, Some(1000));
+        let input = Input {
+            position: 1_000_000,
+            data: &[0u8; 2000],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_with_prior_data() {
+        // 要求位置より前のデータを持つ入力で、かつデータが不足している場合
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 50,
+            data: &[0u8; 40], // 位置 50-89 のデータのみ（位置 100-149 に達しない）
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_required_input_is_satisfied_by_with_prior_data_sufficient() {
+        // 要求位置より前のデータを持つ入力で、かつデータが十分な場合
+        let required = RequiredInput::new(100, Some(50));
+        let input = Input {
+            position: 50,
+            data: &[0u8; 110], // 位置 50-159 のデータ（位置 100-149 を含む）
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    #[test]
+    fn test_handle_input_validation_with_wrong_position() {
+        // 要求と異なるポジションでの入力を渡した場合
+        let file_data = include_bytes!("../tests/testdata/beep-aac-audio.mp4");
+        let mut demuxer = Mp4FileDemuxer::new();
+
+        // 正しくない位置のデータを渡す
+        let wrong_input = Input {
+            position: 100, // ファイルは位置 0 から始まるべき
+            data: &file_data[100..],
+        };
+        demuxer.handle_input(wrong_input);
+
+        // エラー状態に遷移しているはず
+        let result = demuxer.tracks();
+        assert!(matches!(result, Err(DemuxError::DecodeError(_))));
+    }
+
+    #[test]
+    fn test_handle_input_validation_with_insufficient_data() {
+        // 要求より不足したデータを渡した場合
+        let file_data = include_bytes!("../tests/testdata/beep-aac-audio.mp4");
+        let mut demuxer = Mp4FileDemuxer::new();
+
+        // 要求されたサイズより小さいデータを渡す
+        let insufficient_input = Input {
+            position: 0,
+            data: &file_data[0..10], // ボックスヘッダより少ないデータ
+        };
+        demuxer.handle_input(insufficient_input);
+
+        // エラー状態に遷移しているはず
+        let result = demuxer.tracks();
+        assert!(matches!(result, Err(DemuxError::DecodeError(_))));
     }
 }
