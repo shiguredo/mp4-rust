@@ -58,6 +58,12 @@
   - なお Apple 系のプレイヤーでは hvc1 の再生しかサポートされていない
   - @sile
 
+### misc
+
+- [UPDATE] boxes.rs を boxes_moov_tree.rs と boxes_sample_entry.rs に分割する
+  - 行数が大きくなりすぎていたので、二つに分割する
+  - @sile
+
 ## 2025.4.0
 
 - [ADD] FLAC 対応を追加する
