@@ -225,6 +225,31 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_track(
         .unwrap_or(std::ptr::null())
 }
 
+/// サンプルエントリを JSON として取得する
+///
+/// sample_entry ポインタからJSON文字列を返す。
+/// TypeScript 側で mp4_wasm_vec_ptr/mp4_wasm_vec_len を使って読み取る。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_wasm_sample_entry_to_json(
+    demuxer: *const Mp4WasmFileDemuxer,
+    sample_entry: *const Mp4SampleEntry,
+) -> *const Vec<u8> {
+    if demuxer.is_null() || sample_entry.is_null() {
+        return std::ptr::null();
+    }
+    let demuxer = unsafe { &*demuxer };
+
+    // sample_entry のアドレスから対応する Mp4SampleEntryOwned を探す
+    for (_, owned, boxed) in &demuxer.sample_entries {
+        if std::ptr::eq(&**boxed, sample_entry) {
+            let json = owned.to_json();
+            return Box::into_raw(Box::new(json.into_bytes()));
+        }
+    }
+
+    std::ptr::null()
+}
+
 /// 次のサンプルを取得する
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(

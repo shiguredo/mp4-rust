@@ -1,5 +1,8 @@
 //! shiguredo_mp4::boxes の wasm FFI
 
+use std::fmt::Result as FmtResult;
+
+use nojson::{json, DisplayJson, JsonFormatter};
 use shiguredo_mp4::Uint;
 
 use crate::demux::Mp4WasmError;
@@ -1053,4 +1056,228 @@ impl Mp4SampleEntryFlac {
 
         Ok(shiguredo_mp4::boxes::SampleEntry::Flac(flac_box))
     }
+}
+
+// JSON シリアライズ用のヘルパー構造体
+struct JsonSampleEntry<'a>(&'a Mp4SampleEntryOwned);
+
+impl DisplayJson for JsonSampleEntry<'_> {
+    fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
+        match self.0 {
+            Mp4SampleEntryOwned::Avc1 { inner, .. } => f.object(|f| {
+                f.member("kind", "avc1")?;
+                f.member("width", inner.visual.width)?;
+                f.member("height", inner.visual.height)?;
+                f.member("avcProfileIndication", inner.avcc_box.avc_profile_indication)?;
+                f.member("profileCompatibility", inner.avcc_box.profile_compatibility)?;
+                f.member("avcLevelIndication", inner.avcc_box.avc_level_indication)?;
+                f.member("lengthSizeMinusOne", inner.avcc_box.length_size_minus_one.get())?;
+                if let Some(v) = inner.avcc_box.chroma_format {
+                    f.member("chromaFormat", v.get())?;
+                }
+                if let Some(v) = inner.avcc_box.bit_depth_luma_minus8 {
+                    f.member("bitDepthLumaMinus8", v.get())?;
+                }
+                if let Some(v) = inner.avcc_box.bit_depth_chroma_minus8 {
+                    f.member("bitDepthChromaMinus8", v.get())?;
+                }
+                f.member("sps", JsonBase64Array(&inner.avcc_box.sps_list))?;
+                f.member("pps", JsonBase64Array(&inner.avcc_box.pps_list))
+            }),
+            Mp4SampleEntryOwned::Hev1 { inner, .. } => {
+                format_hevc(f, "hev1", &inner.visual, &inner.hvcc_box)
+            }
+            Mp4SampleEntryOwned::Hvc1 { inner, .. } => {
+                format_hevc(f, "hvc1", &inner.visual, &inner.hvcc_box)
+            }
+            Mp4SampleEntryOwned::Vp08 { inner } => f.object(|f| {
+                f.member("kind", "vp08")?;
+                f.member("width", inner.visual.width)?;
+                f.member("height", inner.visual.height)?;
+                f.member("bitDepth", inner.vpcc_box.bit_depth.get())?;
+                f.member("chromaSubsampling", inner.vpcc_box.chroma_subsampling.get())?;
+                f.member("videoFullRangeFlag", inner.vpcc_box.video_full_range_flag.get())?;
+                f.member("colourPrimaries", inner.vpcc_box.colour_primaries)?;
+                f.member("transferCharacteristics", inner.vpcc_box.transfer_characteristics)?;
+                f.member("matrixCoefficients", inner.vpcc_box.matrix_coefficients)
+            }),
+            Mp4SampleEntryOwned::Vp09 { inner } => f.object(|f| {
+                f.member("kind", "vp09")?;
+                f.member("width", inner.visual.width)?;
+                f.member("height", inner.visual.height)?;
+                f.member("profile", inner.vpcc_box.profile)?;
+                f.member("level", inner.vpcc_box.level)?;
+                f.member("bitDepth", inner.vpcc_box.bit_depth.get())?;
+                f.member("chromaSubsampling", inner.vpcc_box.chroma_subsampling.get())?;
+                f.member("videoFullRangeFlag", inner.vpcc_box.video_full_range_flag.get())?;
+                f.member("colourPrimaries", inner.vpcc_box.colour_primaries)?;
+                f.member("transferCharacteristics", inner.vpcc_box.transfer_characteristics)?;
+                f.member("matrixCoefficients", inner.vpcc_box.matrix_coefficients)
+            }),
+            Mp4SampleEntryOwned::Av01 { inner, config_obus } => f.object(|f| {
+                f.member("kind", "av01")?;
+                f.member("width", inner.visual.width)?;
+                f.member("height", inner.visual.height)?;
+                f.member("seqProfile", inner.av1c_box.seq_profile.get())?;
+                f.member("seqLevelIdx0", inner.av1c_box.seq_level_idx_0.get())?;
+                f.member("seqTier0", inner.av1c_box.seq_tier_0.get())?;
+                f.member("highBitdepth", inner.av1c_box.high_bitdepth.get())?;
+                f.member("twelveBit", inner.av1c_box.twelve_bit.get())?;
+                f.member("monochrome", inner.av1c_box.monochrome.get())?;
+                f.member("chromaSubsamplingX", inner.av1c_box.chroma_subsampling_x.get())?;
+                f.member("chromaSubsamplingY", inner.av1c_box.chroma_subsampling_y.get())?;
+                f.member("chromaSamplePosition", inner.av1c_box.chroma_sample_position.get())?;
+                if let Some(v) = inner.av1c_box.initial_presentation_delay_minus_one {
+                    f.member("initialPresentationDelayMinusOne", v.get())?;
+                }
+                f.member("configObus", JsonBase64(config_obus))
+            }),
+            Mp4SampleEntryOwned::Opus { inner } => f.object(|f| {
+                f.member("kind", "opus")?;
+                f.member("channelCount", inner.audio.channelcount)?;
+                f.member("sampleRate", inner.audio.samplerate.integer)?;
+                f.member("sampleSize", inner.audio.samplesize)?;
+                f.member("preSkip", inner.dops_box.pre_skip)?;
+                f.member("inputSampleRate", inner.dops_box.input_sample_rate)?;
+                f.member("outputGain", inner.dops_box.output_gain)
+            }),
+            Mp4SampleEntryOwned::Mp4a {
+                inner,
+                dec_specific_info,
+            } => f.object(|f| {
+                f.member("kind", "mp4a")?;
+                f.member("channelCount", inner.audio.channelcount)?;
+                f.member("sampleRate", inner.audio.samplerate.integer)?;
+                f.member("sampleSize", inner.audio.samplesize)?;
+                f.member("bufferSizeDb", inner.esds_box.es.dec_config_descr.buffer_size_db.get())?;
+                f.member("maxBitrate", inner.esds_box.es.dec_config_descr.max_bitrate)?;
+                f.member("avgBitrate", inner.esds_box.es.dec_config_descr.avg_bitrate)?;
+                f.member("decSpecificInfo", JsonBase64(dec_specific_info))
+            }),
+            Mp4SampleEntryOwned::Flac {
+                inner,
+                streaminfo_data,
+            } => f.object(|f| {
+                f.member("kind", "flac")?;
+                f.member("channelCount", inner.audio.channelcount)?;
+                f.member("sampleRate", inner.audio.samplerate.integer)?;
+                f.member("sampleSize", inner.audio.samplesize)?;
+                f.member("streaminfoData", JsonBase64(streaminfo_data))
+            }),
+        }
+    }
+}
+
+fn format_hevc(
+    f: &mut JsonFormatter<'_, '_>,
+    kind: &str,
+    visual: &shiguredo_mp4::boxes::VisualSampleEntryFields,
+    hvcc: &shiguredo_mp4::boxes::HvccBox,
+) -> FmtResult {
+    f.object(|f| {
+        f.member("kind", kind)?;
+        f.member("width", visual.width)?;
+        f.member("height", visual.height)?;
+        f.member("generalProfileSpace", hvcc.general_profile_space.get())?;
+        f.member("generalTierFlag", hvcc.general_tier_flag.get())?;
+        f.member("generalProfileIdc", hvcc.general_profile_idc.get())?;
+        f.member("generalProfileCompatibilityFlags", hvcc.general_profile_compatibility_flags)?;
+        f.member("generalConstraintIndicatorFlags", hvcc.general_constraint_indicator_flags.get())?;
+        f.member("generalLevelIdc", hvcc.general_level_idc)?;
+        f.member("chromaFormatIdc", hvcc.chroma_format_idc.get())?;
+        f.member("bitDepthLumaMinus8", hvcc.bit_depth_luma_minus8.get())?;
+        f.member("bitDepthChromaMinus8", hvcc.bit_depth_chroma_minus8.get())?;
+        f.member("minSpatialSegmentationIdc", hvcc.min_spatial_segmentation_idc.get())?;
+        f.member("parallelismType", hvcc.parallelism_type.get())?;
+        f.member("avgFrameRate", hvcc.avg_frame_rate)?;
+        f.member("constantFrameRate", hvcc.constant_frame_rate.get())?;
+        f.member("numTemporalLayers", hvcc.num_temporal_layers.get())?;
+        f.member("temporalIdNested", hvcc.temporal_id_nested.get())?;
+        f.member("lengthSizeMinusOne", hvcc.length_size_minus_one.get())?;
+        f.member("naluArrays", JsonNaluArrays(&hvcc.nalu_arrays))
+    })
+}
+
+struct JsonNaluArrays<'a>(&'a [shiguredo_mp4::boxes::HvccNalUintArray]);
+
+impl DisplayJson for JsonNaluArrays<'_> {
+    fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
+        f.array(|f| {
+            for array in self.0 {
+                f.element(JsonNaluArray(array))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+struct JsonNaluArray<'a>(&'a shiguredo_mp4::boxes::HvccNalUintArray);
+
+impl DisplayJson for JsonNaluArray<'_> {
+    fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
+        f.object(|f| {
+            f.member("type", self.0.nal_unit_type.get())?;
+            f.member("nalus", JsonBase64Array(&self.0.nalus))
+        })
+    }
+}
+
+struct JsonBase64<'a>(&'a [u8]);
+
+impl DisplayJson for JsonBase64<'_> {
+    fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
+        f.string(&base64_encode(self.0))
+    }
+}
+
+struct JsonBase64Array<'a>(&'a [Vec<u8>]);
+
+impl DisplayJson for JsonBase64Array<'_> {
+    fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
+        f.array(|f| {
+            for item in self.0 {
+                f.element(JsonBase64(item))?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl Mp4SampleEntryOwned {
+    /// JSON 文字列に変換する
+    pub fn to_json(&self) -> String {
+        json(|f| f.value(JsonSampleEntry(self))).to_string()
+    }
+}
+
+/// Base64 エンコード (RFC 4648 標準)
+fn base64_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    let mut result = String::new();
+    let chunks = data.chunks(3);
+
+    for chunk in chunks {
+        let b0 = chunk[0] as usize;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
+
+        result.push(ALPHABET[b0 >> 2] as char);
+        result.push(ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)] as char);
+
+        if chunk.len() > 1 {
+            result.push(ALPHABET[((b1 & 0x0f) << 2) | (b2 >> 6)] as char);
+        } else {
+            result.push('=');
+        }
+
+        if chunk.len() > 2 {
+            result.push(ALPHABET[b2 & 0x3f] as char);
+        } else {
+            result.push('=');
+        }
+    }
+
+    result
 }

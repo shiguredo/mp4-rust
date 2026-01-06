@@ -225,6 +225,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
+name = "nojson"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20f9facf70a088279ffcf06cb5f897660ebd32621629b51872f4d4b25c77e494"
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -449,6 +455,7 @@ dependencies = [
 name = "wasm"
 version = "0.1.0"
 dependencies = [
+ "nojson",
  "shiguredo_mp4",
 ]
 

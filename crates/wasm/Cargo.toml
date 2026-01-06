@@ -9,3 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 shiguredo_mp4 = { path = "../../" }
+nojson = "0.3"
