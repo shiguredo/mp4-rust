@@ -112,8 +112,38 @@ jobs:
         run: |
           gh release upload ${{ needs.github-release.outputs.version }} mp4-${{ needs.github-release.outputs.version }}_${{ matrix.platform.name }}.zip
 
+  upload-wasm-assets:
+    name: "Upload WebAssembly assets"
+    needs: github-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: rustup target add wasm32-unknown-unknown
+
+      - name: Build WebAssembly
+        run: cargo build --release --package wasm --target wasm32-unknown-unknown
+
+      - name: Package
+        run: |
+          mkdir -p mp4-${{ needs.github-release.outputs.version }}_wasm
+          cp target/wasm32-unknown-unknown/release/wasm.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/mp4.wasm
+          tar -czf mp4-${{ needs.github-release.outputs.version }}_wasm.tar.gz \
+            mp4-${{ needs.github-release.outputs.version }}_wasm
+
+      - name: Upload Release Asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.github-release.outputs.version }} \
+            mp4-${{ needs.github-release.outputs.version }}_wasm.tar.gz
+
   publish:
-    needs: [github-release, upload-assets]
+    needs: [github-release, upload-assets, upload-wasm-assets]
     runs-on: ubuntu-24.04
     environment: release
     permissions:
@@ -127,7 +157,7 @@ jobs:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   slack_notify_failed:
-    needs: [github-release, upload-assets, publish]
+    needs: [github-release, upload-assets, upload-wasm-assets, publish]
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     if: failure()

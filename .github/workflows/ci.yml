@@ -149,8 +149,33 @@ jobs:
           name: c-api-${{ matrix.artifact-name }}
           path: artifacts/
 
+  build-wasm:
+    name: Build WebAssembly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: rustup target add wasm32-unknown-unknown
+
+      - name: Build WebAssembly
+        run: cargo build --release --package wasm --target wasm32-unknown-unknown
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/wasm32-unknown-unknown/release/wasm.wasm artifacts/mp4.wasm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: artifacts/
+
   slack_notify_failed:
-    needs: [check, test, lints, build-c-api]
+    needs: [check, test, lints, build-c-api, build-wasm]
     runs-on: ubuntu-24.04
     if: ${{ failure() }}
     steps:
