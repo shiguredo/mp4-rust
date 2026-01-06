@@ -66,7 +66,7 @@ wasm-opt -Oz -o mp4-opt.wasm target/wasm32-unknown-unknown/release/mp4.wasm
 
 ## JSON 形式のサンプルエントリ
 
-`mp4_wasm_sample_entry_to_json` を使用すると、複雑なポインタ操作なしでサンプルエントリ情報を JSON 文字列として取得できます。
+`mp4_wasm_sample_entry_to_json` を使用すると、サンプルエントリ情報を JSON 文字列として取得できます。
 
 バイナリデータ（SPS/PPS/NALU 等）は数値配列として返されます。
 
