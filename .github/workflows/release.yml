@@ -127,8 +127,8 @@ jobs:
 
       - name: Install wasm-opt
         run: |
-          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_121/binaryen-version_121-x86_64-linux.tar.gz | tar xz
-          sudo mv binaryen-version_121/bin/wasm-opt /usr/local/bin/
+          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_125/binaryen-version_125-x86_64-linux.tar.gz | tar xz
+          sudo mv binaryen-version_125/bin/wasm-opt /usr/local/bin/
 
       - name: Build WebAssembly
         run: cargo build --release --package wasm --target wasm32-unknown-unknown
