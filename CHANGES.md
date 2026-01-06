@@ -11,6 +11,12 @@
 
 ## develop
 
+- [ADD] WebAssembly 向け FFI バインディング (crates/wasm) を追加する
+  - demux / mux / boxes の機能を wasm32-unknown-unknown ターゲットで利用可能にする
+  - nojson を使った JSON ヘルパー関数 (mp4_wasm_sample_entry_to_json) を追加
+  - バイナリデータ (SPS/PPS/NALU 等) は Base64 エンコードで返す
+  - @voluntas
+
 ## 2026.1.0
 
 - [UPDATE] `Mp4FileDemuxer::handle_input()` に要求を満たさない入力データが渡された場合はエラー扱いにする
