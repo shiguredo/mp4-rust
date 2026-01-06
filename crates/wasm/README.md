@@ -13,7 +13,7 @@ rustup target add wasm32-unknown-unknown
 # ビルド
 cargo build -p wasm --target wasm32-unknown-unknown --release
 
-# 出力ファイル: target/wasm32-unknown-unknown/release/wasm.wasm
+# 出力ファイル: target/wasm32-unknown-unknown/release/mp4.wasm
 ```
 
 ### サイズ最適化
@@ -21,7 +21,7 @@ cargo build -p wasm --target wasm32-unknown-unknown --release
 [wasm-opt](https://github.com/WebAssembly/binaryen) を使用してサイズを最適化できます。
 
 ```bash
-wasm-opt -Oz -o optimized.wasm target/wasm32-unknown-unknown/release/wasm.wasm
+wasm-opt -Oz -o mp4-opt.wasm target/wasm32-unknown-unknown/release/mp4.wasm
 ```
 
 ## 提供する機能
