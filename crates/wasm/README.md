@@ -11,9 +11,9 @@ FFI 方式で実装されており、JavaScript/TypeScript から直接呼び出
 rustup target add wasm32-unknown-unknown
 
 # ビルド
-cargo build -p wasm --target wasm32-unknown-unknown --release
+cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
 
-# 出力ファイル: target/wasm32-unknown-unknown/release/mp4.wasm
+# 出力ファイル: target/wasm32-unknown-unknown/release-wasm/mp4.wasm
 ```
 
 ### サイズ最適化
@@ -21,7 +21,7 @@ cargo build -p wasm --target wasm32-unknown-unknown --release
 [wasm-opt](https://github.com/WebAssembly/binaryen) を使用してサイズを最適化できます。
 
 ```bash
-wasm-opt -Oz -o mp4-opt.wasm target/wasm32-unknown-unknown/release/mp4.wasm
+wasm-opt -Oz --enable-bulk-memory -o mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
 ```
 
 ## 提供する機能

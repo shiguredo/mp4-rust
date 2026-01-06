@@ -168,16 +168,16 @@ jobs:
           sudo mv binaryen-version_125/bin/wasm-opt /usr/local/bin/
 
       - name: Build WebAssembly
-        run: cargo build --release --package wasm --target wasm32-unknown-unknown
+        run: cargo build --profile release-wasm --package wasm --target wasm32-unknown-unknown
 
       - name: Optimize with wasm-opt
-        run: wasm-opt -Oz -o target/wasm32-unknown-unknown/release/mp4-opt.wasm target/wasm32-unknown-unknown/release/mp4.wasm
+        run: wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
 
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp target/wasm32-unknown-unknown/release/mp4.wasm artifacts/
-          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm artifacts/
+          cp target/wasm32-unknown-unknown/release-wasm/mp4.wasm artifacts/
+          cp target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
