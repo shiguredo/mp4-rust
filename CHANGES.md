@@ -17,6 +17,15 @@
   - バイナリデータ (SPS/PPS/NALU 等) は数値配列で返す
   - @voluntas
 
+### misc
+
+- [ADD] CI で wasm ビルドを artifact としてアップロードする
+  - mp4.wasm (オリジナル) と mp4-opt.wasm (wasm-opt 最適化済み) の両方を含む
+  - @voluntas
+- [ADD] Release で wasm バイナリを公開する
+  - wasm-opt による最適化済みバイナリを含む
+  - @voluntas
+
 ## 2026.1.0
 
 - [UPDATE] `Mp4FileDemuxer::handle_input()` に要求を満たさない入力データが渡された場合はエラー扱いにする
