@@ -68,7 +68,7 @@ wasm-opt -Oz -o optimized.wasm target/wasm32-unknown-unknown/release/wasm.wasm
 
 `mp4_wasm_sample_entry_to_json` を使用すると、複雑なポインタ操作なしでサンプルエントリ情報を JSON 文字列として取得できます。
 
-バイナリデータ（SPS/PPS/NALU 等）は Base64 エンコードされます。
+バイナリデータ（SPS/PPS/NALU 等）は数値配列として返されます。
 
 ### AVC1 (H.264) の例
 
@@ -81,8 +81,8 @@ wasm-opt -Oz -o optimized.wasm target/wasm32-unknown-unknown/release/wasm.wasm
   "profileCompatibility": 0,
   "avcLevelIndication": 40,
   "lengthSizeMinusOne": 3,
-  "sps": ["Z2QAH62..."],
-  "pps": ["aOvjYA=="]
+  "sps": [[103, 100, 0, 31, ...]],
+  "pps": [[104, 235, 227, 96]]
 }
 ```
 
@@ -110,9 +110,9 @@ wasm-opt -Oz -o optimized.wasm target/wasm32-unknown-unknown/release/wasm.wasm
   "temporalIdNested": 1,
   "lengthSizeMinusOne": 3,
   "naluArrays": [
-    {"type": 32, "nalus": ["QAE..."]},
-    {"type": 33, "nalus": ["QgE..."]},
-    {"type": 34, "nalus": ["RAE..."]}
+    {"type": 32, "nalus": [[64, 1, ...]]},
+    {"type": 33, "nalus": [[66, 1, ...]]},
+    {"type": 34, "nalus": [[68, 1, ...]]}
   ]
 }
 ```
@@ -142,6 +142,6 @@ wasm-opt -Oz -o optimized.wasm target/wasm32-unknown-unknown/release/wasm.wasm
   "bufferSizeDb": 0,
   "maxBitrate": 128000,
   "avgBitrate": 128000,
-  "decSpecificInfo": "EZBt..."
+  "decSpecificInfo": [17, 144, 109, ...]
 }
 ```

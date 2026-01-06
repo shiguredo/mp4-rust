@@ -1087,8 +1087,8 @@ impl DisplayJson for JsonSampleEntry<'_> {
                 if let Some(v) = inner.avcc_box.bit_depth_chroma_minus8 {
                     f.member("bitDepthChromaMinus8", v.get())?;
                 }
-                f.member("sps", JsonBase64Array(&inner.avcc_box.sps_list))?;
-                f.member("pps", JsonBase64Array(&inner.avcc_box.pps_list))
+                f.member("sps", JsonBytesArray(&inner.avcc_box.sps_list))?;
+                f.member("pps", JsonBytesArray(&inner.avcc_box.pps_list))
             }),
             Mp4SampleEntryOwned::Hev1 { inner, .. } => {
                 format_hevc(f, "hev1", &inner.visual, &inner.hvcc_box)
@@ -1157,7 +1157,7 @@ impl DisplayJson for JsonSampleEntry<'_> {
                 if let Some(v) = inner.av1c_box.initial_presentation_delay_minus_one {
                     f.member("initialPresentationDelayMinusOne", v.get())?;
                 }
-                f.member("configObus", JsonBase64(config_obus))
+                f.member("configObus", JsonBytes(config_obus))
             }),
             Mp4SampleEntryOwned::Opus { inner } => f.object(|f| {
                 f.member("kind", "opus")?;
@@ -1182,7 +1182,7 @@ impl DisplayJson for JsonSampleEntry<'_> {
                 )?;
                 f.member("maxBitrate", inner.esds_box.es.dec_config_descr.max_bitrate)?;
                 f.member("avgBitrate", inner.esds_box.es.dec_config_descr.avg_bitrate)?;
-                f.member("decSpecificInfo", JsonBase64(dec_specific_info))
+                f.member("decSpecificInfo", JsonBytes(dec_specific_info))
             }),
             Mp4SampleEntryOwned::Flac {
                 inner,
@@ -1192,7 +1192,7 @@ impl DisplayJson for JsonSampleEntry<'_> {
                 f.member("channelCount", inner.audio.channelcount)?;
                 f.member("sampleRate", inner.audio.samplerate.integer)?;
                 f.member("sampleSize", inner.audio.samplesize)?;
-                f.member("streaminfoData", JsonBase64(streaminfo_data))
+                f.member("streaminfoData", JsonBytes(streaminfo_data))
             }),
         }
     }
@@ -1256,26 +1256,31 @@ impl DisplayJson for JsonNaluArray<'_> {
     fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
         f.object(|f| {
             f.member("type", self.0.nal_unit_type.get())?;
-            f.member("nalus", JsonBase64Array(&self.0.nalus))
+            f.member("nalus", JsonBytesArray(&self.0.nalus))
         })
     }
 }
 
-struct JsonBase64<'a>(&'a [u8]);
+struct JsonBytes<'a>(&'a [u8]);
 
-impl DisplayJson for JsonBase64<'_> {
+impl DisplayJson for JsonBytes<'_> {
     fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
-        f.string(base64_encode(self.0))
+        f.array(|f| {
+            for &byte in self.0 {
+                f.element(byte)?;
+            }
+            Ok(())
+        })
     }
 }
 
-struct JsonBase64Array<'a>(&'a [Vec<u8>]);
+struct JsonBytesArray<'a>(&'a [Vec<u8>]);
 
-impl DisplayJson for JsonBase64Array<'_> {
+impl DisplayJson for JsonBytesArray<'_> {
     fn fmt(&self, f: &mut JsonFormatter<'_, '_>) -> FmtResult {
         f.array(|f| {
             for item in self.0 {
-                f.element(JsonBase64(item))?;
+                f.element(JsonBytes(item))?;
             }
             Ok(())
         })
@@ -1287,35 +1292,4 @@ impl Mp4SampleEntryOwned {
     pub fn to_json(&self) -> String {
         json(|f| f.value(JsonSampleEntry(self))).to_string()
     }
-}
-
-/// Base64 エンコード (RFC 4648 標準)
-fn base64_encode(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-    let mut result = String::new();
-    let chunks = data.chunks(3);
-
-    for chunk in chunks {
-        let b0 = chunk[0] as usize;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-
-        result.push(ALPHABET[b0 >> 2] as char);
-        result.push(ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)] as char);
-
-        if chunk.len() > 1 {
-            result.push(ALPHABET[((b1 & 0x0f) << 2) | (b2 >> 6)] as char);
-        } else {
-            result.push('=');
-        }
-
-        if chunk.len() > 2 {
-            result.push(ALPHABET[b2 & 0x3f] as char);
-        } else {
-            result.push('=');
-        }
-    }
-
-    result
 }
