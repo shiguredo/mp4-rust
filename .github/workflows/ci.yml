@@ -174,7 +174,8 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm artifacts/mp4.wasm
+          cp target/wasm32-unknown-unknown/release/mp4.wasm artifacts/
+          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

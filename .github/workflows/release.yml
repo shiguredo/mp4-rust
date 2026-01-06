@@ -139,7 +139,8 @@ jobs:
       - name: Package
         run: |
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_wasm
-          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/mp4.wasm
+          cp target/wasm32-unknown-unknown/release/mp4.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/
+          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/
           tar -czf mp4-${{ needs.github-release.outputs.version }}_wasm.tar.gz \
             mp4-${{ needs.github-release.outputs.version }}_wasm
 
