@@ -127,7 +127,9 @@ jobs:
 
       - name: Install wasm-opt
         run: |
-          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_125/binaryen-version_125-x86_64-linux.tar.gz | tar xz
+          curl -L -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_125/binaryen-version_125-x86_64-linux.tar.gz
+          echo "7c3bc16599c8274a04d34a504fe4be2047884f900e0e2da2f6fb9cd667183be4  binaryen.tar.gz" | sha256sum -c -
+          tar xzf binaryen.tar.gz
           sudo mv binaryen-version_125/bin/wasm-opt /usr/local/bin/
 
       - name: Build WebAssembly
