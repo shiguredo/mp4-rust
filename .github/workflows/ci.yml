@@ -160,13 +160,21 @@ jobs:
       - run: rustup default stable
       - run: rustup target add wasm32-unknown-unknown
 
+      - name: Install wasm-opt
+        run: |
+          curl -L https://github.com/WebAssembly/binaryen/releases/download/version_121/binaryen-version_121-x86_64-linux.tar.gz | tar xz
+          sudo mv binaryen-version_121/bin/wasm-opt /usr/local/bin/
+
       - name: Build WebAssembly
         run: cargo build --release --package wasm --target wasm32-unknown-unknown
+
+      - name: Optimize with wasm-opt
+        run: wasm-opt -Oz -o target/wasm32-unknown-unknown/release/mp4-opt.wasm target/wasm32-unknown-unknown/release/mp4.wasm
 
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp target/wasm32-unknown-unknown/release/wasm.wasm artifacts/mp4.wasm
+          cp target/wasm32-unknown-unknown/release/mp4-opt.wasm artifacts/mp4.wasm
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
