@@ -20,10 +20,10 @@
 ### misc
 
 - [ADD] CI で wasm ビルドを artifact としてアップロードする
-  - mp4.wasm (オリジナル) と mp4-opt.wasm (wasm-opt 最適化済み) の両方を含む
+  - release-wasm プロファイルと wasm-opt で最適化した mp4.wasm を含む
   - @voluntas
 - [ADD] Release で wasm バイナリを公開する
-  - wasm-opt による最適化済みバイナリを含む
+  - release-wasm プロファイルと wasm-opt で最適化した mp4.wasm を含む
   - @voluntas
 
 ## 2026.1.0
