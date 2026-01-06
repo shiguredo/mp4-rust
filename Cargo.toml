@@ -14,4 +14,12 @@ categories = ["no-std"]
 [dependencies]
 
 [workspace]
-members = ["crates/c-api","examples/dump_wasm", "examples/transcode_wasm"]
+members = ["crates/c-api", "crates/wasm", "examples/dump_wasm", "examples/transcode_wasm"]
+
+[profile.release-wasm]
+inherits = "release"
+lto = true
+codegen-units = 1
+opt-level = "z"
+panic = "abort"
+strip = true
