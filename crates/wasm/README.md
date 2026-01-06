@@ -2,7 +2,7 @@
 
 MP4 ファイルの読み込み（デマルチプレックス）と書き込み（マルチプレックス）を行うための WebAssembly API です。
 
-FFI 方式で実装されており、JavaScript/TypeScript から直接呼び出すことができます。
+JavaScript/TypeScript から直接呼び出すことができます。
 
 ## ビルド方法
 
@@ -16,13 +16,25 @@ cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
 # 出力ファイル: target/wasm32-unknown-unknown/release-wasm/mp4.wasm
 ```
 
-### サイズ最適化
+### release-wasm プロファイル
 
-[wasm-opt](https://github.com/WebAssembly/binaryen) を使用してサイズを最適化できます。
+`release-wasm` プロファイルはルートの `Cargo.toml` に定義されており、以下の最適化が有効になっています:
+
+- `lto = true`: リンク時最適化
+- `codegen-units = 1`: 単一コード生成ユニット
+- `opt-level = "z"`: サイズ最適化
+- `panic = "abort"`: パニック時に即座に終了
+- `strip = true`: シンボル除去
+
+### wasm-opt による最適化
+
+[wasm-opt](https://github.com/WebAssembly/binaryen) (Binaryen) を使用してさらにサイズを最適化できます。
 
 ```bash
 wasm-opt -Oz --enable-bulk-memory -o mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
 ```
+
+`--enable-bulk-memory` は `release-wasm` プロファイルが bulk memory 命令を使用するため必要です。
 
 ## 提供する機能
 
