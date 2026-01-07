@@ -455,6 +455,7 @@ dependencies = [
 name = "wasm"
 version = "0.1.0"
 dependencies = [
+ "c-api",
  "nojson",
  "shiguredo_mp4",
 ]

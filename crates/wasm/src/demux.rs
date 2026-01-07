@@ -2,73 +2,17 @@
 
 use shiguredo_mp4::BaseBox;
 
-use crate::boxes::{Mp4SampleEntry, Mp4SampleEntryOwned};
+use crate::boxes::{Mp4SampleEntry, Mp4SampleEntryOwned, ToJson};
 
-/// エラーコード
-#[repr(u32)]
-pub enum Mp4WasmError {
-    Ok = 0,
-    NullPointer = 1,
-    InputRequired = 2,
-    NoMoreSamples = 3,
-    InvalidState = 4,
-    DecodeError = 5,
-    Unsupported = 6,
-}
-
-/// トラックの種類
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum Mp4WasmTrackKind {
-    Video = 0,
-    Audio = 1,
-}
-
-impl From<shiguredo_mp4::TrackKind> for Mp4WasmTrackKind {
-    fn from(kind: shiguredo_mp4::TrackKind) -> Self {
-        match kind {
-            shiguredo_mp4::TrackKind::Video => Mp4WasmTrackKind::Video,
-            shiguredo_mp4::TrackKind::Audio => Mp4WasmTrackKind::Audio,
-        }
-    }
-}
-
-/// トラック情報
-#[repr(C)]
-pub struct Mp4WasmTrackInfo {
-    pub track_id: u32,
-    pub kind: Mp4WasmTrackKind,
-    pub duration: u64,
-    pub timescale: u32,
-}
-
-impl From<shiguredo_mp4::demux::TrackInfo> for Mp4WasmTrackInfo {
-    fn from(track_info: shiguredo_mp4::demux::TrackInfo) -> Self {
-        Self {
-            track_id: track_info.track_id,
-            kind: track_info.kind.into(),
-            duration: track_info.duration,
-            timescale: track_info.timescale.get(),
-        }
-    }
-}
-
-/// サンプル情報
-#[repr(C)]
-pub struct Mp4WasmSample {
-    pub track_id: u32,
-    pub sample_entry: *const Mp4SampleEntry,
-    pub keyframe: u32,
-    pub timestamp: u64,
-    pub duration: u32,
-    pub data_offset: u64,
-    pub data_size: u32,
-}
+// c-api の型を re-export
+pub use c_api::basic_types::Mp4TrackKind;
+pub use c_api::demux::{Mp4DemuxSample, Mp4DemuxTrackInfo};
+pub use c_api::error::Mp4Error;
 
 /// MP4 ファイルデマルチプレクサ
 pub struct Mp4WasmFileDemuxer {
     inner: shiguredo_mp4::demux::Mp4FileDemuxer,
-    tracks: Vec<Mp4WasmTrackInfo>,
+    tracks: Vec<Mp4DemuxTrackInfo>,
     sample_entries: Vec<(
         shiguredo_mp4::boxes::SampleEntry,
         Mp4SampleEntryOwned,
@@ -163,22 +107,22 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_handle_input(
     position: u64,
     data: *const u8,
     data_size: u32,
-) -> Mp4WasmError {
+) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
     if data.is_null() {
         demuxer.set_last_error("data is null");
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     let data = unsafe { std::slice::from_raw_parts(data, data_size as usize) };
     let input = shiguredo_mp4::demux::Input { position, data };
     demuxer.inner.handle_input(input);
 
-    Mp4WasmError::Ok
+    Mp4Error::MP4_ERROR_OK
 }
 
 /// トラック数を取得する
@@ -212,7 +156,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_track_count(demuxer: *mut Mp4WasmF
 pub unsafe extern "C" fn mp4_wasm_demuxer_get_track(
     demuxer: *const Mp4WasmFileDemuxer,
     index: u32,
-) -> *const Mp4WasmTrackInfo {
+) -> *const Mp4DemuxTrackInfo {
     if demuxer.is_null() {
         return std::ptr::null();
     }
@@ -254,16 +198,16 @@ pub unsafe extern "C" fn mp4_wasm_sample_entry_to_json(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(
     demuxer: *mut Mp4WasmFileDemuxer,
-    out_sample: *mut Mp4WasmSample,
-) -> Mp4WasmError {
+    out_sample: *mut Mp4DemuxSample,
+) -> Mp4Error {
     if demuxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
     if out_sample.is_null() {
         demuxer.set_last_error("out_sample is null");
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     // トラック情報が未取得なら取得する
@@ -273,17 +217,25 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(
                 demuxer.tracks = tracks.iter().map(|t| t.clone().into()).collect();
             }
             Err(shiguredo_mp4::demux::DemuxError::InputRequired(_)) => {
-                return Mp4WasmError::InputRequired;
+                return Mp4Error::MP4_ERROR_INPUT_REQUIRED;
             }
             Err(e) => {
                 demuxer.set_last_error(&format!("{e}"));
-                return Mp4WasmError::DecodeError;
+                return Mp4Error::MP4_ERROR_INVALID_DATA;
             }
         }
     }
 
     match demuxer.inner.next_sample() {
         Ok(Some(sample)) => {
+            // トラック情報を取得
+            let track_ptr = demuxer
+                .tracks
+                .iter()
+                .find(|t| t.track_id == sample.track.track_id)
+                .map(|t| t as *const _)
+                .unwrap_or(std::ptr::null());
+
             let sample_entry_ptr = if let Some(sample_entry) = sample.sample_entry {
                 let sample_entry_box_type = sample_entry.box_type();
                 if let Some(entry) = demuxer
@@ -297,7 +249,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(
                         demuxer.set_last_error(&format!(
                             "Unsupported sample entry box type: {sample_entry_box_type}"
                         ));
-                        return Mp4WasmError::Unsupported;
+                        return Mp4Error::MP4_ERROR_UNSUPPORTED;
                     };
                     let entry = Box::new(entry_owned.to_mp4_sample_entry());
                     demuxer
@@ -314,24 +266,24 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(
             };
 
             unsafe {
-                *out_sample = Mp4WasmSample {
-                    track_id: sample.track.track_id,
+                *out_sample = Mp4DemuxSample {
+                    track: track_ptr,
                     sample_entry: sample_entry_ptr,
-                    keyframe: if sample.keyframe { 1 } else { 0 },
+                    keyframe: sample.keyframe,
                     timestamp: sample.timestamp,
                     duration: sample.duration,
                     data_offset: sample.data_offset,
-                    data_size: sample.data_size as u32,
+                    data_size: sample.data_size,
                 };
             }
 
-            Mp4WasmError::Ok
+            Mp4Error::MP4_ERROR_OK
         }
-        Ok(None) => Mp4WasmError::NoMoreSamples,
-        Err(shiguredo_mp4::demux::DemuxError::InputRequired(_)) => Mp4WasmError::InputRequired,
+        Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
+        Err(shiguredo_mp4::demux::DemuxError::InputRequired(_)) => Mp4Error::MP4_ERROR_INPUT_REQUIRED,
         Err(e) => {
             demuxer.set_last_error(&format!("{e}"));
-            Mp4WasmError::DecodeError
+            Mp4Error::MP4_ERROR_INVALID_DATA
         }
     }
 }

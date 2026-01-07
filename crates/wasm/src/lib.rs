@@ -8,6 +8,13 @@ pub mod boxes;
 pub mod demux;
 pub mod mux;
 
+// c-api の型を re-export
+pub use c_api::basic_types::Mp4TrackKind;
+pub use c_api::boxes::{Mp4SampleEntry, Mp4SampleEntryKind, Mp4SampleEntryOwned};
+pub use c_api::demux::{Mp4DemuxSample, Mp4DemuxTrackInfo};
+pub use c_api::error::Mp4Error;
+pub use c_api::mux::Mp4MuxSample;
+
 use std::alloc::Layout;
 
 /// メモリを確保する

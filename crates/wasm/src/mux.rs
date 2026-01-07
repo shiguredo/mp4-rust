@@ -2,29 +2,11 @@
 
 use std::num::NonZeroU32;
 
-use crate::boxes::Mp4SampleEntry;
-use crate::demux::{Mp4WasmError, Mp4WasmTrackKind};
+use crate::demux::Mp4Error;
 
-impl From<Mp4WasmTrackKind> for shiguredo_mp4::TrackKind {
-    fn from(kind: Mp4WasmTrackKind) -> Self {
-        match kind {
-            Mp4WasmTrackKind::Video => shiguredo_mp4::TrackKind::Video,
-            Mp4WasmTrackKind::Audio => shiguredo_mp4::TrackKind::Audio,
-        }
-    }
-}
-
-/// マルチプレックス用サンプル
-#[repr(C)]
-pub struct Mp4WasmMuxSample {
-    pub track_kind: Mp4WasmTrackKind,
-    pub sample_entry: *const Mp4SampleEntry,
-    pub keyframe: u32,
-    pub timescale: u32,
-    pub duration: u32,
-    pub data_offset: u64,
-    pub data_size: u32,
-}
+// c-api の型を re-export
+pub use c_api::basic_types::Mp4TrackKind;
+pub use c_api::mux::Mp4MuxSample;
 
 struct Output {
     offset: u64,
@@ -100,28 +82,28 @@ pub unsafe extern "C" fn mp4_wasm_muxer_get_last_error(
 pub unsafe extern "C" fn mp4_wasm_muxer_set_reserved_moov_box_size(
     muxer: *mut Mp4WasmFileMuxer,
     size: u64,
-) -> Mp4WasmError {
+) -> Mp4Error {
     if muxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
 
     let muxer = unsafe { &mut *muxer };
     muxer.options.reserved_moov_box_size = size as usize;
 
-    Mp4WasmError::Ok
+    Mp4Error::MP4_ERROR_OK
 }
 
 /// マルチプレックス処理を初期化する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_muxer_initialize(muxer: *mut Mp4WasmFileMuxer) -> Mp4WasmError {
+pub unsafe extern "C" fn mp4_wasm_muxer_initialize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
     if muxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let muxer = unsafe { &mut *muxer };
 
     if muxer.inner.is_some() {
         muxer.set_last_error("Muxer has already been initialized");
-        return Mp4WasmError::InvalidState;
+        return Mp4Error::MP4_ERROR_INVALID_STATE;
     }
 
     match shiguredo_mp4::mux::Mp4FileMuxer::with_options(muxer.options.clone()) {
@@ -132,11 +114,11 @@ pub unsafe extern "C" fn mp4_wasm_muxer_initialize(muxer: *mut Mp4WasmFileMuxer)
                 data: initial.to_vec(),
             });
             muxer.inner = Some(inner);
-            Mp4WasmError::Ok
+            Mp4Error::MP4_ERROR_OK
         }
         Err(e) => {
             muxer.set_last_error(&format!("Failed to initialize muxer: {e}"));
-            Mp4WasmError::DecodeError
+            Mp4Error::MP4_ERROR_INVALID_DATA
         }
     }
 }
@@ -220,22 +202,22 @@ pub unsafe extern "C" fn mp4_wasm_muxer_advance_output(muxer: *mut Mp4WasmFileMu
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_wasm_muxer_append_sample(
     muxer: *mut Mp4WasmFileMuxer,
-    sample: *const Mp4WasmMuxSample,
-) -> Mp4WasmError {
+    sample: *const Mp4MuxSample,
+) -> Mp4Error {
     if muxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let muxer = unsafe { &mut *muxer };
 
     if sample.is_null() {
         muxer.set_last_error("sample is null");
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let sample = unsafe { &*sample };
 
     let Some(timescale) = NonZeroU32::new(sample.timescale) else {
         muxer.set_last_error("Timescale must be greater than 0");
-        return Mp4WasmError::DecodeError;
+        return Mp4Error::MP4_ERROR_INVALID_INPUT;
     };
 
     let sample_entry = if sample.sample_entry.is_null() {
@@ -245,20 +227,20 @@ pub unsafe extern "C" fn mp4_wasm_muxer_append_sample(
             Ok(entry) => Some(entry),
             Err(_) => {
                 muxer.set_last_error("Invalid sample entry");
-                return Mp4WasmError::DecodeError;
+                return Mp4Error::MP4_ERROR_INVALID_INPUT;
             }
         }
     };
 
     let Some(inner) = &mut muxer.inner else {
         muxer.set_last_error("Muxer has not been initialized");
-        return Mp4WasmError::InvalidState;
+        return Mp4Error::MP4_ERROR_INVALID_STATE;
     };
 
     let mux_sample = shiguredo_mp4::mux::Sample {
         track_kind: sample.track_kind.into(),
         sample_entry,
-        keyframe: sample.keyframe != 0,
+        keyframe: sample.keyframe,
         timescale,
         duration: sample.duration,
         data_offset: sample.data_offset,
@@ -267,23 +249,23 @@ pub unsafe extern "C" fn mp4_wasm_muxer_append_sample(
 
     if let Err(e) = inner.append_sample(&mux_sample) {
         muxer.set_last_error(&format!("Failed to append sample: {e}"));
-        Mp4WasmError::DecodeError
+        Mp4Error::MP4_ERROR_INVALID_DATA
     } else {
-        Mp4WasmError::Ok
+        Mp4Error::MP4_ERROR_OK
     }
 }
 
 /// マルチプレックス処理を完了する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_muxer_finalize(muxer: *mut Mp4WasmFileMuxer) -> Mp4WasmError {
+pub unsafe extern "C" fn mp4_wasm_muxer_finalize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
     if muxer.is_null() {
-        return Mp4WasmError::NullPointer;
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let muxer = unsafe { &mut *muxer };
 
     let Some(inner) = &mut muxer.inner else {
         muxer.set_last_error("Muxer has not been initialized");
-        return Mp4WasmError::InvalidState;
+        return Mp4Error::MP4_ERROR_INVALID_STATE;
     };
 
     match inner.finalize() {
@@ -294,11 +276,11 @@ pub unsafe extern "C" fn mp4_wasm_muxer_finalize(muxer: *mut Mp4WasmFileMuxer) -
                     data: bytes.to_vec(),
                 });
             }
-            Mp4WasmError::Ok
+            Mp4Error::MP4_ERROR_OK
         }
         Err(e) => {
             muxer.set_last_error(&format!("Failed to finalize muxer: {e}"));
-            Mp4WasmError::DecodeError
+            Mp4Error::MP4_ERROR_INVALID_DATA
         }
     }
 }
