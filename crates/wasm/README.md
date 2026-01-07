@@ -13,7 +13,7 @@ rustup target add wasm32-unknown-unknown
 # ビルド
 cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
 
-# 出力ファイル: target/wasm32-unknown-unknown/release-wasm/mp4.wasm
+# 出力ファイル: target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
 ```
 
 ### release-wasm プロファイル
@@ -31,7 +31,7 @@ cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
 [wasm-opt](https://github.com/WebAssembly/binaryen) (Binaryen) を使用してさらにサイズを最適化できます。
 
 ```bash
-wasm-opt -Oz --enable-bulk-memory -o mp4.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
+wasm-opt -Oz --enable-bulk-memory -o mp4_wasm.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
 ```
 
 `--enable-bulk-memory` は `release-wasm` プロファイルが bulk memory 命令を使用するため必要です。

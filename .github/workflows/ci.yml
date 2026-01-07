@@ -172,13 +172,13 @@ jobs:
 
       - name: Optimize with wasm-opt
         run: |
-          wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
-          mv target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
+          wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
+          mv target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
 
       - name: Prepare artifacts
         run: |
           mkdir -p artifacts
-          cp target/wasm32-unknown-unknown/release-wasm/mp4.wasm artifacts/
+          cp target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

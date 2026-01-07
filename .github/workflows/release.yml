@@ -137,13 +137,13 @@ jobs:
 
       - name: Optimize with wasm-opt
         run: |
-          wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
-          mv target/wasm32-unknown-unknown/release-wasm/mp4-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4.wasm
+          wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
+          mv target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
 
       - name: Package
         run: |
           mkdir -p mp4-${{ needs.github-release.outputs.version }}_wasm
-          cp target/wasm32-unknown-unknown/release-wasm/mp4.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/
+          cp target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm mp4-${{ needs.github-release.outputs.version }}_wasm/
           tar -czf mp4-${{ needs.github-release.outputs.version }}_wasm.tar.gz \
             mp4-${{ needs.github-release.outputs.version }}_wasm
 
