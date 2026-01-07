@@ -29,7 +29,7 @@ impl Mp4WasmFileDemuxer {
 
 /// 新しい Mp4WasmFileDemuxer を作成する
 #[unsafe(no_mangle)]
-pub extern "C" fn mp4_wasm_demuxer_new() -> *mut Mp4WasmFileDemuxer {
+pub extern "C" fn mp4_demuxer_new() -> *mut Mp4WasmFileDemuxer {
     let demuxer = Box::new(Mp4WasmFileDemuxer {
         inner: shiguredo_mp4::demux::Mp4FileDemuxer::new(),
         tracks: Vec::new(),
@@ -41,7 +41,7 @@ pub extern "C" fn mp4_wasm_demuxer_new() -> *mut Mp4WasmFileDemuxer {
 
 /// Mp4WasmFileDemuxer を解放する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_free(demuxer: *mut Mp4WasmFileDemuxer) {
+pub unsafe extern "C" fn mp4_demuxer_free(demuxer: *mut Mp4WasmFileDemuxer) {
     if !demuxer.is_null() {
         let _ = unsafe { Box::from_raw(demuxer) };
     }
@@ -49,7 +49,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_free(demuxer: *mut Mp4WasmFileDemuxer)
 
 /// 最後のエラーメッセージを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_get_last_error(
+pub unsafe extern "C" fn mp4_demuxer_get_last_error(
     demuxer: *const Mp4WasmFileDemuxer,
 ) -> *const Vec<u8> {
     if demuxer.is_null() {
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_last_error(
 
 /// 次の処理に必要な入力の位置を取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_get_required_input_position(
+pub unsafe extern "C" fn mp4_demuxer_get_required_input_position(
     demuxer: *const Mp4WasmFileDemuxer,
 ) -> u64 {
     if demuxer.is_null() {
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_required_input_position(
 /// -1: ファイル末尾まで必要
 /// その他: 必要なバイト数
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_get_required_input_size(
+pub unsafe extern "C" fn mp4_demuxer_get_required_input_size(
     demuxer: *const Mp4WasmFileDemuxer,
 ) -> i32 {
     if demuxer.is_null() {
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_required_input_size(
 
 /// 入力データを供給する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_handle_input(
+pub unsafe extern "C" fn mp4_demuxer_handle_input(
     demuxer: *mut Mp4WasmFileDemuxer,
     position: u64,
     data: *const u8,
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_handle_input(
 
 /// トラック数を取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_get_track_count(demuxer: *mut Mp4WasmFileDemuxer) -> i32 {
+pub unsafe extern "C" fn mp4_demuxer_get_track_count(demuxer: *mut Mp4WasmFileDemuxer) -> i32 {
     if demuxer.is_null() {
         return -1;
     }
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_track_count(demuxer: *mut Mp4WasmF
 
 /// トラック情報を取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_get_track(
+pub unsafe extern "C" fn mp4_demuxer_get_track(
     demuxer: *const Mp4WasmFileDemuxer,
     index: u32,
 ) -> *const Mp4DemuxTrackInfo {
@@ -172,9 +172,9 @@ pub unsafe extern "C" fn mp4_wasm_demuxer_get_track(
 /// サンプルエントリを JSON として取得する
 ///
 /// sample_entry ポインタからJSON文字列を返す。
-/// TypeScript 側で mp4_wasm_vec_ptr/mp4_wasm_vec_len を使って読み取る。
+/// TypeScript 側で mp4_vec_ptr/mp4_vec_len を使って読み取る。
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_sample_entry_to_json(
+pub unsafe extern "C" fn mp4_sample_entry_to_json(
     demuxer: *const Mp4WasmFileDemuxer,
     sample_entry: *const Mp4SampleEntry,
 ) -> *const Vec<u8> {
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn mp4_wasm_sample_entry_to_json(
 
 /// 次のサンプルを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_wasm_demuxer_next_sample(
+pub unsafe extern "C" fn mp4_demuxer_next_sample(
     demuxer: *mut Mp4WasmFileDemuxer,
     out_sample: *mut Mp4DemuxSample,
 ) -> Mp4Error {
