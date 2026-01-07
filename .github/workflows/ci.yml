@@ -60,9 +60,9 @@ jobs:
       - run: rustup show
 
       # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
-      - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: cargo build --workspace --exclude wasm --exclude dump_wasm --exclude transcode_wasm
       - run: ls target/debug/
-      - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm
+      - run: cargo test --workspace --exclude wasm --exclude dump_wasm --exclude transcode_wasm
 
       - name: Windows の場合には MSVC 系でもビルドだけは試す（テスト用の実行可能バイナリの作成は、MSVC 固有のパス解決処理が複雑になりすぎるので見送り）
         if: contains(matrix.os, 'windows')
