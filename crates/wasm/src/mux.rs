@@ -1,4 +1,4 @@
-//! shiguredo_mp4::mux の wasm FFI
+//! shiguredo_mp4::mux の wasm バインディング
 
 use std::num::NonZeroU32;
 

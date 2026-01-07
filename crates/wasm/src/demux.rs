@@ -1,4 +1,4 @@
-//! shiguredo_mp4::demux の wasm FFI
+//! shiguredo_mp4::demux の wasm バインディング
 
 use shiguredo_mp4::BaseBox;
 

@@ -1,6 +1,6 @@
 //! shiguredo_mp4 の wasm バインディング
 //!
-//! FFI 方式で demux, mux, boxes の機能を提供する
+//! demux, mux, boxes の機能を提供する
 
 #![expect(clippy::missing_safety_doc)]
 
