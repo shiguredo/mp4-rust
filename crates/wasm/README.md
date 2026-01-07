@@ -40,45 +40,45 @@ wasm-opt -Oz --enable-bulk-memory -o mp4_wasm.wasm target/wasm32-unknown-unknown
 
 ### メモリ管理
 
-- `mp4_alloc`: メモリ確保
-- `mp4_free`: メモリ解放
-- `mp4_vec_ptr`: Vec のポインタ取得
-- `mp4_vec_len`: Vec の長さ取得
-- `mp4_vec_free`: Vec の解放
-- `mp4_version`: ライブラリバージョン取得
+- `mp4_wasm_alloc`: メモリ確保
+- `mp4_wasm_free`: メモリ解放
+- `mp4_wasm_vec_ptr`: Vec のポインタ取得
+- `mp4_wasm_vec_len`: Vec の長さ取得
+- `mp4_wasm_vec_free`: Vec の解放
+- `mp4_wasm_version`: ライブラリバージョン取得
 
 ### デマルチプレックス
 
-- `mp4_demuxer_new`: デマルチプレクサ作成
-- `mp4_demuxer_free`: デマルチプレクサ解放
-- `mp4_demuxer_get_last_error`: エラーメッセージ取得
-- `mp4_demuxer_get_required_input_position`: 必要な入力位置取得
-- `mp4_demuxer_get_required_input_size`: 必要な入力サイズ取得
-- `mp4_demuxer_handle_input`: 入力データ供給
-- `mp4_demuxer_get_track_count`: トラック数取得
-- `mp4_demuxer_get_track`: トラック情報取得
-- `mp4_demuxer_next_sample`: 次のサンプル取得
-- `mp4_sample_entry_to_json`: サンプルエントリを JSON で取得
+- `mp4_wasm_demuxer_new`: デマルチプレクサ作成
+- `mp4_wasm_demuxer_free`: デマルチプレクサ解放
+- `mp4_wasm_demuxer_get_last_error`: エラーメッセージ取得
+- `mp4_wasm_demuxer_get_required_input_position`: 必要な入力位置取得
+- `mp4_wasm_demuxer_get_required_input_size`: 必要な入力サイズ取得
+- `mp4_wasm_demuxer_handle_input`: 入力データ供給
+- `mp4_wasm_demuxer_get_track_count`: トラック数取得
+- `mp4_wasm_demuxer_get_track`: トラック情報取得
+- `mp4_wasm_demuxer_next_sample`: 次のサンプル取得
+- `mp4_wasm_sample_entry_to_json`: サンプルエントリを JSON で取得
 
 ### マルチプレックス
 
-- `mp4_estimate_maximum_moov_box_size`: moov ボックスサイズ見積もり
-- `mp4_muxer_new`: マルチプレクサ作成
-- `mp4_muxer_free`: マルチプレクサ解放
-- `mp4_muxer_get_last_error`: エラーメッセージ取得
-- `mp4_muxer_set_reserved_moov_box_size`: faststart 用 moov サイズ設定
-- `mp4_muxer_initialize`: 初期化
-- `mp4_muxer_has_output`: 出力データ有無確認
-- `mp4_muxer_get_output_offset`: 出力オフセット取得
-- `mp4_muxer_get_output_size`: 出力サイズ取得
-- `mp4_muxer_get_output_ptr`: 出力ポインタ取得
-- `mp4_muxer_advance_output`: 次の出力へ進む
-- `mp4_muxer_append_sample`: サンプル追加
-- `mp4_muxer_finalize`: 完了処理
+- `mp4_wasm_estimate_maximum_moov_box_size`: moov ボックスサイズ見積もり
+- `mp4_wasm_muxer_new`: マルチプレクサ作成
+- `mp4_wasm_muxer_free`: マルチプレクサ解放
+- `mp4_wasm_muxer_get_last_error`: エラーメッセージ取得
+- `mp4_wasm_muxer_set_reserved_moov_box_size`: faststart 用 moov サイズ設定
+- `mp4_wasm_muxer_initialize`: 初期化
+- `mp4_wasm_muxer_has_output`: 出力データ有無確認
+- `mp4_wasm_muxer_get_output_offset`: 出力オフセット取得
+- `mp4_wasm_muxer_get_output_size`: 出力サイズ取得
+- `mp4_wasm_muxer_get_output_ptr`: 出力ポインタ取得
+- `mp4_wasm_muxer_advance_output`: 次の出力へ進む
+- `mp4_wasm_muxer_append_sample`: サンプル追加
+- `mp4_wasm_muxer_finalize`: 完了処理
 
 ## JSON 形式のサンプルエントリ
 
-`mp4_sample_entry_to_json` を使用すると、サンプルエントリ情報を JSON 文字列として取得できます。
+`mp4_wasm_sample_entry_to_json` を使用すると、サンプルエントリ情報を JSON 文字列として取得できます。
 
 バイナリデータ（SPS/PPS/NALU 等）は数値配列として返されます。
 

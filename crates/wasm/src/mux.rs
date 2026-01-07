@@ -30,7 +30,7 @@ impl Mp4WasmFileMuxer {
 
 /// moov ボックスの最大サイズを見積もる
 #[unsafe(no_mangle)]
-pub extern "C" fn mp4_estimate_maximum_moov_box_size(
+pub extern "C" fn mp4_wasm_estimate_maximum_moov_box_size(
     audio_sample_count: u32,
     video_sample_count: u32,
 ) -> u32 {
@@ -42,7 +42,7 @@ pub extern "C" fn mp4_estimate_maximum_moov_box_size(
 
 /// 新しい Mp4WasmFileMuxer を作成する
 #[unsafe(no_mangle)]
-pub extern "C" fn mp4_muxer_new() -> *mut Mp4WasmFileMuxer {
+pub extern "C" fn mp4_wasm_muxer_new() -> *mut Mp4WasmFileMuxer {
     let muxer = Box::new(Mp4WasmFileMuxer {
         options: shiguredo_mp4::mux::Mp4FileMuxerOptions::default(),
         inner: None,
@@ -55,7 +55,7 @@ pub extern "C" fn mp4_muxer_new() -> *mut Mp4WasmFileMuxer {
 
 /// Mp4WasmFileMuxer を解放する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_free(muxer: *mut Mp4WasmFileMuxer) {
+pub unsafe extern "C" fn mp4_wasm_muxer_free(muxer: *mut Mp4WasmFileMuxer) {
     if !muxer.is_null() {
         let _ = unsafe { Box::from_raw(muxer) };
     }
@@ -63,7 +63,7 @@ pub unsafe extern "C" fn mp4_muxer_free(muxer: *mut Mp4WasmFileMuxer) {
 
 /// 最後のエラーメッセージを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_get_last_error(
+pub unsafe extern "C" fn mp4_wasm_muxer_get_last_error(
     muxer: *const Mp4WasmFileMuxer,
 ) -> *const Vec<u8> {
     if muxer.is_null() {
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn mp4_muxer_get_last_error(
 
 /// faststart 用の moov ボックスサイズを設定する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_set_reserved_moov_box_size(
+pub unsafe extern "C" fn mp4_wasm_muxer_set_reserved_moov_box_size(
     muxer: *mut Mp4WasmFileMuxer,
     size: u64,
 ) -> Mp4Error {
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn mp4_muxer_set_reserved_moov_box_size(
 
 /// マルチプレックス処理を初期化する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_initialize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
+pub unsafe extern "C" fn mp4_wasm_muxer_initialize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
@@ -125,7 +125,7 @@ pub unsafe extern "C" fn mp4_muxer_initialize(muxer: *mut Mp4WasmFileMuxer) -> M
 
 /// 次の出力データがあるかどうかを確認する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_has_output(muxer: *const Mp4WasmFileMuxer) -> u32 {
+pub unsafe extern "C" fn mp4_wasm_muxer_has_output(muxer: *const Mp4WasmFileMuxer) -> u32 {
     if muxer.is_null() {
         return 0;
     }
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn mp4_muxer_has_output(muxer: *const Mp4WasmFileMuxer) ->
 
 /// 次の出力データのオフセットを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_get_output_offset(muxer: *const Mp4WasmFileMuxer) -> u64 {
+pub unsafe extern "C" fn mp4_wasm_muxer_get_output_offset(muxer: *const Mp4WasmFileMuxer) -> u64 {
     if muxer.is_null() {
         return 0;
     }
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn mp4_muxer_get_output_offset(muxer: *const Mp4WasmFileMu
 
 /// 次の出力データのサイズを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_get_output_size(muxer: *const Mp4WasmFileMuxer) -> u32 {
+pub unsafe extern "C" fn mp4_wasm_muxer_get_output_size(muxer: *const Mp4WasmFileMuxer) -> u32 {
     if muxer.is_null() {
         return 0;
     }
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn mp4_muxer_get_output_size(muxer: *const Mp4WasmFileMuxe
 
 /// 次の出力データのポインタを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_get_output_ptr(muxer: *const Mp4WasmFileMuxer) -> *const u8 {
+pub unsafe extern "C" fn mp4_wasm_muxer_get_output_ptr(muxer: *const Mp4WasmFileMuxer) -> *const u8 {
     if muxer.is_null() {
         return std::ptr::null();
     }
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn mp4_muxer_get_output_ptr(muxer: *const Mp4WasmFileMuxer
 
 /// 次の出力データに進む
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_advance_output(muxer: *mut Mp4WasmFileMuxer) {
+pub unsafe extern "C" fn mp4_wasm_muxer_advance_output(muxer: *mut Mp4WasmFileMuxer) {
     if muxer.is_null() {
         return;
     }
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn mp4_muxer_advance_output(muxer: *mut Mp4WasmFileMuxer) 
 
 /// サンプルを追加する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_append_sample(
+pub unsafe extern "C" fn mp4_wasm_muxer_append_sample(
     muxer: *mut Mp4WasmFileMuxer,
     sample: *const Mp4MuxSample,
 ) -> Mp4Error {
@@ -255,7 +255,7 @@ pub unsafe extern "C" fn mp4_muxer_append_sample(
 
 /// マルチプレックス処理を完了する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_finalize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
+pub unsafe extern "C" fn mp4_wasm_muxer_finalize(muxer: *mut Mp4WasmFileMuxer) -> Mp4Error {
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
