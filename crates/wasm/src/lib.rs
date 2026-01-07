@@ -2,7 +2,7 @@
 //!
 //! FFI 方式で demux, mux, boxes の機能を提供する
 
-#![allow(clippy::missing_safety_doc)]
+#![expect(clippy::missing_safety_doc)]
 
 pub mod boxes;
 pub mod demux;
