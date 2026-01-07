@@ -6,10 +6,9 @@ use nojson::{DisplayJson, JsonFormatter, json};
 
 // c-api の型を re-export
 pub use c_api::boxes::{
-    Mp4SampleEntry, Mp4SampleEntryAv01, Mp4SampleEntryAvc1, Mp4SampleEntryData,
-    Mp4SampleEntryFlac, Mp4SampleEntryHev1, Mp4SampleEntryHvc1, Mp4SampleEntryKind,
-    Mp4SampleEntryMp4a, Mp4SampleEntryOpus, Mp4SampleEntryOwned, Mp4SampleEntryVp08,
-    Mp4SampleEntryVp09,
+    Mp4SampleEntry, Mp4SampleEntryAv01, Mp4SampleEntryAvc1, Mp4SampleEntryData, Mp4SampleEntryFlac,
+    Mp4SampleEntryHev1, Mp4SampleEntryHvc1, Mp4SampleEntryKind, Mp4SampleEntryMp4a,
+    Mp4SampleEntryOpus, Mp4SampleEntryOwned, Mp4SampleEntryVp08, Mp4SampleEntryVp09,
 };
 
 /// Mp4SampleEntryOwned の JSON シリアライズ機能を提供する trait

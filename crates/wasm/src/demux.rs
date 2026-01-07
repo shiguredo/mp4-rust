@@ -280,7 +280,9 @@ pub unsafe extern "C" fn mp4_demuxer_next_sample(
             Mp4Error::MP4_ERROR_OK
         }
         Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
-        Err(shiguredo_mp4::demux::DemuxError::InputRequired(_)) => Mp4Error::MP4_ERROR_INPUT_REQUIRED,
+        Err(shiguredo_mp4::demux::DemuxError::InputRequired(_)) => {
+            Mp4Error::MP4_ERROR_INPUT_REQUIRED
+        }
         Err(e) => {
             demuxer.set_last_error(&format!("{e}"));
             Mp4Error::MP4_ERROR_INVALID_DATA

@@ -170,9 +170,7 @@ pub unsafe extern "C" fn mp4_muxer_get_output_size(muxer: *const Mp4WasmFileMuxe
 
 /// 次の出力データのポインタを取得する
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mp4_muxer_get_output_ptr(
-    muxer: *const Mp4WasmFileMuxer,
-) -> *const u8 {
+pub unsafe extern "C" fn mp4_muxer_get_output_ptr(muxer: *const Mp4WasmFileMuxer) -> *const u8 {
     if muxer.is_null() {
         return std::ptr::null();
     }
