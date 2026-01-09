@@ -371,14 +371,39 @@ impl nojson::DisplayJson for JsonHevcNaluArrays {
     }
 }
 
-/*
-    // TODO: テストは shiguredo_mp4 に依存しない形に書き換える
 #[cfg(test)]
 mod tests {
-
     use super::*;
-    use shiguredo_mp4::{FixedPointNumber, Uint, boxes::*};
 
+    use c_api::boxes::Mp4SampleEntryData;
+
+    #[test]
+    fn test_opus_to_json() {
+        let opus_data = Mp4SampleEntryOpus {
+            channel_count: 2,
+            sample_rate: 48000,
+            sample_size: 16,
+            pre_skip: 312,
+            input_sample_rate: 48000,
+            output_gain: 0,
+        };
+
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS,
+            data: Mp4SampleEntryData { opus: opus_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"opus""#));
+        assert!(json.contains(r#""channelCount":2"#));
+        assert!(json.contains(r#""sampleRate":48000"#));
+        assert!(json.contains(r#""preSkip":312"#));
+        assert!(json.contains(r#""inputSampleRate":48000"#));
+        assert!(json.contains(r#""outputGain":0"#));
+    }
+
+    /*
     fn create_visual_sample_entry_fields(width: u16, height: u16) -> VisualSampleEntryFields {
         VisualSampleEntryFields {
             data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
@@ -404,30 +429,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_opus_to_json() {
-        let opus_box = OpusBox {
-            audio: create_audio_sample_entry_fields(2, 48000),
-            dops_box: DopsBox {
-                output_channel_count: 2,
-                pre_skip: 312,
-                input_sample_rate: 48000,
-                output_gain: 0,
-            },
-            unknown_boxes: Vec::new(),
-        };
-
-        let entry = SampleEntry::Opus(opus_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
-
-        assert!(json.contains(r#""kind":"opus""#));
-        assert!(json.contains(r#""channelCount":2"#));
-        assert!(json.contains(r#""sampleRate":48000"#));
-        assert!(json.contains(r#""preSkip":312"#));
-        assert!(json.contains(r#""inputSampleRate":48000"#));
-        assert!(json.contains(r#""outputGain":0"#));
-    }
 
     #[test]
     fn test_avc1_to_json() {
@@ -590,5 +591,5 @@ mod tests {
         assert!(json.contains(r#""sampleRate":44100"#));
         assert!(json.contains(r#""streaminfoData":[0,16,0,16]"#));
     }
+    */
 }
-*/
