@@ -28,14 +28,20 @@ fn main() -> io::Result<()> {
     let mut buffer = vec![0u8; BUFFER_SIZE];
 
     // 初期化完了まで必要なデータを段階的に読み込む
-    while let Some(required) = demuxer.required_input() {
-        // 必要なデータを読み込む
-        let data = read_from_file(&mut file, required.position, required.size, &mut buffer)?;
-        let input = Input {
-            position: required.position,
-            data,
-        };
-        demuxer.handle_input(input);
+    loop {
+        match demuxer.required_input() {
+            Some(required) => {
+                // 必要なデータを読み込む
+                let data =
+                    read_from_file(&mut file, required.position, required.size, &mut buffer)?;
+                let input = Input {
+                    position: required.position,
+                    data,
+                };
+                demuxer.handle_input(input);
+            }
+            None => break,
+        }
     }
 
     // トラック情報を取得する
@@ -66,27 +72,30 @@ fn main() -> io::Result<()> {
 
     // 時系列順にサンプルを抽出する
     loop {
-        match demuxer.next_sample() {
-            Ok(Some(sample)) => {
-                sample_count += 1;
-                println!("  Sample {}:", sample_count);
-                println!("    Track ID: {}", sample.track.track_id);
-                println!("    Timestamp: {}", sample.timestamp);
-                println!("    Data offset: 0x{:x}", sample.data_offset);
-                println!("    Data size: {} bytes", sample.data_size);
-                println!();
+        loop {
+            match demuxer.next_sample() {
+                Ok(Some(sample)) => {
+                    sample_count += 1;
+                    println!("  Sample {}:", sample_count);
+                    println!("    Track ID: {}", sample.track.track_id);
+                    println!("    Timestamp: {}", sample.timestamp);
+                    println!("    Data offset: 0x{:x}", sample.data_offset);
+                    println!("    Data size: {} bytes", sample.data_size);
+                    println!();
 
-                if sample_count >= 10 {
-                    println!("  ... (showing first 10 samples)");
-                    break;
+                    if sample_count >= 10 {
+                        println!("  ... (showing first 10 samples)");
+                        break;
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
                 }
             }
-            Ok(None) => break,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
         }
+        break;
     }
 
     Ok(())

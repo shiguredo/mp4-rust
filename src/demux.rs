@@ -605,7 +605,7 @@ mod tests {
     fn read_tracks_from_file_data(file_data: &[u8]) -> Vec<TrackInfo> {
         let input = Input {
             position: 0,
-            data: file_data,
+            data: &file_data,
         };
         let mut demuxer = Mp4FileDemuxer::new();
         demuxer.handle_input(input);

@@ -903,7 +903,7 @@ mod tests {
     fn test_muxer_creation() {
         // オプションなし
         let muxer = Mp4FileMuxer::new().expect("failed to create muxer");
-        assert!(!muxer.initial_boxes_bytes().is_empty());
+        assert!(muxer.initial_boxes_bytes().len() > 0);
         assert!(muxer.finalized_boxes().is_none());
 
         // オプションあり
@@ -913,7 +913,7 @@ mod tests {
         };
         let muxer =
             Mp4FileMuxer::with_options(options).expect("failed to create muxer with options");
-        assert!(!muxer.initial_boxes_bytes().is_empty());
+        assert!(muxer.initial_boxes_bytes().len() > 0);
     }
 
     /// サンプル追加とファイナライズの基本的なワークフローテスト
@@ -952,8 +952,8 @@ mod tests {
 
         // マルチプレクサーをファイナライズ
         let finalized = muxer.finalize().expect("failed to finalize");
-        assert!(!finalized.moov_box_bytes.is_empty());
-        assert!(!finalized.mdat_box_header_bytes.is_empty());
+        assert!(finalized.moov_box_bytes.len() > 0);
+        assert!(finalized.mdat_box_header_bytes.len() > 0);
     }
 
     /// ポジション不一致エラーのテスト
@@ -1073,7 +1073,7 @@ mod tests {
             .expect("failed to append audio sample");
 
         let finalized = muxer.finalize().expect("failed to finalize");
-        assert!(!finalized.moov_box_bytes.is_empty());
+        assert!(finalized.moov_box_bytes.len() > 0);
     }
 
     /// faststart 機能の有効化テスト
@@ -1127,7 +1127,7 @@ mod tests {
         }
 
         let finalized = muxer.finalize().expect("failed to finalize");
-        assert!(!finalized.moov_box_bytes.is_empty());
+        assert!(finalized.moov_box_bytes.len() > 0);
     }
 
     fn create_avc1_sample_entry() -> SampleEntry {
