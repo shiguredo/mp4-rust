@@ -26,6 +26,10 @@
 - コミットメッセージは命令形で書くこと
 - コミットメッセージは〜するという形で書くこと
 
+## pre-commit
+
+- cargo fmt / cargo clippy / cargo check / cargo test を実行すること
+
 ## CHANGES の記載方法について
 
 - 同一バージョンのリリース内では、同じカテゴリ（ UPDATE / ADD / CHANGE / FIX）のエントリー同士は連続して配置するようにする
