@@ -13,153 +13,204 @@ pub fn fmt_json_mp4_sample_entry(
     match sample_entry.kind {
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1 => {
             let data = unsafe { &sample_entry.data.avc1 };
-            f.object(|f| {
-                f.member("kind", "avc1")?;
-                f.member("width", data.width)?;
-                f.member("height", data.height)?;
-                f.member("avcProfileIndication", data.avc_profile_indication)?;
-                f.member("profileCompatibility", data.profile_compatibility)?;
-                f.member("avcLevelIndication", data.avc_level_indication)?;
-                f.member("lengthSizeMinusOne", data.length_size_minus_one)?;
-                if data.is_chroma_format_present {
-                    f.member("chromaFormat", data.chroma_format)?;
-                }
-                if data.is_bit_depth_luma_minus8_present {
-                    f.member("bitDepthLumaMinus8", data.bit_depth_luma_minus8)?;
-                }
-                if data.is_bit_depth_chroma_minus8_present {
-                    f.member("bitDepthChromaMinus8", data.bit_depth_chroma_minus8)?;
-                }
-                f.member(
-                    "sps",
-                    JsonAvcNaluList {
-                        data_ptr: data.sps_data,
-                        sizes_ptr: data.sps_sizes,
-                        count: data.sps_count,
-                    },
-                )?;
-                f.member(
-                    "pps",
-                    JsonAvcNaluList {
-                        data_ptr: data.pps_data,
-                        sizes_ptr: data.pps_sizes,
-                        count: data.pps_count,
-                    },
-                )
-            })
+            fmt_json_mp4_sample_entry_avc1(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1 => {
-            // let data = unsafe { &sample_entry.data.hev1 };
-            // format_hevc_ref(f, "hev1", data)
+            let data = unsafe { &sample_entry.data.hev1 };
             todo!()
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HVC1 => {
-            // let data = unsafe { &sample_entry.data.hvc1 };
-            // format_hvc1_ref(f, "hvc1", data)
+            let data = unsafe { &sample_entry.data.hvc1 };
             todo!()
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08 => {
             let data = unsafe { &sample_entry.data.vp08 };
-            f.object(|f| {
-                f.member("kind", "vp08")?;
-                f.member("width", data.width)?;
-                f.member("height", data.height)?;
-                f.member("bitDepth", data.bit_depth)?;
-                f.member("chromaSubsampling", data.chroma_subsampling)?;
-                f.member("videoFullRangeFlag", u8::from(data.video_full_range_flag))?;
-                f.member("colourPrimaries", data.colour_primaries)?;
-                f.member("transferCharacteristics", data.transfer_characteristics)?;
-                f.member("matrixCoefficients", data.matrix_coefficients)
-            })
+            fmt_json_mp4_sample_entry_vp08(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09 => {
             let data = unsafe { &sample_entry.data.vp09 };
-            f.object(|f| {
-                f.member("kind", "vp09")?;
-                f.member("width", data.width)?;
-                f.member("height", data.height)?;
-                f.member("profile", data.profile)?;
-                f.member("level", data.level)?;
-                f.member("bitDepth", data.bit_depth)?;
-                f.member("chromaSubsampling", data.chroma_subsampling)?;
-                f.member("videoFullRangeFlag", u8::from(data.video_full_range_flag))?;
-                f.member("colourPrimaries", data.colour_primaries)?;
-                f.member("transferCharacteristics", data.transfer_characteristics)?;
-                f.member("matrixCoefficients", data.matrix_coefficients)
-            })
+            fmt_json_mp4_sample_entry_vp09(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01 => {
             let data = unsafe { &sample_entry.data.av01 };
-            f.object(|f| {
-                f.member("kind", "av01")?;
-                f.member("width", data.width)?;
-                f.member("height", data.height)?;
-                f.member("seqProfile", data.seq_profile)?;
-                f.member("seqLevelIdx0", data.seq_level_idx_0)?;
-                f.member("seqTier0", data.seq_tier_0)?;
-                f.member("highBitdepth", data.high_bitdepth)?;
-                f.member("twelveBit", data.twelve_bit)?;
-                f.member("monochrome", data.monochrome)?;
-                f.member("chromaSubsamplingX", data.chroma_subsampling_x)?;
-                f.member("chromaSubsamplingY", data.chroma_subsampling_y)?;
-                f.member("chromaSamplePosition", data.chroma_sample_position)?;
-                if data.initial_presentation_delay_present {
-                    f.member(
-                        "initialPresentationDelayMinusOne",
-                        data.initial_presentation_delay_minus_one,
-                    )?;
-                }
-                let config_obus = unsafe {
-                    std::slice::from_raw_parts(data.config_obus, data.config_obus_size as usize)
-                };
-                f.member("configObus", config_obus)
-            })
+            fmt_json_mp4_sample_entry_av01(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS => {
             let data = unsafe { &sample_entry.data.opus };
-            f.object(|f| {
-                f.member("kind", "opus")?;
-                f.member("channelCount", data.channel_count)?;
-                f.member("sampleRate", data.sample_rate)?;
-                f.member("sampleSize", data.sample_size)?;
-                f.member("preSkip", data.pre_skip)?;
-                f.member("inputSampleRate", data.input_sample_rate)?;
-                f.member("outputGain", data.output_gain)
-            })
+            fmt_json_mp4_sample_entry_opus(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A => {
             let data = unsafe { &sample_entry.data.mp4a };
-            f.object(|f| {
-                f.member("kind", "mp4a")?;
-                f.member("channelCount", data.channel_count)?;
-                f.member("sampleRate", data.sample_rate)?;
-                f.member("sampleSize", data.sample_size)?;
-                f.member("bufferSizeDb", data.buffer_size_db)?;
-                f.member("maxBitrate", data.max_bitrate)?;
-                f.member("avgBitrate", data.avg_bitrate)?;
-                let dec_specific_info = unsafe {
-                    std::slice::from_raw_parts(
-                        data.dec_specific_info,
-                        data.dec_specific_info_size as usize,
-                    )
-                };
-                f.member("decSpecificInfo", dec_specific_info)
-            })
+            fmt_json_mp4_sample_entry_mp4a(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC => {
             let data = unsafe { &sample_entry.data.flac };
-            f.object(|f| {
-                f.member("kind", "flac")?;
-                f.member("channelCount", data.channel_count)?;
-                f.member("sampleRate", data.sample_rate)?;
-                f.member("sampleSize", data.sample_size)?;
-                let streaminfo = unsafe {
-                    std::slice::from_raw_parts(data.streaminfo_data, data.streaminfo_size as usize)
-                };
-                f.member("streaminfoData", streaminfo)
-            })
+            fmt_json_mp4_sample_entry_flac(f, data)?;
         }
     }
+    Ok(())
+}
+
+/// AVC1（H.264）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_avc1(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryAvc1,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "avc1")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("avcProfileIndication", data.avc_profile_indication)?;
+        f.member("profileCompatibility", data.profile_compatibility)?;
+        f.member("avcLevelIndication", data.avc_level_indication)?;
+        f.member("lengthSizeMinusOne", data.length_size_minus_one)?;
+        if data.is_chroma_format_present {
+            f.member("chromaFormat", data.chroma_format)?;
+        }
+        if data.is_bit_depth_luma_minus8_present {
+            f.member("bitDepthLumaMinus8", data.bit_depth_luma_minus8)?;
+        }
+        if data.is_bit_depth_chroma_minus8_present {
+            f.member("bitDepthChromaMinus8", data.bit_depth_chroma_minus8)?;
+        }
+        f.member(
+            "sps",
+            JsonAvcNaluList {
+                data_ptr: data.sps_data,
+                sizes_ptr: data.sps_sizes,
+                count: data.sps_count,
+            },
+        )?;
+        f.member(
+            "pps",
+            JsonAvcNaluList {
+                data_ptr: data.pps_data,
+                sizes_ptr: data.pps_sizes,
+                count: data.pps_count,
+            },
+        )
+    })
+}
+
+/// VP08（VP8）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_vp08(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryVp08,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "vp08")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("bitDepth", data.bit_depth)?;
+        f.member("chromaSubsampling", data.chroma_subsampling)?;
+        f.member("videoFullRangeFlag", u8::from(data.video_full_range_flag))?;
+        f.member("colourPrimaries", data.colour_primaries)?;
+        f.member("transferCharacteristics", data.transfer_characteristics)?;
+        f.member("matrixCoefficients", data.matrix_coefficients)
+    })
+}
+
+/// VP09（VP9）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_vp09(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryVp09,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "vp09")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("profile", data.profile)?;
+        f.member("level", data.level)?;
+        f.member("bitDepth", data.bit_depth)?;
+        f.member("chromaSubsampling", data.chroma_subsampling)?;
+        f.member("videoFullRangeFlag", u8::from(data.video_full_range_flag))?;
+        f.member("colourPrimaries", data.colour_primaries)?;
+        f.member("transferCharacteristics", data.transfer_characteristics)?;
+        f.member("matrixCoefficients", data.matrix_coefficients)
+    })
+}
+
+/// AV01（AV1）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_av01(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryAv01,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "av01")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("seqProfile", data.seq_profile)?;
+        f.member("seqLevelIdx0", data.seq_level_idx_0)?;
+        f.member("seqTier0", data.seq_tier_0)?;
+        f.member("highBitdepth", data.high_bitdepth)?;
+        f.member("twelveBit", data.twelve_bit)?;
+        f.member("monochrome", data.monochrome)?;
+        f.member("chromaSubsamplingX", data.chroma_subsampling_x)?;
+        f.member("chromaSubsamplingY", data.chroma_subsampling_y)?;
+        f.member("chromaSamplePosition", data.chroma_sample_position)?;
+        if data.initial_presentation_delay_present {
+            f.member(
+                "initialPresentationDelayMinusOne",
+                data.initial_presentation_delay_minus_one,
+            )?;
+        }
+        let config_obus =
+            unsafe { std::slice::from_raw_parts(data.config_obus, data.config_obus_size as usize) };
+        f.member("configObus", config_obus)
+    })
+}
+
+/// Opus サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_opus(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryOpus,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "opus")?;
+        f.member("channelCount", data.channel_count)?;
+        f.member("sampleRate", data.sample_rate)?;
+        f.member("sampleSize", data.sample_size)?;
+        f.member("preSkip", data.pre_skip)?;
+        f.member("inputSampleRate", data.input_sample_rate)?;
+        f.member("outputGain", data.output_gain)
+    })
+}
+
+/// MP4A（AAC）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_mp4a(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryMp4a,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "mp4a")?;
+        f.member("channelCount", data.channel_count)?;
+        f.member("sampleRate", data.sample_rate)?;
+        f.member("sampleSize", data.sample_size)?;
+        f.member("bufferSizeDb", data.buffer_size_db)?;
+        f.member("maxBitrate", data.max_bitrate)?;
+        f.member("avgBitrate", data.avg_bitrate)?;
+        let dec_specific_info = unsafe {
+            std::slice::from_raw_parts(data.dec_specific_info, data.dec_specific_info_size as usize)
+        };
+        f.member("decSpecificInfo", dec_specific_info)
+    })
+}
+
+/// FLAC サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_flac(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryFlac,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "flac")?;
+        f.member("channelCount", data.channel_count)?;
+        f.member("sampleRate", data.sample_rate)?;
+        f.member("sampleSize", data.sample_size)?;
+        let streaminfo = unsafe {
+            std::slice::from_raw_parts(data.streaminfo_data, data.streaminfo_size as usize)
+        };
+        f.member("streaminfoData", streaminfo)
+    })
 }
 
 /// AVC SPS/PPS リストの JSON シリアライズ用構造体
