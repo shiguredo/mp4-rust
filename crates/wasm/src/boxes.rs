@@ -403,6 +403,32 @@ mod tests {
         assert!(json.contains(r#""outputGain":0"#));
     }
 
+    #[test]
+    fn test_flac_to_json() {
+        static STREAMINFO: &[u8] = &[0x00, 0x10, 0x00, 0x10];
+
+        let flac_data = Mp4SampleEntryFlac {
+            channel_count: 2,
+            sample_rate: 44100,
+            sample_size: 16,
+            streaminfo_data: STREAMINFO.as_ptr(),
+            streaminfo_size: STREAMINFO.len() as u32,
+        };
+
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC,
+            data: Mp4SampleEntryData { flac: flac_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"flac""#));
+        assert!(json.contains(r#""channelCount":2"#));
+        assert!(json.contains(r#""sampleRate":44100"#));
+        assert!(json.contains(r#""sampleSize":16"#));
+        assert!(json.contains(r#""streaminfoData":"#));
+    }
+
     /*
     fn create_visual_sample_entry_fields(width: u16, height: u16) -> VisualSampleEntryFields {
         VisualSampleEntryFields {
@@ -568,28 +594,5 @@ mod tests {
         assert!(json.contains(r#""configObus":[10,11,0,0]"#));
     }
 
-    #[test]
-    fn test_flac_to_json() {
-        let flac_box = FlacBox {
-            audio: create_audio_sample_entry_fields(2, 44100),
-            dfla_box: DflaBox {
-                metadata_blocks: vec![FlacMetadataBlock {
-                    last_metadata_block_flag: Uint::from(true),
-                    block_type: FlacMetadataBlock::BLOCK_TYPE_STREAMINFO,
-                    block_data: vec![0x00, 0x10, 0x00, 0x10],
-                }],
-            },
-            unknown_boxes: Vec::new(),
-        };
-
-        let entry = SampleEntry::Flac(flac_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
-
-        assert!(json.contains(r#""kind":"flac""#));
-        assert!(json.contains(r#""channelCount":2"#));
-        assert!(json.contains(r#""sampleRate":44100"#));
-        assert!(json.contains(r#""streaminfoData":[0,16,0,16]"#));
-    }
     */
 }
