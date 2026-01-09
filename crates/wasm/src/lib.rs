@@ -5,6 +5,7 @@
 #![expect(clippy::missing_safety_doc)]
 
 pub mod boxes;
+pub mod demux;
 
 use std::alloc::Layout;
 
