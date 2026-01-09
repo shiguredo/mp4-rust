@@ -1,5 +1,6 @@
 //! C API の demux.rs に対応するモジュール
 use c_api::basic_types::Mp4TrackKind;
+use c_api::boxes::Mp4SampleEntry;
 use c_api::demux::{Mp4DemuxSample, Mp4DemuxTrackInfo};
 
 /// トラック情報を JSON 文字列に変換する
@@ -24,14 +25,59 @@ pub unsafe extern "C" fn mp4_demux_track_info_to_json(
     Box::into_raw(Box::new(json.into_bytes()))
 }
 
-/// TODO: doc
+/// サンプルを JSON 文字列に変換する
+///
+/// # 引数
+///
+/// - `sample`: 変換対象の Mp4DemuxSample へのポインタ
+///
+/// # 戻り値
+///
+/// JSON 文字列を含む Vec<u8> へのポインタ。エラー時は NULL
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_demux_sample_to_json(sample: *const Mp4DemuxSample) -> *mut Vec<u8> {
     if sample.is_null() {
         return std::ptr::null_mut();
     }
 
-    todo!()
+    let sample = unsafe { &*sample };
+    let json = nojson::json(|f| fmt_json_mp4_demux_sample(f, sample)).to_string();
+    Box::into_raw(Box::new(json.into_bytes()))
+}
+
+fn fmt_json_mp4_demux_sample(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    sample: &Mp4DemuxSample,
+) -> std::fmt::Result {
+    f.object(|f| {
+        // トラック情報
+        if !sample.track.is_null() {
+            let track = unsafe { &*sample.track };
+            f.member("track_id", track.track_id)?;
+        }
+
+        // サンプルエントリー
+        if !sample.sample_entry.is_null() {
+            let sample_entry = unsafe { &*sample.sample_entry };
+            f.member(
+                "sample_entry",
+                nojson::json(|f| fmt_json_mp4_sample_entry(f, sample_entry)),
+            )?;
+        }
+
+        // キーフレームフラグ
+        f.member("keyframe", sample.keyframe)?;
+
+        // タイムスタンプと尺
+        f.member("timestamp", sample.timestamp)?;
+        f.member("duration", sample.duration)?;
+
+        // データの位置とサイズ
+        f.member("data_offset", sample.data_offset)?;
+        f.member("data_size", sample.data_size)?;
+
+        Ok(())
+    })
 }
 
 fn fmt_json_mp4_demux_track_info(
@@ -49,4 +95,11 @@ fn fmt_json_mp4_demux_track_info(
         f.member("duration", track_info.duration)?;
         f.member("timescale", track_info.timescale)
     })
+}
+
+fn fmt_json_mp4_sample_entry(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    sample_entry: &Mp4SampleEntry,
+) -> std::fmt::Result {
+    todo!("これは最後に実装するので今は todo のままでいい")
 }
