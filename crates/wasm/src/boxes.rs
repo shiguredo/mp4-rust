@@ -429,87 +429,92 @@ mod tests {
         assert!(json.contains(r#""streaminfoData":"#));
     }
 
-    /*
-    fn create_visual_sample_entry_fields(width: u16, height: u16) -> VisualSampleEntryFields {
-        VisualSampleEntryFields {
-            data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            width,
-            height,
-            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
-            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
-            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
-            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
-            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
-        }
-    }
-
-    fn create_audio_sample_entry_fields(
-        channel_count: u16,
-        sample_rate: u16,
-    ) -> AudioSampleEntryFields {
-        AudioSampleEntryFields {
-            data_reference_index: AudioSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
-            channelcount: channel_count,
-            samplesize: 16,
-            samplerate: FixedPointNumber::new(sample_rate, 0),
-        }
-    }
-
-
     #[test]
-    fn test_avc1_to_json() {
-        let avc1_box = Avc1Box {
-            visual: create_visual_sample_entry_fields(1920, 1080),
-            avcc_box: AvccBox {
-                avc_profile_indication: 100,
-                profile_compatibility: 0,
-                avc_level_indication: 40,
-                length_size_minus_one: Uint::new(3),
-                sps_list: vec![vec![0x67, 0x64, 0x00, 0x28]],
-                pps_list: vec![vec![0x68, 0xee, 0x3c, 0x80]],
-                chroma_format: None,
-                bit_depth_luma_minus8: None,
-                bit_depth_chroma_minus8: None,
-                sps_ext_list: Vec::new(),
-            },
-            unknown_boxes: Vec::new(),
+    fn test_mp4a_to_json() {
+        // MP4A（AAC）サンプルエントリーの作成
+        // dec_specific_info は AAC-LC の場合の典型的な値
+        static DEC_SPECIFIC_INFO: &[u8] = &[0x12, 0x10];
+
+        let mp4a_data = Mp4SampleEntryMp4a {
+            channel_count: 2,
+            sample_rate: 44100,
+            sample_size: 16,
+            buffer_size_db: 0,
+            max_bitrate: 128000,
+            avg_bitrate: 128000,
+            dec_specific_info: DEC_SPECIFIC_INFO.as_ptr(),
+            dec_specific_info_size: DEC_SPECIFIC_INFO.len() as u32,
         };
 
-        let entry = SampleEntry::Avc1(avc1_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A,
+            data: Mp4SampleEntryData { mp4a: mp4a_data },
+        };
 
-        assert!(json.contains(r#""kind":"avc1""#));
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"mp4a""#));
+        assert!(json.contains(r#""channelCount":2"#));
+        assert!(json.contains(r#""sampleRate":44100"#));
+        assert!(json.contains(r#""sampleSize":16"#));
+        assert!(json.contains(r#""bufferSizeDb":0"#));
+        assert!(json.contains(r#""maxBitrate":128000"#));
+        assert!(json.contains(r#""avgBitrate":128000"#));
+        assert!(json.contains(r#""decSpecificInfo":"#));
+    }
+
+    #[test]
+    fn test_vp08_to_json() {
+        let vp08_data = Mp4SampleEntryVp08 {
+            width: 1920,
+            height: 1080,
+            bit_depth: 8,
+            chroma_subsampling: 1, // 4:2:0
+            video_full_range_flag: false,
+            colour_primaries: 1,         // BT.709
+            transfer_characteristics: 1, // BT.709
+            matrix_coefficients: 1,      // BT.709
+        };
+
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08,
+            data: Mp4SampleEntryData { vp08: vp08_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"vp08""#));
         assert!(json.contains(r#""width":1920"#));
         assert!(json.contains(r#""height":1080"#));
-        assert!(json.contains(r#""avcProfileIndication":100"#));
-        assert!(json.contains(r#""avcLevelIndication":40"#));
-        assert!(json.contains(r#""lengthSizeMinusOne":3"#));
-        assert!(json.contains(r#""sps":[[103,100,0,40]]"#));
-        assert!(json.contains(r#""pps":[[104,238,60,128]]"#));
+        assert!(json.contains(r#""bitDepth":8"#));
+        assert!(json.contains(r#""chromaSubsampling":1"#));
+        assert!(json.contains(r#""videoFullRangeFlag":0"#));
+        assert!(json.contains(r#""colourPrimaries":1"#));
+        assert!(json.contains(r#""transferCharacteristics":1"#));
+        assert!(json.contains(r#""matrixCoefficients":1"#));
     }
 
     #[test]
     fn test_vp09_to_json() {
-        let vp09_box = Vp09Box {
-            visual: create_visual_sample_entry_fields(1280, 720),
-            vpcc_box: VpccBox {
-                profile: 0,
-                level: 31,
-                bit_depth: Uint::new(8),
-                chroma_subsampling: Uint::new(1),
-                video_full_range_flag: Uint::new(0),
-                colour_primaries: 1,
-                transfer_characteristics: 1,
-                matrix_coefficients: 1,
-                codec_initialization_data: Vec::new(),
-            },
-            unknown_boxes: Vec::new(),
+        let vp09_data = Mp4SampleEntryVp09 {
+            width: 1280,
+            height: 720,
+            profile: 0,
+            level: 31,
+            bit_depth: 8,
+            chroma_subsampling: 1, // 4:2:0
+            video_full_range_flag: false,
+            colour_primaries: 1,         // BT.709
+            transfer_characteristics: 1, // BT.709
+            matrix_coefficients: 1,      // BT.709
         };
 
-        let entry = SampleEntry::Vp09(vp09_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09,
+            data: Mp4SampleEntryData { vp09: vp09_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
 
         assert!(json.contains(r#""kind":"vp09""#));
         assert!(json.contains(r#""width":1280"#));
@@ -517,82 +522,218 @@ mod tests {
         assert!(json.contains(r#""profile":0"#));
         assert!(json.contains(r#""level":31"#));
         assert!(json.contains(r#""bitDepth":8"#));
+        assert!(json.contains(r#""chromaSubsampling":1"#));
+        assert!(json.contains(r#""videoFullRangeFlag":0"#));
+        assert!(json.contains(r#""colourPrimaries":1"#));
+        assert!(json.contains(r#""transferCharacteristics":1"#));
+        assert!(json.contains(r#""matrixCoefficients":1"#));
     }
 
     #[test]
-    fn test_mp4a_to_json() {
-        use shiguredo_mp4::descriptors::*;
+    fn test_avc1_to_json() {
+        static SPS: &[u8] = &[0x67, 0x64, 0x00, 0x28];
+        static PPS: &[u8] = &[0x68, 0xee, 0x3c, 0x80];
 
-        let mp4a_box = Mp4aBox {
-            audio: create_audio_sample_entry_fields(2, 44100),
-            esds_box: EsdsBox {
-                es: EsDescriptor {
-                    es_id: EsDescriptor::MIN_ES_ID,
-                    stream_priority: EsDescriptor::LOWEST_STREAM_PRIORITY,
-                    depends_on_es_id: None,
-                    url_string: None,
-                    ocr_es_id: None,
-                    dec_config_descr: DecoderConfigDescriptor {
-                        object_type_indication:
-                            DecoderConfigDescriptor::OBJECT_TYPE_INDICATION_AUDIO_ISO_IEC_14496_3,
-                        stream_type: DecoderConfigDescriptor::STREAM_TYPE_AUDIO,
-                        up_stream: DecoderConfigDescriptor::UP_STREAM_FALSE,
-                        buffer_size_db: Uint::new(0),
-                        max_bitrate: 128000,
-                        avg_bitrate: 128000,
-                        dec_specific_info: Some(DecoderSpecificInfo {
-                            payload: vec![0x12, 0x10],
-                        }),
-                    },
-                    sl_config_descr: SlConfigDescriptor,
-                },
-            },
-            unknown_boxes: Vec::new(),
+        let sps_data = [SPS.as_ptr()];
+        let sps_sizes = [SPS.len() as u32];
+        let pps_data = [PPS.as_ptr()];
+        let pps_sizes = [PPS.len() as u32];
+
+        let avc1_data = Mp4SampleEntryAvc1 {
+            width: 1920,
+            height: 1080,
+            avc_profile_indication: 100,
+            profile_compatibility: 0,
+            avc_level_indication: 40,
+            length_size_minus_one: 3,
+            sps_data: sps_data.as_ptr(),
+            sps_sizes: sps_sizes.as_ptr(),
+            sps_count: 1,
+            pps_data: pps_data.as_ptr(),
+            pps_sizes: pps_sizes.as_ptr(),
+            pps_count: 1,
+            is_chroma_format_present: false,
+            chroma_format: 0,
+            is_bit_depth_luma_minus8_present: false,
+            bit_depth_luma_minus8: 0,
+            is_bit_depth_chroma_minus8_present: false,
+            bit_depth_chroma_minus8: 0,
         };
 
-        let entry = SampleEntry::Mp4a(mp4a_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1,
+            data: Mp4SampleEntryData { avc1: avc1_data },
+        };
 
-        assert!(json.contains(r#""kind":"mp4a""#));
-        assert!(json.contains(r#""channelCount":2"#));
-        assert!(json.contains(r#""sampleRate":44100"#));
-        assert!(json.contains(r#""maxBitrate":128000"#));
-        assert!(json.contains(r#""avgBitrate":128000"#));
-        assert!(json.contains(r#""decSpecificInfo":[18,16]"#));
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"avc1""#));
+        assert!(json.contains(r#""width":1920"#));
+        assert!(json.contains(r#""height":1080"#));
+        assert!(json.contains(r#""avcProfileIndication":100"#));
+        assert!(json.contains(r#""profileCompatibility":0"#));
+        assert!(json.contains(r#""avcLevelIndication":40"#));
+        assert!(json.contains(r#""lengthSizeMinusOne":3"#));
+        assert!(json.contains(r#""sps":"#));
+        assert!(json.contains(r#""pps":"#));
+    }
+
+    #[test]
+    fn test_hev1_to_json() {
+        static VPS: &[u8] = &[0x40, 0x01, 0x0c, 0x01];
+        static SPS: &[u8] = &[0x42, 0x01, 0x01, 0x01];
+        static PPS: &[u8] = &[0x44, 0x01, 0x00];
+
+        // NALU 配列を構築: VPS, SPS, PPS の順序で格納
+        let nalu_types = [32u8, 33u8, 34u8]; // VPS=32, SPS=33, PPS=34
+        let nalu_counts = [1u32, 1u32, 1u32];
+        let mut nalu_data = Vec::new();
+        let mut nalu_sizes_vec = Vec::new();
+
+        nalu_data.push(VPS.as_ptr());
+        nalu_sizes_vec.push(VPS.len() as u32);
+        nalu_data.push(SPS.as_ptr());
+        nalu_sizes_vec.push(SPS.len() as u32);
+        nalu_data.push(PPS.as_ptr());
+        nalu_sizes_vec.push(PPS.len() as u32);
+
+        let hev1_data = Mp4SampleEntryHev1 {
+            width: 1920,
+            height: 1080,
+            general_profile_space: 0,
+            general_tier_flag: 0,
+            general_profile_idc: 2,
+            general_profile_compatibility_flags: 0x60000000,
+            general_constraint_indicator_flags: 0xb0000000_00000000,
+            general_level_idc: 120,
+            chroma_format_idc: 1,
+            bit_depth_luma_minus8: 0,
+            bit_depth_chroma_minus8: 0,
+            min_spatial_segmentation_idc: 0,
+            parallelism_type: 0,
+            avg_frame_rate: 0,
+            constant_frame_rate: 0,
+            num_temporal_layers: 1,
+            temporal_id_nested: 0,
+            length_size_minus_one: 3,
+            nalu_array_count: 3,
+            nalu_types: nalu_types.as_ptr(),
+            nalu_counts: nalu_counts.as_ptr(),
+            nalu_data: nalu_data.as_ptr(),
+            nalu_sizes: nalu_sizes_vec.as_ptr(),
+        };
+
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1,
+            data: Mp4SampleEntryData { hev1: hev1_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"hev1""#));
+        assert!(json.contains(r#""width":1920"#));
+        assert!(json.contains(r#""height":1080"#));
+        assert!(json.contains(r#""generalProfileIdc":2"#));
+        assert!(json.contains(r#""generalLevelIdc":120"#));
+        assert!(json.contains(r#""lengthSizeMinusOne":3"#));
+        assert!(json.contains(r#""naluArrays":"#));
+    }
+
+    #[test]
+    fn test_hvc1_to_json() {
+        static VPS: &[u8] = &[0x40, 0x01, 0x0c, 0x01];
+        static SPS: &[u8] = &[0x42, 0x01, 0x01, 0x01];
+        static PPS: &[u8] = &[0x44, 0x01, 0x00];
+
+        // NALU 配列を構築: VPS, SPS, PPS の順序で格納
+        let nalu_types = [32u8, 33u8, 34u8]; // VPS=32, SPS=33, PPS=34
+        let nalu_counts = [1u32, 1u32, 1u32];
+        let mut nalu_data = Vec::new();
+        let mut nalu_sizes_vec = Vec::new();
+
+        nalu_data.push(VPS.as_ptr());
+        nalu_sizes_vec.push(VPS.len() as u32);
+        nalu_data.push(SPS.as_ptr());
+        nalu_sizes_vec.push(SPS.len() as u32);
+        nalu_data.push(PPS.as_ptr());
+        nalu_sizes_vec.push(PPS.len() as u32);
+
+        let hvc1_data = Mp4SampleEntryHvc1 {
+            width: 3840,
+            height: 2160,
+            general_profile_space: 0,
+            general_tier_flag: 1,
+            general_profile_idc: 2,
+            general_profile_compatibility_flags: 0x60000000,
+            general_constraint_indicator_flags: 0xb0000000_00000000,
+            general_level_idc: 153,
+            chroma_format_idc: 1,
+            bit_depth_luma_minus8: 0,
+            bit_depth_chroma_minus8: 0,
+            min_spatial_segmentation_idc: 0,
+            parallelism_type: 0,
+            avg_frame_rate: 0,
+            constant_frame_rate: 0,
+            num_temporal_layers: 1,
+            temporal_id_nested: 0,
+            length_size_minus_one: 3,
+            nalu_array_count: 3,
+            nalu_types: nalu_types.as_ptr(),
+            nalu_counts: nalu_counts.as_ptr(),
+            nalu_data: nalu_data.as_ptr(),
+            nalu_sizes: nalu_sizes_vec.as_ptr(),
+        };
+
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HVC1,
+            data: Mp4SampleEntryData { hvc1: hvc1_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
+
+        assert!(json.contains(r#""kind":"hvc1""#));
+        assert!(json.contains(r#""width":3840"#));
+        assert!(json.contains(r#""height":2160"#));
+        assert!(json.contains(r#""generalTierFlag":1"#));
+        assert!(json.contains(r#""generalLevelIdc":153"#));
+        assert!(json.contains(r#""naluArrays":"#));
     }
 
     #[test]
     fn test_av01_to_json() {
-        let av01_box = Av01Box {
-            visual: create_visual_sample_entry_fields(3840, 2160),
-            av1c_box: Av1cBox {
-                seq_profile: Uint::new(0),
-                seq_level_idx_0: Uint::new(13),
-                seq_tier_0: Uint::new(0),
-                high_bitdepth: Uint::new(0),
-                twelve_bit: Uint::new(0),
-                monochrome: Uint::new(0),
-                chroma_subsampling_x: Uint::new(1),
-                chroma_subsampling_y: Uint::new(1),
-                chroma_sample_position: Uint::new(0),
-                initial_presentation_delay_minus_one: None,
-                config_obus: vec![0x0a, 0x0b, 0x00, 0x00],
-            },
-            unknown_boxes: Vec::new(),
+        static CONFIG_OBUS: &[u8] = &[0x0a, 0x0b, 0x00, 0x00];
+
+        let av01_data = Mp4SampleEntryAv01 {
+            width: 3840,
+            height: 2160,
+            seq_profile: 0,
+            seq_level_idx_0: 13,
+            seq_tier_0: 0,
+            high_bitdepth: 0,
+            twelve_bit: 0,
+            monochrome: 0,
+            chroma_subsampling_x: 1,
+            chroma_subsampling_y: 1,
+            chroma_sample_position: 0,
+            initial_presentation_delay_present: false,
+            initial_presentation_delay_minus_one: 0,
+            config_obus: CONFIG_OBUS.as_ptr(),
+            config_obus_size: CONFIG_OBUS.len() as u32,
         };
 
-        let entry = SampleEntry::Av01(av01_box);
-        let owned = Mp4SampleEntryOwned::new(entry).unwrap();
-        let json = owned.to_json();
+        let sample_entry = Mp4SampleEntry {
+            kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01,
+            data: Mp4SampleEntryData { av01: av01_data },
+        };
+
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry(f, &sample_entry)).to_string();
 
         assert!(json.contains(r#""kind":"av01""#));
         assert!(json.contains(r#""width":3840"#));
         assert!(json.contains(r#""height":2160"#));
         assert!(json.contains(r#""seqProfile":0"#));
         assert!(json.contains(r#""seqLevelIdx0":13"#));
-        assert!(json.contains(r#""configObus":[10,11,0,0]"#));
+        assert!(json.contains(r#""seqTier0":0"#));
+        assert!(json.contains(r#""configObus":"#));
     }
-
-    */
 }
