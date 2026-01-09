@@ -4,12 +4,18 @@ use std::fmt::Result as FmtResult;
 
 use nojson::{DisplayJson, JsonFormatter, json};
 
-// c-api の型を re-export
-pub use c_api::boxes::{
+use c_api::boxes::{
     Mp4SampleEntry, Mp4SampleEntryAv01, Mp4SampleEntryAvc1, Mp4SampleEntryData, Mp4SampleEntryFlac,
     Mp4SampleEntryHev1, Mp4SampleEntryHvc1, Mp4SampleEntryKind, Mp4SampleEntryMp4a,
     Mp4SampleEntryOpus, Mp4SampleEntryOwned, Mp4SampleEntryVp08, Mp4SampleEntryVp09,
 };
+
+pub fn fmt_json_mp4_sample_entry(
+    _f: &mut nojson::JsonFormatter<'_, '_>,
+    _sample_entry: &Mp4SampleEntry,
+) -> std::fmt::Result {
+    todo!()
+}
 
 /// サンプルエントリを JSON 文字列に変換する
 ///

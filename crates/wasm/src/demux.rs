@@ -3,6 +3,8 @@ use c_api::basic_types::Mp4TrackKind;
 use c_api::boxes::Mp4SampleEntry;
 use c_api::demux::{Mp4DemuxSample, Mp4DemuxTrackInfo};
 
+use crate::boxes::fmt_json_mp4_sample_entry;
+
 /// トラック情報を JSON 文字列に変換する
 //
 /// # 引数
@@ -99,11 +101,4 @@ fn fmt_json_mp4_demux_track_info(
         f.member("duration", track_info.duration)?;
         f.member("timescale", track_info.timescale)
     })
-}
-
-fn fmt_json_mp4_sample_entry(
-    _f: &mut nojson::JsonFormatter<'_, '_>,
-    _sample_entry: &Mp4SampleEntry,
-) -> std::fmt::Result {
-    todo!("これは最後に実装するので今は todo のままでいい")
 }
