@@ -9,6 +9,5 @@ name = "mp4_wasm"
 crate-type = ["cdylib"]
 
 [dependencies]
-shiguredo_mp4 = { path = "../../" }
 c_api = { package = "c-api", path = "../c-api" }
 nojson = "0.3"

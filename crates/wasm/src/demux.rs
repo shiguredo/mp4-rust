@@ -1,6 +1,5 @@
 //! C API の demux.rs に対応するモジュール
 use c_api::basic_types::Mp4TrackKind;
-use c_api::boxes::Mp4SampleEntry;
 use c_api::demux::{Mp4DemuxSample, Mp4DemuxTrackInfo};
 
 use crate::boxes::fmt_json_mp4_sample_entry;
