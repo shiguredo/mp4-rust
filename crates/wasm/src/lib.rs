@@ -6,6 +6,7 @@
 
 pub mod boxes;
 pub mod demux;
+pub mod mux;
 
 use std::alloc::Layout;
 

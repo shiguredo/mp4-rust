@@ -102,8 +102,8 @@ fn fmt_json_mp4_demux_track_info(
 }
 
 fn fmt_json_mp4_sample_entry(
-    f: &mut nojson::JsonFormatter<'_, '_>,
-    sample_entry: &Mp4SampleEntry,
+    _f: &mut nojson::JsonFormatter<'_, '_>,
+    _sample_entry: &Mp4SampleEntry,
 ) -> std::fmt::Result {
     todo!("これは最後に実装するので今は todo のままでいい")
 }
