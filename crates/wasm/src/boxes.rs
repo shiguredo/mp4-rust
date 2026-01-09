@@ -1,9 +1,9 @@
 //! c_api::boxes の JSON シリアライズ機能を提供する wasm 専用モジュール
 
 use c_api::boxes::{
-    Mp4SampleEntry, Mp4SampleEntryAv01, Mp4SampleEntryAvc1, Mp4SampleEntryData, Mp4SampleEntryFlac,
-    Mp4SampleEntryHev1, Mp4SampleEntryHvc1, Mp4SampleEntryKind, Mp4SampleEntryMp4a,
-    Mp4SampleEntryOpus, Mp4SampleEntryOwned, Mp4SampleEntryVp08, Mp4SampleEntryVp09,
+    Mp4SampleEntry, Mp4SampleEntryAv01, Mp4SampleEntryAvc1, Mp4SampleEntryFlac, Mp4SampleEntryHev1,
+    Mp4SampleEntryHvc1, Mp4SampleEntryKind, Mp4SampleEntryMp4a, Mp4SampleEntryOpus,
+    Mp4SampleEntryVp08, Mp4SampleEntryVp09,
 };
 
 pub fn fmt_json_mp4_sample_entry(
@@ -17,11 +17,11 @@ pub fn fmt_json_mp4_sample_entry(
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1 => {
             let data = unsafe { &sample_entry.data.hev1 };
-            todo!()
+            fmt_json_mp4_sample_entry_hev1(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HVC1 => {
             let data = unsafe { &sample_entry.data.hvc1 };
-            todo!()
+            fmt_json_mp4_sample_entry_hvc1(f, data)?;
         }
         Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08 => {
             let data = unsafe { &sample_entry.data.vp08 };
@@ -228,6 +228,143 @@ impl nojson::DisplayJson for JsonAvcNaluList {
                 let nalu_size = unsafe { *self.sizes_ptr.add(i) } as usize;
                 let nalu = unsafe { std::slice::from_raw_parts(nalu_ptr, nalu_size) };
                 f.element(nalu)?;
+            }
+            Ok(())
+        })
+    }
+}
+
+/// HEV1（H.265/HEVC）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_hev1(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryHev1,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "hev1")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("generalProfileSpace", data.general_profile_space)?;
+        f.member("generalTierFlag", data.general_tier_flag)?;
+        f.member("generalProfileIdc", data.general_profile_idc)?;
+        f.member(
+            "generalProfileCompatibilityFlags",
+            data.general_profile_compatibility_flags,
+        )?;
+        f.member(
+            "generalConstraintIndicatorFlags",
+            data.general_constraint_indicator_flags,
+        )?;
+        f.member("generalLevelIdc", data.general_level_idc)?;
+        f.member("chromaFormatIdc", data.chroma_format_idc)?;
+        f.member("bitDepthLumaMinus8", data.bit_depth_luma_minus8)?;
+        f.member("bitDepthChromaMinus8", data.bit_depth_chroma_minus8)?;
+        f.member(
+            "minSpatialSegmentationIdc",
+            data.min_spatial_segmentation_idc,
+        )?;
+        f.member("parallelismType", data.parallelism_type)?;
+        f.member("avgFrameRate", data.avg_frame_rate)?;
+        f.member("constantFrameRate", data.constant_frame_rate)?;
+        f.member("numTemporalLayers", data.num_temporal_layers)?;
+        f.member("temporalIdNested", data.temporal_id_nested)?;
+        f.member("lengthSizeMinusOne", data.length_size_minus_one)?;
+        f.member(
+            "naluArrays",
+            JsonHevcNaluArrays {
+                nalu_types: data.nalu_types,
+                nalu_counts: data.nalu_counts,
+                nalu_data: data.nalu_data,
+                nalu_sizes: data.nalu_sizes,
+                nalu_array_count: data.nalu_array_count,
+            },
+        )
+    })
+}
+
+/// HVC1（H.265/HEVC）サンプルエントリーを JSON フォーマットする
+fn fmt_json_mp4_sample_entry_hvc1(
+    f: &mut nojson::JsonFormatter<'_, '_>,
+    data: &Mp4SampleEntryHvc1,
+) -> std::fmt::Result {
+    f.object(|f| {
+        f.member("kind", "hvc1")?;
+        f.member("width", data.width)?;
+        f.member("height", data.height)?;
+        f.member("generalProfileSpace", data.general_profile_space)?;
+        f.member("generalTierFlag", data.general_tier_flag)?;
+        f.member("generalProfileIdc", data.general_profile_idc)?;
+        f.member(
+            "generalProfileCompatibilityFlags",
+            data.general_profile_compatibility_flags,
+        )?;
+        f.member(
+            "generalConstraintIndicatorFlags",
+            data.general_constraint_indicator_flags,
+        )?;
+        f.member("generalLevelIdc", data.general_level_idc)?;
+        f.member("chromaFormatIdc", data.chroma_format_idc)?;
+        f.member("bitDepthLumaMinus8", data.bit_depth_luma_minus8)?;
+        f.member("bitDepthChromaMinus8", data.bit_depth_chroma_minus8)?;
+        f.member(
+            "minSpatialSegmentationIdc",
+            data.min_spatial_segmentation_idc,
+        )?;
+        f.member("parallelismType", data.parallelism_type)?;
+        f.member("avgFrameRate", data.avg_frame_rate)?;
+        f.member("constantFrameRate", data.constant_frame_rate)?;
+        f.member("numTemporalLayers", data.num_temporal_layers)?;
+        f.member("temporalIdNested", data.temporal_id_nested)?;
+        f.member("lengthSizeMinusOne", data.length_size_minus_one)?;
+        f.member(
+            "naluArrays",
+            JsonHevcNaluArrays {
+                nalu_types: data.nalu_types,
+                nalu_counts: data.nalu_counts,
+                nalu_data: data.nalu_data,
+                nalu_sizes: data.nalu_sizes,
+                nalu_array_count: data.nalu_array_count,
+            },
+        )
+    })
+}
+
+/// HEVC NALU 配列の JSON シリアライズ用構造体
+struct JsonHevcNaluArrays {
+    nalu_types: *const u8,
+    nalu_counts: *const u32,
+    nalu_data: *const *const u8,
+    nalu_sizes: *const u32,
+    nalu_array_count: u32,
+}
+
+impl nojson::DisplayJson for JsonHevcNaluArrays {
+    fn fmt(&self, f: &mut nojson::JsonFormatter<'_, '_>) -> std::fmt::Result {
+        f.array(|f| {
+            let mut nalu_index_base = 0u32;
+            for i in 0..self.nalu_array_count as usize {
+                let nalu_type = unsafe { *self.nalu_types.add(i) };
+                let nalu_count = unsafe { *self.nalu_counts.add(i) };
+
+                f.element(nojson::object(|f| {
+                    f.member("naluType", nalu_type)?;
+                    f.member(
+                        "units",
+                        nojson::array(|f| {
+                            for j in 0..nalu_count {
+                                let nalu_index = nalu_index_base + j;
+                                let nalu_ptr = unsafe { *self.nalu_data.add(nalu_index as usize) };
+                                let nalu_size =
+                                    unsafe { *self.nalu_sizes.add(nalu_index as usize) } as usize;
+                                let nalu =
+                                    unsafe { std::slice::from_raw_parts(nalu_ptr, nalu_size) };
+                                f.element(nalu)?;
+                            }
+                            Ok(())
+                        }),
+                    )
+                }))?;
+
+                nalu_index_base += nalu_count;
             }
             Ok(())
         })
