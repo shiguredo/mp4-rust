@@ -53,6 +53,10 @@ fn fmt_json_mp4_demux_sample(
         // トラック情報
         if !sample.track.is_null() {
             let track = unsafe { &*sample.track };
+
+            // トラック情報全体を毎回 JSON に変換するのは無駄なので、
+            // wasm 版ではサンプルには ID だけを持たせるようにする
+            // （ID と実際の情報とのマッピングを行うのは利用側の責務）
             f.member("track_id", track.track_id)?;
         }
 
