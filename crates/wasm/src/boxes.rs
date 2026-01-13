@@ -46,3 +46,21 @@ pub fn fmt_json_mp4_sample_entry(
     }
     Ok(())
 }
+
+/// バイト配列を mp4_alloc で確保してコピーするユーティリティ関数
+pub fn allocate_and_copy_bytes(data: &[u8]) -> (*const u8, u32) {
+    if data.is_empty() {
+        return (std::ptr::null(), 0);
+    }
+
+    let size = data.len() as u32;
+    let ptr = unsafe {
+        let allocated = crate::mp4_alloc(size);
+        if allocated.is_null() {
+            return (std::ptr::null(), 0);
+        }
+        std::ptr::copy_nonoverlapping(data.as_ptr(), allocated, data.len());
+        allocated as *const u8
+    };
+    (ptr, size)
+}

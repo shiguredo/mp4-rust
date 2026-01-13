@@ -69,16 +69,13 @@ mod tests {
         }"#;
 
         let json = nojson::RawJson::parse(json_str).expect("valid JSON");
-        let result = parse_json_mp4_sample_entry_opus(json.value());
+        let sample_entry = parse_json_mp4_sample_entry_opus(json.value()).expect("valid opus JSON");
 
-        assert!(result.is_ok());
-
-        let opus = result.unwrap();
-        assert_eq!(opus.channel_count, 2);
-        assert_eq!(opus.sample_rate, 48000);
-        assert_eq!(opus.sample_size, 16);
-        assert_eq!(opus.pre_skip, 312);
-        assert_eq!(opus.input_sample_rate, 48000);
-        assert_eq!(opus.output_gain, 0);
+        assert_eq!(sample_entry.channel_count, 2);
+        assert_eq!(sample_entry.sample_rate, 48000);
+        assert_eq!(sample_entry.sample_size, 16);
+        assert_eq!(sample_entry.pre_skip, 312);
+        assert_eq!(sample_entry.input_sample_rate, 48000);
+        assert_eq!(sample_entry.output_gain, 0);
     }
 }
