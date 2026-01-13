@@ -43,6 +43,15 @@ wasm-opt -Oz --enable-bulk-memory -o mp4_wasm.wasm target/wasm32-unknown-unknown
 
 `--enable-bulk-memory` は `release-wasm` プロファイルが bulk memory 命令を使用するため必要です。
 
+## Examples
+
+- デマルチプレックスの例:
+  - `node crates/wasm/examples/demux.js /path/to/input.mp4`
+  - MP4 ファイルを読み込み、トラック情報とサンプルデータを抽出
+- マルチプレックスの例:
+  - `node crates/wasm/examples/mux.js /path/to/output.mp4`
+  - Opus オーディオトラック（無音）を含む MP4 ファイルを作成
+
 ## 提供する機能
 
 ### wasm crate が提供する関数
