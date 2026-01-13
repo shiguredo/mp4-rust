@@ -4,7 +4,8 @@
  * # 使用方法
  *
  * ```bash
- * node demux.js /path/to/input.mp4
+ * cargo build --release --target wasm32-unknown-unknown -p wasm
+ * node --experimental-wasm-modules crates/wasm/examples/demux.js /path/to/input.mp4
  * ```
  */
 
