@@ -231,25 +231,33 @@ pub unsafe fn free_array_list(data_ptrs: *mut *mut u8, sizes: *mut u32, count: u
     }
 
     // 各バイト列のメモリを解放
-    if !data_ptrs.is_null() {
+    if !data_ptrs.is_null() && !sizes.is_null() {
         let ptrs = unsafe { std::slice::from_raw_parts(data_ptrs, count as usize) };
-        for ptr in ptrs {
+        let size_list = unsafe { std::slice::from_raw_parts(sizes, count as usize) };
+
+        // 各バイト列を実際のサイズで解放
+        for (ptr, size) in ptrs.iter().zip(size_list.iter()) {
             if !ptr.is_null() {
                 unsafe {
-                    crate::mp4_free(*ptr, 0);
+                    crate::mp4_free(*ptr, *size);
                 }
             }
         }
+
         // ポインタ配列自体を解放
+        // サイズ: count 個のポインタ分
+        let data_ptrs_size = (count as usize * std::mem::size_of::<*const u8>()) as u32;
         unsafe {
-            crate::mp4_free(data_ptrs as *mut u8, 0);
+            crate::mp4_free(data_ptrs as *mut u8, data_ptrs_size);
         }
     }
 
     // サイズ配列を解放
     if !sizes.is_null() {
+        // サイズ: count 個の u32 分
+        let sizes_size = (count as usize * std::mem::size_of::<u32>()) as u32;
         unsafe {
-            crate::mp4_free(sizes as *mut u8, 0);
+            crate::mp4_free(sizes as *mut u8, sizes_size);
         }
     }
 }
