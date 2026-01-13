@@ -39,7 +39,9 @@ pub unsafe extern "C" fn mp4_mux_sample_free(sample: *mut Mp4MuxSample) {
 
     let sample_mut = unsafe { &mut *sample };
     if !sample_mut.sample_entry.is_null() {
-        crate::boxes::mp4_sample_entry_free(sample_mut.sample_entry as *mut Mp4SampleEntry);
+        unsafe {
+            crate::boxes::mp4_sample_entry_free(sample_mut.sample_entry as *mut Mp4SampleEntry)
+        };
     }
     let _ = unsafe { Box::from_raw(sample) };
 }

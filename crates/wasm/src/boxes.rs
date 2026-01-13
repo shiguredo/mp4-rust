@@ -123,7 +123,7 @@ pub fn parse_json_mp4_sample_entry(
 }
 
 /// Mp4SampleEntry のメモリを解放する
-pub fn mp4_sample_entry_free(sample_entry: *mut Mp4SampleEntry) {
+pub unsafe fn mp4_sample_entry_free(sample_entry: *mut Mp4SampleEntry) {
     if sample_entry.is_null() {
         return;
     }
