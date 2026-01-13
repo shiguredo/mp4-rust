@@ -5,7 +5,7 @@
  *
  * ```bash
  * cargo build --release --target wasm32-unknown-unknown -p wasm
- * node --experimental-wasm-modules crates/wasm/examples/mux.js /path/to/output.mp4
+ * node crates/wasm/examples/mux.js /path/to/output.mp4
  * ```
  */
 
@@ -32,6 +32,8 @@ const {
     mp4_file_muxer_next_output,
     mp4_file_muxer_get_last_error,
     mp4_estimate_maximum_moov_box_size,
+    mp4_mux_sample_from_json,
+    mp4_mux_sample_free,
     mp4_alloc,
     mp4_free,
     mp4_vec_ptr,
@@ -178,14 +180,29 @@ async function createMP4WithOpus(outputPath) {
             const sampleJsonPtr = mp4_alloc(jsonBytes.length);
             writeU8Array(sampleJsonPtr, jsonBytes);
 
-            err = mp4_file_muxer_append_sample(muxerPtr, sampleJsonPtr);
-            if (err !== 0) {
+            // JSON を Mp4MuxSample に変換
+            const samplePtr = mp4_mux_sample_from_json(sampleJsonPtr, jsonBytes.length);
+            if (!samplePtr) {
                 const errorMsg = readCString(mp4_file_muxer_get_last_error(muxerPtr));
-                console.error(`Error: Failed to append sample ${i}: ${errorMsg}`);
+                console.error(`Error: Failed to convert sample ${i} from JSON: ${errorMsg}`);
                 mp4_file_muxer_free(muxerPtr);
+                mp4_free(sampleJsonPtr, jsonBytes.length);
                 process.exit(1);
             }
 
+            // Mp4MuxSample をマルチプレックサーに追加
+            err = mp4_file_muxer_append_sample(muxerPtr, samplePtr);
+            if (err !== 0) {
+                const errorMsg = readCString(mp4_file_muxer_get_last_error(muxerPtr));
+                console.error(`Error: Failed to append sample ${i}: ${errorMsg}`);
+                mp4_mux_sample_free(samplePtr);
+                mp4_file_muxer_free(muxerPtr);
+                mp4_free(sampleJsonPtr, jsonBytes.length);
+                process.exit(1);
+            }
+
+            // リソースを解放
+            mp4_mux_sample_free(samplePtr);
             mp4_free(sampleJsonPtr, jsonBytes.length);
 
             currentOffset += OPUS_SILENCE_FRAME.length;

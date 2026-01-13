@@ -5,7 +5,7 @@
  *
  * ```bash
  * cargo build --release --target wasm32-unknown-unknown -p wasm
- * node --experimental-wasm-modules crates/wasm/examples/demux.js /path/to/input.mp4
+ * node crates/wasm/examples/demux.js /path/to/input.mp4
  * ```
  */
 
