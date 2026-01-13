@@ -3,7 +3,20 @@ use c_api::basic_types::Mp4TrackKind;
 use c_api::boxes::Mp4SampleEntry;
 use c_api::mux::Mp4MuxSample;
 
-/// TODO: doc
+/// JSON データを `Mp4MuxSample` 構造体に変換する
+///
+/// この関数は JSON 文字列を生のバイト列として受け取り、`Mp4MuxSample` オブジェクトに変換する。
+/// 返されたポインタは `mp4_mux_sample_free()` を使用して解放する必要があります。
+///
+/// # 引数
+///
+/// - `json_bytes`: JSON データバイト列へのポインタ
+/// - `json_bytes_len`: JSON データのバイト長
+///
+/// # 戻り値
+///
+/// 成功時は割り当てられた `Mp4MuxSample` へのポインタ、エラー時は null ポインタを返す。
+/// 呼び出し側は `mp4_mux_sample_free()` でこのメモリを解放する必要がある。
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_mux_sample_from_json(
     json_bytes: *const u8,
@@ -31,6 +44,13 @@ pub unsafe extern "C" fn mp4_mux_sample_from_json(
     Box::into_raw(Box::new(sample))
 }
 
+/// `Mp4MuxSample` オブジェクトとその関連リソースを解放する。
+///
+/// この関数は `mp4_mux_sample_from_json()` で以前に作成された `Mp4MuxSample` のメモリを解放する。
+///
+/// # 引数
+///
+/// - `sample`: 解放する `Mp4MuxSample` へのポインタ（null の場合には何もしない）
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_mux_sample_free(sample: *mut Mp4MuxSample) {
     if sample.is_null() {

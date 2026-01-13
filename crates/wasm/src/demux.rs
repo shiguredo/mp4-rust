@@ -12,7 +12,7 @@ use crate::boxes::fmt_json_mp4_sample_entry;
 ///
 /// # 戻り値
 ///
-/// JSON 文字列を含む Vec<u8> へのポインタ。エラー時は NULL
+/// JSON 文字列を含む `Vec<u8>` へのポインタ。エラー時は NULL
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_demux_track_info_to_json(
     track_info: *const Mp4DemuxTrackInfo,
@@ -30,11 +30,11 @@ pub unsafe extern "C" fn mp4_demux_track_info_to_json(
 ///
 /// # 引数
 ///
-/// - `sample`: 変換対象の Mp4DemuxSample へのポインタ
+/// - `sample`: 変換対象の `Mp4DemuxSample` へのポインタ
 ///
 /// # 戻り値
 ///
-/// JSON 文字列を含む Vec<u8> へのポインタ。エラー時は NULL
+/// JSON 文字列を含む `Vec<u8>` へのポインタ。エラー時は NULL
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_demux_sample_to_json(sample: *const Mp4DemuxSample) -> *mut Vec<u8> {
     if sample.is_null() {

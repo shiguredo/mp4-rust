@@ -2,7 +2,7 @@
 
 use c_api::boxes::{Mp4SampleEntry, Mp4SampleEntryKind};
 
-pub fn fmt_json_mp4_sample_entry(
+pub(crate) fn fmt_json_mp4_sample_entry(
     f: &mut nojson::JsonFormatter<'_, '_>,
     sample_entry: &Mp4SampleEntry,
 ) -> std::fmt::Result {
