@@ -57,10 +57,19 @@ c-api には含まれない、wasm 固有の追加機能です。
 - `mp4_vec_len`: Vec の長さ取得
 - `mp4_vec_free`: Vec の解放
 
+#### マルチプレックス関連
+
+- `mp4_mux_sample_from_json`: `mp4_file_muxer_append_sample` 関数に渡すサンプル構造体を JSON から生成
+- `mp4_mux_sample_free`: `mp4_mux_sample_from_json` で確保したサンプル構造体の解放
+
+#### デマルチプレックス関連
+
+- `mp4_demux_sample_to_json`: `mp4_file_demuxer_next_sample` の結果を JSON に変換
+- `mp4_demux_track_info_to_json`: `mp4_file_demuxer_get_tracks` の結果を JSON に変換
+
 #### その他
 
 - `mp4_version`: ライブラリバージョン取得
-- `mp4_sample_entry_to_json`: サンプルエントリを JSON で取得
 
 ### c-api が提供する関数
 
