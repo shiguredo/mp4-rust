@@ -42,6 +42,97 @@ pub fn fmt_json_mp4_sample_entry_avc1(
     })
 }
 
+/// JSON から Mp4SampleEntryAvc1 に変換する
+pub fn parse_json_mp4_sample_entry_avc1(
+    value: nojson::RawJsonValue<'_, '_>,
+) -> Result<Mp4SampleEntryAvc1, nojson::JsonParseError> {
+    // SPS データを解析
+    let sps_value = value.to_member("sps")?.required()?;
+    let sps_vec: Vec<Vec<u8>> = sps_value
+        .to_array()?
+        .map(|v| v.try_into())
+        .collect::<Result<_, _>>()?;
+
+    let (sps_data, sps_sizes, sps_count) = crate::boxes::allocate_and_copy_array_list(&sps_vec);
+
+    // PPS データを解析
+    let pps_value = value.to_member("pps")?.required()?;
+    let pps_vec: Vec<Vec<u8>> = pps_value
+        .to_array()?
+        .map(|v| v.try_into())
+        .collect::<Result<_, _>>()?;
+
+    let (pps_data, pps_sizes, pps_count) = crate::boxes::allocate_and_copy_array_list(&pps_vec);
+
+    Ok(Mp4SampleEntryAvc1 {
+        width: value.to_member("width")?.required()?.try_into()?,
+        height: value.to_member("height")?.required()?.try_into()?,
+        avc_profile_indication: value
+            .to_member("avcProfileIndication")?
+            .required()?
+            .try_into()?,
+        profile_compatibility: value
+            .to_member("profileCompatibility")?
+            .required()?
+            .try_into()?,
+        avc_level_indication: value
+            .to_member("avcLevelIndication")?
+            .required()?
+            .try_into()?,
+        length_size_minus_one: value
+            .to_member("lengthSizeMinusOne")?
+            .required()?
+            .try_into()?,
+        sps_data,
+        sps_sizes,
+        sps_count,
+        pps_data,
+        pps_sizes,
+        pps_count,
+        is_chroma_format_present: value.to_member("chromaFormat")?.get().is_some(),
+        chroma_format: value
+            .to_member("chromaFormat")?
+            .map(|v| v.try_into())?
+            .unwrap_or(0),
+        is_bit_depth_luma_minus8_present: value.to_member("bitDepthLumaMinus8")?.get().is_some(),
+        bit_depth_luma_minus8: value
+            .to_member("bitDepthLumaMinus8")?
+            .map(|v| v.try_into())?
+            .unwrap_or(0),
+        is_bit_depth_chroma_minus8_present: value
+            .to_member("bitDepthChromaMinus8")?
+            .get()
+            .is_some(),
+        bit_depth_chroma_minus8: value
+            .to_member("bitDepthChromaMinus8")?
+            .map(|v| v.try_into())?
+            .unwrap_or(0),
+    })
+}
+
+/// AVC1 サンプルエントリーのメモリを解放する
+///
+/// `parse_json_mp4_sample_entry_avc1()` で割り当てられたメモリを解放する
+pub fn mp4_sample_entry_avc1_free(entry: &mut Mp4SampleEntryAvc1) {
+    crate::boxes::free_array_list(
+        entry.sps_data as *const *const u8 as *mut *mut u8,
+        entry.sps_sizes as *const u32 as *mut u32,
+        entry.sps_count,
+    );
+    entry.sps_data = std::ptr::null();
+    entry.sps_sizes = std::ptr::null();
+    entry.sps_count = 0;
+
+    crate::boxes::free_array_list(
+        entry.pps_data as *const *const u8 as *mut *mut u8,
+        entry.pps_sizes as *const u32 as *mut u32,
+        entry.pps_count,
+    );
+    entry.pps_data = std::ptr::null();
+    entry.pps_sizes = std::ptr::null();
+    entry.pps_count = 0;
+}
+
 /// AVC SPS/PPS リストの JSON シリアライズ用構造体
 struct NaluList {
     data_ptr: *const *const u8,
@@ -108,5 +199,25 @@ mod tests {
         assert!(json.contains(r#""lengthSizeMinusOne":3"#));
         assert!(json.contains(r#""sps":"#));
         assert!(json.contains(r#""pps":"#));
+    }
+
+    #[test]
+    fn test_json_to_avc1() {
+        let json_str = r#"{"kind": "avc1", "width": 1920, "height": 1080, "avcProfileIndication": 100, "profileCompatibility": 0, "avcLevelIndication": 40, "lengthSizeMinusOne": 3, "sps": [[103, 100, 0, 40]], "pps": [[104, 238, 60, 128]]}"#;
+
+        let json = nojson::RawJson::parse(json_str).expect("valid JSON");
+        let mut sample_entry =
+            parse_json_mp4_sample_entry_avc1(json.value()).expect("valid avc1 JSON");
+
+        assert_eq!(sample_entry.width, 1920);
+        assert_eq!(sample_entry.height, 1080);
+        assert_eq!(sample_entry.avc_profile_indication, 100);
+        assert_eq!(sample_entry.avc_level_indication, 40);
+        assert_eq!(sample_entry.sps_count, 1);
+        assert_eq!(sample_entry.pps_count, 1);
+
+        // メモリ解放
+        mp4_sample_entry_avc1_free(&mut sample_entry);
+        assert_eq!(sample_entry.sps_count, 0);
     }
 }

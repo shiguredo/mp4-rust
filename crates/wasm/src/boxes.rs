@@ -64,3 +64,69 @@ pub fn allocate_and_copy_bytes(data: &[u8]) -> (*const u8, u32) {
     };
     (ptr, size)
 }
+
+/// 複数のバイト列をメモリに割り当ててコピーする
+///
+/// JSON から複数の配列（SPS/PPS や NALU リストなど）を割り当てる際に使用する
+pub fn allocate_and_copy_array_list(arrays: &[Vec<u8>]) -> (*const *const u8, *const u32, u32) {
+    let count = arrays.len() as u32;
+
+    if count == 0 {
+        return (std::ptr::null(), std::ptr::null(), 0);
+    }
+
+    // データポインタ配列を割り当て
+    let data_ptrs: Vec<*const u8> = arrays
+        .iter()
+        .map(|array| allocate_and_copy_bytes(array).0)
+        .collect();
+    let data_ptr = allocate_and_copy_bytes(unsafe {
+        std::slice::from_raw_parts(
+            data_ptrs.as_ptr() as *const u8,
+            data_ptrs.len() * std::mem::size_of::<*const u8>(),
+        )
+    })
+    .0 as *const *const u8;
+
+    // サイズ配列を割り当て
+    let sizes: Vec<u32> = arrays.iter().map(|array| array.len() as u32).collect();
+    let sizes_ptr = allocate_and_copy_bytes(unsafe {
+        std::slice::from_raw_parts(
+            sizes.as_ptr() as *const u8,
+            sizes.len() * std::mem::size_of::<u32>(),
+        )
+    })
+    .0 as *const u32;
+
+    (data_ptr, sizes_ptr, count)
+}
+
+/// `allocate_and_copy_array_list()` で割り当てられたメモリを解放する
+pub fn free_array_list(data_ptrs: *mut *mut u8, sizes: *mut u32, count: u32) {
+    if count == 0 {
+        return;
+    }
+
+    // 各バイト列のメモリを解放
+    if !data_ptrs.is_null() {
+        let ptrs = unsafe { std::slice::from_raw_parts(data_ptrs, count as usize) };
+        for ptr in ptrs {
+            if !ptr.is_null() {
+                unsafe {
+                    crate::mp4_free(*ptr as *mut u8, 0);
+                }
+            }
+        }
+        // ポインタ配列自体を解放
+        unsafe {
+            crate::mp4_free(data_ptrs as *mut u8, 0);
+        }
+    }
+
+    // サイズ配列を解放
+    if !sizes.is_null() {
+        unsafe {
+            crate::mp4_free(sizes as *mut u8, 0);
+        }
+    }
+}
