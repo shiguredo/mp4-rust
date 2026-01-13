@@ -41,6 +41,9 @@ const {
     mp4_vec_free,
 } = wasmInstance.instance.exports;
 
+// wasm32 ターゲットではポインタサイズは 4 bytes
+const PTR_SIZE = 4;
+
 // メモリバッファへのアクセスを簡略化する関数群
 function readCString(ptr) {
     const view = new Uint8Array(memory.buffer, ptr);
@@ -77,9 +80,9 @@ function readJSON(vecPtr) {
 function writeOutputBoxes(muxerPtr, file, label) {
     console.log(`Writing ${label}...`);
 
-    const outputOffsetPtr = mp4_alloc(8);  // uint64_t
-    const outputSizePtr = mp4_alloc(4);    // uint32_t
-    const outputDataPtrPtr = mp4_alloc(8); // pointer
+    const outputOffsetPtr = mp4_alloc(8);      // uint64_t
+    const outputSizePtr = mp4_alloc(4);        // uint32_t
+    const outputDataPtrPtr = mp4_alloc(PTR_SIZE); // pointer (wasm32: 4 bytes)
 
     let maxOffset = 0;
 
@@ -93,11 +96,11 @@ function writeOutputBoxes(muxerPtr, file, label) {
 
             const offsetView = new BigUint64Array(memory.buffer, outputOffsetPtr, 1);
             const sizeView = new Uint32Array(memory.buffer, outputSizePtr, 1);
-            const dataPtrView = new BigUint64Array(memory.buffer, outputDataPtrPtr, 1);
+            const dataPtrView = new Uint32Array(memory.buffer, outputDataPtrPtr, 1);
 
             const offset = Number(offsetView[0]);
             const size = sizeView[0];
-            const dataPtr = Number(dataPtrView[0]);
+            const dataPtr = dataPtrView[0];
 
             if (size === 0) break;
 
@@ -110,7 +113,7 @@ function writeOutputBoxes(muxerPtr, file, label) {
     } finally {
         mp4_free(outputOffsetPtr, 8);
         mp4_free(outputSizePtr, 4);
-        mp4_free(outputDataPtrPtr, 8);
+        mp4_free(outputDataPtrPtr, PTR_SIZE);
     }
 
     return maxOffset;
