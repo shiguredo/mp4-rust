@@ -10,11 +10,15 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// WASM モジュールを動的にインポート
-const wasmModule = await import('../target/wasm32-unknown-unknown/release/mp4_wasm.wasm', {
-    with: { type: 'module' }
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load and instantiate WASM module
+const wasmPath = path.join(__dirname, '../../../target/wasm32-unknown-unknown/release/mp4_wasm.wasm');
+const wasmBuffer = fs.readFileSync(wasmPath);
+const wasmInstance = await WebAssembly.instantiate(wasmBuffer);
 
 const {
     memory,
@@ -30,7 +34,9 @@ const {
     mp4_vec_ptr,
     mp4_vec_len,
     mp4_vec_free,
-} = wasmModule;
+    mp4_alloc,
+    mp4_free,
+} = wasmInstance.instance.exports;
 
 // メモリバッファへのアクセスを簡略化する関数群
 function readCString(ptr) {
@@ -138,13 +144,13 @@ async function demuxMP4File(filePath) {
     const tracksPtr = mp4_alloc(8); // ポインタ
     const trackCountPtr = mp4_alloc(4); // uint32_t
 
-    const err = mp4_file_demuxer_get_tracks(
+    const tracksErr = mp4_file_demuxer_get_tracks(
         demuxerPtr,
         tracksPtr,
         trackCountPtr
     );
 
-    if (err !== 0) {
+    if (tracksErr !== 0) {
         const errorMsg = readCString(mp4_file_demuxer_get_last_error(demuxerPtr));
         console.error(`Error: Failed to get tracks: ${errorMsg}`);
         mp4_file_demuxer_free(demuxerPtr);
@@ -189,13 +195,13 @@ async function demuxMP4File(filePath) {
     const samplePtr = mp4_alloc(256); // Mp4DemuxSample の最大サイズ
 
     while (sampleCount < 10) {
-        const err = mp4_file_demuxer_next_sample(demuxerPtr, samplePtr);
+        const sampleErr = mp4_file_demuxer_next_sample(demuxerPtr, samplePtr);
 
-        if (err === 8) { // MP4_ERROR_NO_MORE_SAMPLES
+        if (sampleErr === 8) { // MP4_ERROR_NO_MORE_SAMPLES
             break;
         }
 
-        if (err !== 0) {
+        if (sampleErr !== 0) {
             const errorMsg = readCString(mp4_file_demuxer_get_last_error(demuxerPtr));
             console.error(`Error: Failed to get next sample: ${errorMsg}`);
             break;
