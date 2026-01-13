@@ -11,6 +11,13 @@
 
 ## develop
 
+- [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
+  - 理由:
+    - `mp4_estimate_maximum_moov_box_size()` の返り値は `u32` なので一貫性がない
+    - moov ボックスのサイズが 4GB に収まらないことは現実的にはあり得ないので `u64` は過剰
+    - `u64` だと wasm にして JavaScript から呼ぶ場合に、通常の数値型ではなく BigInt を使う必要があって少し煩雑になる
+  - @sile
+
 ## 2026.1.0
 
 - [UPDATE] `Mp4FileDemuxer::handle_input()` に要求を満たさない入力データが渡された場合はエラー扱いにする
