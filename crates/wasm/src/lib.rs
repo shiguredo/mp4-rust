@@ -84,14 +84,3 @@ pub unsafe extern "C" fn mp4_vec_free(v: *mut Vec<u8>) {
         let _ = unsafe { Box::from_raw(v) };
     }
 }
-
-/// ライブラリのバージョンを取得する
-///
-/// # 戻り値
-///
-/// バージョン文字列を含む `Vec<u8>` へのポインタ
-#[unsafe(no_mangle)]
-pub extern "C" fn mp4_version() -> *mut Vec<u8> {
-    let version = env!("SHIGUREDO_MP4_VERSION").as_bytes().to_vec();
-    Box::into_raw(Box::new(version))
-}

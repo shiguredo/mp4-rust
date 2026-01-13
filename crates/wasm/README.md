@@ -76,10 +76,6 @@ c-api には含まれない、wasm 固有の追加機能です。
 - `mp4_demux_sample_to_json`: `mp4_file_demuxer_next_sample` の結果を JSON に変換
 - `mp4_demux_track_info_to_json`: `mp4_file_demuxer_get_tracks` の結果を JSON に変換
 
-#### その他
-
-- `mp4_version`: ライブラリバージョン取得
-
 ### c-api が提供する関数
 
 c-api の関数がそのまま利用可能です。詳細は `crates/c-api/README.md` を参照してください。
