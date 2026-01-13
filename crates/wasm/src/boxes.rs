@@ -102,7 +102,7 @@ pub fn allocate_and_copy_array_list(arrays: &[Vec<u8>]) -> (*const *const u8, *c
 }
 
 /// `allocate_and_copy_array_list()` で割り当てられたメモリを解放する
-pub fn free_array_list(data_ptrs: *mut *mut u8, sizes: *mut u32, count: u32) {
+pub unsafe fn free_array_list(data_ptrs: *mut *mut u8, sizes: *mut u32, count: u32) {
     if count == 0 {
         return;
     }
@@ -113,7 +113,7 @@ pub fn free_array_list(data_ptrs: *mut *mut u8, sizes: *mut u32, count: u32) {
         for ptr in ptrs {
             if !ptr.is_null() {
                 unsafe {
-                    crate::mp4_free(*ptr as *mut u8, 0);
+                    crate::mp4_free(*ptr, 0);
                 }
             }
         }

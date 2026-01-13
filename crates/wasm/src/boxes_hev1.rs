@@ -122,7 +122,7 @@ pub fn parse_json_mp4_sample_entry_hev1(
 
     // nalu_types をメモリに割り当ててコピー
     let (nalu_types, _) = crate::boxes::allocate_and_copy_bytes(unsafe {
-        std::slice::from_raw_parts(nalu_types_vec.as_ptr() as *const u8, nalu_types_vec.len())
+        std::slice::from_raw_parts(nalu_types_vec.as_ptr(), nalu_types_vec.len())
     });
 
     // nalu_counts をメモリに割り当ててコピー
@@ -189,7 +189,7 @@ pub fn parse_json_mp4_sample_entry_hev1(
             .required()?
             .try_into()?,
         nalu_array_count: nalu_types_vec.len() as u32,
-        nalu_types: nalu_types as *const u8,
+        nalu_types,
         nalu_counts: nalu_counts as *const u32,
         nalu_data,
         nalu_sizes,
@@ -202,7 +202,7 @@ pub fn parse_json_mp4_sample_entry_hev1(
 pub fn mp4_sample_entry_hev1_free(entry: &mut Mp4SampleEntryHev1) {
     if !entry.nalu_types.is_null() {
         unsafe {
-            crate::mp4_free(entry.nalu_types.cast_mut() as *mut u8, 0);
+            crate::mp4_free(entry.nalu_types.cast_mut(), 0);
         }
         entry.nalu_types = std::ptr::null();
     }
@@ -215,13 +215,15 @@ pub fn mp4_sample_entry_hev1_free(entry: &mut Mp4SampleEntryHev1) {
     }
 
     if !entry.nalu_data.is_null() {
-        crate::boxes::free_array_list(
-            entry.nalu_data as *const *const u8 as *mut *mut u8,
-            entry.nalu_sizes as *const u32 as *mut u32,
-            entry.nalu_array_count,
-        );
-        entry.nalu_data = std::ptr::null();
-        entry.nalu_sizes = std::ptr::null();
+        unsafe {
+            crate::boxes::free_array_list(
+                entry.nalu_data as *mut *mut u8,
+                entry.nalu_sizes as *mut u32,
+                entry.nalu_array_count,
+            );
+            entry.nalu_data = std::ptr::null();
+            entry.nalu_sizes = std::ptr::null();
+        }
     }
 
     entry.nalu_array_count = 0;

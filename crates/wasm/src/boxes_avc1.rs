@@ -114,23 +114,25 @@ pub fn parse_json_mp4_sample_entry_avc1(
 ///
 /// `parse_json_mp4_sample_entry_avc1()` で割り当てられたメモリを解放する
 pub fn mp4_sample_entry_avc1_free(entry: &mut Mp4SampleEntryAvc1) {
-    crate::boxes::free_array_list(
-        entry.sps_data as *const *const u8 as *mut *mut u8,
-        entry.sps_sizes as *const u32 as *mut u32,
-        entry.sps_count,
-    );
-    entry.sps_data = std::ptr::null();
-    entry.sps_sizes = std::ptr::null();
-    entry.sps_count = 0;
+    unsafe {
+        crate::boxes::free_array_list(
+            entry.sps_data as *mut *mut u8,
+            entry.sps_sizes as *mut u32,
+            entry.sps_count,
+        );
+        entry.sps_data = std::ptr::null();
+        entry.sps_sizes = std::ptr::null();
+        entry.sps_count = 0;
 
-    crate::boxes::free_array_list(
-        entry.pps_data as *const *const u8 as *mut *mut u8,
-        entry.pps_sizes as *const u32 as *mut u32,
-        entry.pps_count,
-    );
-    entry.pps_data = std::ptr::null();
-    entry.pps_sizes = std::ptr::null();
-    entry.pps_count = 0;
+        crate::boxes::free_array_list(
+            entry.pps_data as *mut *mut u8,
+            entry.pps_sizes as *mut u32,
+            entry.pps_count,
+        );
+        entry.pps_data = std::ptr::null();
+        entry.pps_sizes = std::ptr::null();
+        entry.pps_count = 0;
+    }
 }
 
 /// AVC SPS/PPS リストの JSON シリアライズ用構造体
