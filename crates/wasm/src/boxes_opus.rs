@@ -18,6 +18,20 @@ pub fn fmt_json_mp4_sample_entry_opus(
     })
 }
 
+/// JSON から Mp4SampleEntryOpus に変換する
+pub fn parse_json_mp4_sample_entry_opus(
+    value: nojson::RawJsonValue<'_, '_>,
+) -> Result<Mp4SampleEntryOpus, nojson::JsonParseError> {
+    Ok(Mp4SampleEntryOpus {
+        channel_count: value.to_member("channelCount")?.required()?.try_into()?,
+        sample_rate: value.to_member("sampleRate")?.required()?.try_into()?,
+        sample_size: value.to_member("sampleSize")?.required()?.try_into()?,
+        pre_skip: value.to_member("preSkip")?.required()?.try_into()?,
+        input_sample_rate: value.to_member("inputSampleRate")?.required()?.try_into()?,
+        output_gain: value.to_member("outputGain")?.required()?.try_into()?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,5 +54,31 @@ mod tests {
         assert!(json.contains(r#""preSkip":312"#));
         assert!(json.contains(r#""inputSampleRate":48000"#));
         assert!(json.contains(r#""outputGain":0"#));
+    }
+
+    #[test]
+    fn test_json_to_opus() {
+        let json_str = r#"{
+            "kind": "opus",
+            "channelCount": 2,
+            "sampleRate": 48000,
+            "sampleSize": 16,
+            "preSkip": 312,
+            "inputSampleRate": 48000,
+            "outputGain": 0
+        }"#;
+
+        let json = nojson::RawJson::parse(json_str).expect("valid JSON");
+        let result = parse_json_mp4_sample_entry_opus(json.value());
+
+        assert!(result.is_ok());
+
+        let opus = result.unwrap();
+        assert_eq!(opus.channel_count, 2);
+        assert_eq!(opus.sample_rate, 48000);
+        assert_eq!(opus.sample_size, 16);
+        assert_eq!(opus.pre_skip, 312);
+        assert_eq!(opus.input_sample_rate, 48000);
+        assert_eq!(opus.output_gain, 0);
     }
 }
