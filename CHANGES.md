@@ -11,12 +11,37 @@
 
 ## develop
 
+- [ADD] WebAssembly API (crates/wasm) を追加する
+  - demux / mux の機能を wasm32-unknown-unknown ターゲットで利用可能にする
+  - 基本的には C API が提供している関数群をそのまま wasm 向けにも提供している
+  - ただし wasm ではホスト側とメモリ空間が分かれており、構造体などの複雑なデータ構造を直接やりとりすることもできないため、以下の補助関数群を追加する:
+    - `mp4_alloc`: wasm メモリ空間にバイト列を確保
+    - `mp4_free`: 確保したメモリを解放
+    - `mp4_vec_ptr`: Vec<u8> のポインタ取得
+    - `mp4_vec_len`: Vec<u8> の長さ取得
+    - `mp4_vec_free`: Vec<u8> の解放
+    - `mp4_mux_sample_from_json`: JSON から Mp4MuxSample 構造体を生成
+    - `mp4_mux_sample_free`: mp4_mux_sample_from_json で確保したメモリの解放
+    - `mp4_demux_track_info_to_json`: トラック情報を JSON に変換
+    - `mp4_demux_sample_to_json`: デマルチプレックスしたサンプルを JSON に変換
+  - JSON 処理には nojson を使用:
+    - サンプルエントリー内のバイナリデータ (SPS/PPS/NALU 等) は数値配列で表現する
+  - @voluntas
 - [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
   - 理由:
     - `mp4_estimate_maximum_moov_box_size()` の返り値は `u32` なので一貫性がない
     - moov ボックスのサイズが 4GB に収まらないことは現実的にはあり得ないので `u64` は過剰
     - `u64` だと wasm にして JavaScript から呼ぶ場合に、通常の数値型ではなく BigInt を使う必要があって少し煩雑になる
   - @sile
+
+### misc
+
+- [ADD] CI で wasm ビルドを artifact としてアップロードする
+  - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
+  - @voluntas
+- [ADD] Release で wasm バイナリを公開する
+  - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
+  - @voluntas
 
 ## 2026.1.0
 
