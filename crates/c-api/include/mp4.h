@@ -1454,7 +1454,7 @@ const char *mp4_file_muxer_get_last_error(const struct Mp4FileMuxer *muxer);
  * ```
  */
 enum Mp4Error mp4_file_muxer_set_reserved_moov_box_size(struct Mp4FileMuxer *muxer,
-                                                        uint64_t size);
+                                                        uint32_t size);
 
 /**
  * MP4 ファイルのマルチプレックス処理を初期化する
