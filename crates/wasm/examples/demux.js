@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load and instantiate WASM module
+// wasm ファイルを読み込んで初期化する
 const wasmPath = path.join(__dirname, '../../../target/wasm32-unknown-unknown/release/mp4_wasm.wasm');
 const wasmBuffer = fs.readFileSync(wasmPath);
 const wasmInstance = await WebAssembly.instantiate(wasmBuffer);
@@ -254,4 +254,3 @@ if (args.length === 0) {
 
 const filePath = args[0];
 await demuxMP4File(filePath);
-

@@ -13,6 +13,8 @@ use crate::boxes::fmt_json_mp4_sample_entry;
 /// # 戻り値
 ///
 /// JSON 文字列を含む `Vec<u8>` へのポインタ。エラー時は NULL
+///
+/// 呼び出しもとは不要になったら `mp4_vec_free` 関数を使ってこの `Vec` を解放する必要がある
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_demux_track_info_to_json(
     track_info: *const Mp4DemuxTrackInfo,
@@ -35,6 +37,8 @@ pub unsafe extern "C" fn mp4_demux_track_info_to_json(
 /// # 戻り値
 ///
 /// JSON 文字列を含む `Vec<u8>` へのポインタ。エラー時は NULL
+///
+/// 呼び出しもとは不要になったら `mp4_vec_free` 関数を使ってこの `Vec` を解放する必要がある
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_demux_sample_to_json(sample: *const Mp4DemuxSample) -> *mut Vec<u8> {
     if sample.is_null() {
