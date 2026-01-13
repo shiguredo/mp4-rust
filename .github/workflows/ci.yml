@@ -90,7 +90,7 @@ jobs:
           node-version: '24'
 
       - name: Build WebAssembly
-        run: cargo build --release --target wasm32-unknown-unknown -p wasm
+        run: cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
 
       - name: Run mux.js test
         run: |

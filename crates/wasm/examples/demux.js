@@ -4,7 +4,7 @@
  * # 使用方法
  *
  * ```bash
- * cargo build --release --target wasm32-unknown-unknown -p wasm
+ * cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
  * node crates/wasm/examples/demux.js /path/to/input.mp4
  * ```
  */
@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // wasm ファイルを読み込んで初期化する
-const wasmPath = path.join(__dirname, '../../../target/wasm32-unknown-unknown/release/mp4_wasm.wasm');
+const wasmPath = path.join(__dirname, '../../../target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm');
 const wasmBuffer = fs.readFileSync(wasmPath);
 const wasmInstance = await WebAssembly.instantiate(wasmBuffer);
 
