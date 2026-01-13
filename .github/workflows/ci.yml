@@ -73,6 +73,39 @@ jobs:
         if: contains(matrix.os, 'windows')
         run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib
 
+  test-wasm:
+    name: Test WebAssembly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: rustup target add wasm32-unknown-unknown
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Build WebAssembly
+        run: cargo build --release --target wasm32-unknown-unknown -p wasm
+
+      - name: Run mux.js test
+        run: |
+          node crates/wasm/examples/mux.js /tmp/test_output.mp4
+          if [ ! -f /tmp/test_output.mp4 ]; then
+            echo "Error: mux.js did not create output file"
+            exit 1
+          fi
+          echo "mux.js completed successfully"
+
+      - name: Run demux.js test
+        run: |
+          node crates/wasm/examples/demux.js /tmp/test_output.mp4
+          echo "demux.js completed successfully"
+
   lints:
     name: Lints
     strategy:
