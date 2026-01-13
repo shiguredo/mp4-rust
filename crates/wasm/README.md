@@ -112,13 +112,70 @@ c-api の関数がそのまま利用可能です。詳細は `crates/c-api/READM
 - `mp4_muxer_append_sample`: サンプル追加
 - `mp4_muxer_finalize`: 完了処理
 
-## JSON 形式のサンプルエントリ
+## JSON 形式のサンプル
 
-`mp4_sample_entry_to_json` を使用すると、サンプルエントリ情報を JSON 文字列として取得できます。
+`mp4_mux_sample_from_json` 関数および `mp4_demux_sample_to_json` 関数を使用すると、サンプル構造体の情報を JSON 文字列として扱うことができます。
+
+サンプルは以下のフィールドを持ちます:
+- トラック情報（種別、ID など）
+- サンプルエントリー（コーデック設定情報）
+- キーフレームフラグ
+- タイムスタンプと尺
+- データの位置とサイズ
 
 バイナリデータ（SPS/PPS/NALU 等）は数値配列として返されます。
 
-### AVC1 (H.264) の例
+### マルチプレックス用サンプルの例
+
+```json
+{
+  "track_kind": "video",
+  "keyframe": true,
+  "timescale": 90000,
+  "duration": 3000,
+  "data_offset": 0,
+  "data_size": 12345,
+  "sample_entry": {
+    "kind": "avc1",
+    "width": 1920,
+    "height": 1080,
+    "avcProfileIndication": 100,
+    "profileCompatibility": 0,
+    "avcLevelIndication": 40,
+    "lengthSizeMinusOne": 3,
+    "sps": [[103, 100, 0, 31, ...]],
+    "pps": [[104, 235, 227, 96]]
+  }
+}
+```
+
+### デマルチプレックス結果サンプルの例
+
+```json
+{
+  "track_id": 1,
+  "sample_entry": {
+    "kind": "opus",
+    "channelCount": 2,
+    "sampleRate": 48000,
+    "sampleSize": 16,
+    "preSkip": 312,
+    "inputSampleRate": 48000,
+    "outputGain": 0
+  },
+  "keyframe": true,
+  "timestamp": 0,
+  "duration": 960,
+  "data_offset": 1024,
+  "data_size": 256
+}
+```
+
+### サンプルエントリーの種類
+
+サンプルエントリー（`sample_entry` フィールド）は `kind` フィールドでコーデックの種類を識別します。
+
+#### AVC1 (H.264)
 
 ```json
 {
@@ -134,7 +191,7 @@ c-api の関数がそのまま利用可能です。詳細は `crates/c-api/READM
 }
 ```
 
-### HEV1/HVC1 (H.265/HEVC) の例
+#### HEV1/HVC1 (H.265/HEVC)
 
 ```json
 {
@@ -158,14 +215,14 @@ c-api の関数がそのまま利用可能です。詳細は `crates/c-api/READM
   "temporalIdNested": 1,
   "lengthSizeMinusOne": 3,
   "naluArrays": [
-    {"type": 32, "nalus": [[64, 1, ...]]},
-    {"type": 33, "nalus": [[66, 1, ...]]},
-    {"type": 34, "nalus": [[68, 1, ...]]}
+    {"naluType": 32, "units": [[64, 1, ...]]},
+    {"naluType": 33, "units": [[66, 1, ...]]},
+    {"naluType": 34, "units": [[68, 1, ...]]}
   ]
 }
 ```
 
-### Opus の例
+#### Opus
 
 ```json
 {
@@ -179,7 +236,7 @@ c-api の関数がそのまま利用可能です。詳細は `crates/c-api/READM
 }
 ```
 
-### MP4A (AAC) の例
+#### MP4A (AAC)
 
 ```json
 {
@@ -193,3 +250,4 @@ c-api の関数がそのまま利用可能です。詳細は `crates/c-api/READM
   "decSpecificInfo": [17, 144, 109, ...]
 }
 ```
+
