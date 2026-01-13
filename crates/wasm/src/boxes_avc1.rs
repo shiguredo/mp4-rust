@@ -25,7 +25,7 @@ pub fn fmt_json_mp4_sample_entry_avc1(
         }
         f.member(
             "sps",
-            JsonAvcNaluList {
+            NaluList {
                 data_ptr: data.sps_data,
                 sizes_ptr: data.sps_sizes,
                 count: data.sps_count,
@@ -33,7 +33,7 @@ pub fn fmt_json_mp4_sample_entry_avc1(
         )?;
         f.member(
             "pps",
-            JsonAvcNaluList {
+            NaluList {
                 data_ptr: data.pps_data,
                 sizes_ptr: data.pps_sizes,
                 count: data.pps_count,
@@ -43,13 +43,13 @@ pub fn fmt_json_mp4_sample_entry_avc1(
 }
 
 /// AVC SPS/PPS リストの JSON シリアライズ用構造体
-struct JsonAvcNaluList {
+struct NaluList {
     data_ptr: *const *const u8,
     sizes_ptr: *const u32,
     count: u32,
 }
 
-impl nojson::DisplayJson for JsonAvcNaluList {
+impl nojson::DisplayJson for NaluList {
     fn fmt(&self, f: &mut nojson::JsonFormatter<'_, '_>) -> std::fmt::Result {
         f.array(|f| {
             for i in 0..self.count as usize {
@@ -77,7 +77,7 @@ mod tests {
         let pps_data = [PPS.as_ptr()];
         let pps_sizes = [PPS.len() as u32];
 
-        let avc1 = Mp4SampleEntryAvc1 {
+        let sample_entry = Mp4SampleEntryAvc1 {
             width: 1920,
             height: 1080,
             avc_profile_indication: 100,
@@ -98,7 +98,7 @@ mod tests {
             bit_depth_chroma_minus8: 0,
         };
 
-        let json = nojson::json(|f| fmt_json_mp4_sample_entry_avc1(f, &avc1)).to_string();
+        let json = nojson::json(|f| fmt_json_mp4_sample_entry_avc1(f, &sample_entry)).to_string();
         assert!(json.contains(r#""kind":"avc1""#));
         assert!(json.contains(r#""width":1920"#));
         assert!(json.contains(r#""height":1080"#));
