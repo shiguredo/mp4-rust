@@ -20,6 +20,34 @@ pub fn fmt_json_mp4_sample_entry_vp08(
     })
 }
 
+/// JSON から Mp4SampleEntryVp08 に変換する
+pub fn parse_json_mp4_sample_entry_vp08(
+    value: nojson::RawJsonValue<'_, '_>,
+) -> Result<Mp4SampleEntryVp08, nojson::JsonParseError> {
+    Ok(Mp4SampleEntryVp08 {
+        width: value.to_member("width")?.required()?.try_into()?,
+        height: value.to_member("height")?.required()?.try_into()?,
+        bit_depth: value.to_member("bitDepth")?.required()?.try_into()?,
+        chroma_subsampling: value
+            .to_member("chromaSubsampling")?
+            .required()?
+            .try_into()?,
+        video_full_range_flag: value
+            .to_member("videoFullRangeFlag")?
+            .required()?
+            .try_into()?,
+        colour_primaries: value.to_member("colourPrimaries")?.required()?.try_into()?,
+        transfer_characteristics: value
+            .to_member("transferCharacteristics")?
+            .required()?
+            .try_into()?,
+        matrix_coefficients: value
+            .to_member("matrixCoefficients")?
+            .required()?
+            .try_into()?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,5 +75,32 @@ mod tests {
         assert!(json.contains(r#""colourPrimaries":1"#));
         assert!(json.contains(r#""transferCharacteristics":1"#));
         assert!(json.contains(r#""matrixCoefficients":1"#));
+    }
+
+    #[test]
+    fn test_json_to_vp08() {
+        let json_str = r#"{
+    "kind": "vp08",
+    "width": 1920,
+    "height": 1080,
+    "bitDepth": 8,
+    "chromaSubsampling": 1,
+    "videoFullRangeFlag": false,
+    "colourPrimaries": 1,
+    "transferCharacteristics": 1,
+    "matrixCoefficients": 1
+}"#;
+
+        let json = nojson::RawJson::parse(json_str).expect("valid JSON");
+        let sample_entry = parse_json_mp4_sample_entry_vp08(json.value()).expect("valid vp08 JSON");
+
+        assert_eq!(sample_entry.width, 1920);
+        assert_eq!(sample_entry.height, 1080);
+        assert_eq!(sample_entry.bit_depth, 8);
+        assert_eq!(sample_entry.chroma_subsampling, 1);
+        assert_eq!(sample_entry.video_full_range_flag, false);
+        assert_eq!(sample_entry.colour_primaries, 1);
+        assert_eq!(sample_entry.transfer_characteristics, 1);
+        assert_eq!(sample_entry.matrix_coefficients, 1);
     }
 }
