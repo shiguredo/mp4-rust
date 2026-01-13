@@ -47,6 +47,129 @@ pub fn fmt_json_mp4_sample_entry(
     Ok(())
 }
 
+/// JSON から Mp4SampleEntry に変換する
+pub fn parse_json_mp4_sample_entry(
+    value: nojson::RawJsonValue<'_, '_>,
+) -> Result<Mp4SampleEntry, nojson::JsonParseError> {
+    let kind_value = value.to_member("kind")?.required()?;
+    let kind_str = kind_value.to_unquoted_string_str()?;
+
+    match kind_str.as_ref() {
+        "avc1" => {
+            let avc1 = crate::boxes_avc1::parse_json_mp4_sample_entry_avc1(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1,
+                data: c_api::boxes::Mp4SampleEntryData { avc1 },
+            })
+        }
+        "hev1" => {
+            let hev1 = crate::boxes_hev1::parse_json_mp4_sample_entry_hev1(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1,
+                data: c_api::boxes::Mp4SampleEntryData { hev1 },
+            })
+        }
+        "hvc1" => {
+            let hvc1 = crate::boxes_hvc1::parse_json_mp4_sample_entry_hvc1(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HVC1,
+                data: c_api::boxes::Mp4SampleEntryData { hvc1 },
+            })
+        }
+        "vp08" => {
+            let vp08 = crate::boxes_vp08::parse_json_mp4_sample_entry_vp08(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08,
+                data: c_api::boxes::Mp4SampleEntryData { vp08 },
+            })
+        }
+        "vp09" => {
+            let vp09 = crate::boxes_vp09::parse_json_mp4_sample_entry_vp09(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09,
+                data: c_api::boxes::Mp4SampleEntryData { vp09 },
+            })
+        }
+        "av01" => {
+            let av01 = crate::boxes_av01::parse_json_mp4_sample_entry_av01(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01,
+                data: c_api::boxes::Mp4SampleEntryData { av01 },
+            })
+        }
+        "opus" => {
+            let opus = crate::boxes_opus::parse_json_mp4_sample_entry_opus(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS,
+                data: c_api::boxes::Mp4SampleEntryData { opus },
+            })
+        }
+        "mp4a" => {
+            let mp4a = crate::boxes_mp4a::parse_json_mp4_sample_entry_mp4a(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A,
+                data: c_api::boxes::Mp4SampleEntryData { mp4a },
+            })
+        }
+        "flac" => {
+            let flac = crate::boxes_flac::parse_json_mp4_sample_entry_flac(value)?;
+            Ok(Mp4SampleEntry {
+                kind: Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC,
+                data: c_api::boxes::Mp4SampleEntryData { flac },
+            })
+        }
+        _ => Err(kind_value.invalid("unknown sample entry kind")),
+    }
+}
+
+/// Mp4SampleEntry のメモリを解放する
+pub fn mp4_sample_entry_free(sample_entry: *mut Mp4SampleEntry) {
+    if sample_entry.is_null() {
+        return;
+    }
+
+    let sample_entry = unsafe { &mut *sample_entry };
+
+    match sample_entry.kind {
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AVC1 => {
+            let data = unsafe { &mut sample_entry.data.avc1 };
+            crate::boxes_avc1::mp4_sample_entry_avc1_free(data);
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HEV1 => {
+            let data = unsafe { &mut sample_entry.data.hev1 };
+            crate::boxes_hev1::mp4_sample_entry_hev1_free(data);
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_HVC1 => {
+            let data = unsafe { &mut sample_entry.data.hvc1 };
+            crate::boxes_hvc1::mp4_sample_entry_hvc1_free(data);
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP08 => {
+            // VP08 はポインタフィールドがないため解放処理なし
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_VP09 => {
+            // VP09 はポインタフィールドがないため解放処理なし
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_AV01 => {
+            let data = unsafe { &mut sample_entry.data.av01 };
+            crate::boxes_av01::mp4_sample_entry_av01_free(data);
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_OPUS => {
+            // Opus はポインタフィールドがないため解放処理なし
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_MP4A => {
+            let data = unsafe { &mut sample_entry.data.mp4a };
+            crate::boxes_mp4a::mp4_sample_entry_mp4a_free(data);
+        }
+        Mp4SampleEntryKind::MP4_SAMPLE_ENTRY_KIND_FLAC => {
+            let data = unsafe { &mut sample_entry.data.flac };
+            crate::boxes_flac::mp4_sample_entry_flac_free(data);
+        }
+    }
+
+    // 構造体自体を解放
+    let _ = unsafe { Box::from_raw(sample_entry) };
+}
+
 /// バイト配列を mp4_alloc で確保してコピーするユーティリティ関数
 pub fn allocate_and_copy_bytes(data: &[u8]) -> (*const u8, u32) {
     if data.is_empty() {

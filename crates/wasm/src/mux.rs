@@ -33,9 +33,15 @@ pub unsafe extern "C" fn mp4_mux_sample_from_json(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_mux_sample_free(sample: *mut Mp4MuxSample) {
-    if !sample.is_null() {
-        let _ = unsafe { Box::from_raw(sample) };
+    if sample.is_null() {
+        return;
     }
+
+    let sample_mut = unsafe { &mut *sample };
+    if !sample_mut.sample_entry.is_null() {
+        crate::boxes::mp4_sample_entry_free(sample_mut.sample_entry as *mut Mp4SampleEntry);
+    }
+    let _ = unsafe { Box::from_raw(sample) };
 }
 
 fn parse_json_mp4_mux_sample(
@@ -54,8 +60,13 @@ fn parse_json_mp4_mux_sample(
     let data_offset: u64 = value.to_member("data_offset")?.required()?.try_into()?;
     let data_size: u32 = value.to_member("data_size")?.required()?.try_into()?;
 
-    // TODO: 後でちゃんと実装する
-    let sample_entry: *const Mp4SampleEntry = std::ptr::null();
+    let sample_entry: *const Mp4SampleEntry =
+        if let Some(sample_entry_value) = value.to_member("sample_entry")?.get() {
+            let sample_entry = crate::boxes::parse_json_mp4_sample_entry(sample_entry_value)?;
+            Box::into_raw(Box::new(sample_entry)) as *const Mp4SampleEntry
+        } else {
+            std::ptr::null()
+        };
 
     Ok(Mp4MuxSample {
         track_kind,
