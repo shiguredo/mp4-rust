@@ -92,6 +92,141 @@ impl nojson::DisplayJson for NaluArrays {
     }
 }
 
+/// JSON から Mp4SampleEntryHev1 に変換する
+pub fn parse_json_mp4_sample_entry_hev1(
+    value: nojson::RawJsonValue<'_, '_>,
+) -> Result<Mp4SampleEntryHev1, nojson::JsonParseError> {
+    // NALU 配列を解析
+    let nalu_arrays_value = value.to_member("naluArrays")?.required()?;
+
+    let mut nalu_types_vec = Vec::new();
+    let mut nalu_counts_vec = Vec::new();
+    let mut nalu_data_vec = Vec::new();
+
+    for nalu_array in nalu_arrays_value.to_array()? {
+        // NALU タイプを取得
+        let nalu_type: u8 = nalu_array.to_member("naluType")?.required()?.try_into()?;
+        nalu_types_vec.push(nalu_type);
+
+        // NALU ユニットを処理
+        let units_value = nalu_array.to_member("units")?.required()?;
+
+        let mut nalu_count = 0u32;
+        for unit in units_value.to_array()? {
+            let nalu_bytes: Vec<u8> = unit.try_into()?;
+            nalu_data_vec.push(nalu_bytes);
+            nalu_count += 1;
+        }
+        nalu_counts_vec.push(nalu_count);
+    }
+
+    // nalu_types をメモリに割り当ててコピー
+    let (nalu_types, _) = crate::boxes::allocate_and_copy_bytes(unsafe {
+        std::slice::from_raw_parts(nalu_types_vec.as_ptr() as *const u8, nalu_types_vec.len())
+    });
+
+    // nalu_counts をメモリに割り当ててコピー
+    let (nalu_counts, _) = crate::boxes::allocate_and_copy_bytes(unsafe {
+        std::slice::from_raw_parts(
+            nalu_counts_vec.as_ptr() as *const u8,
+            nalu_counts_vec.len() * std::mem::size_of::<u32>(),
+        )
+    });
+
+    // nalu_data と nalu_sizes を割り当ててコピー
+    let (nalu_data, nalu_sizes, _) = crate::boxes::allocate_and_copy_array_list(&nalu_data_vec);
+
+    Ok(Mp4SampleEntryHev1 {
+        width: value.to_member("width")?.required()?.try_into()?,
+        height: value.to_member("height")?.required()?.try_into()?,
+        general_profile_space: value
+            .to_member("generalProfileSpace")?
+            .required()?
+            .try_into()?,
+        general_tier_flag: value.to_member("generalTierFlag")?.required()?.try_into()?,
+        general_profile_idc: value
+            .to_member("generalProfileIdc")?
+            .required()?
+            .try_into()?,
+        general_profile_compatibility_flags: value
+            .to_member("generalProfileCompatibilityFlags")?
+            .required()?
+            .try_into()?,
+        general_constraint_indicator_flags: value
+            .to_member("generalConstraintIndicatorFlags")?
+            .required()?
+            .try_into()?,
+        general_level_idc: value.to_member("generalLevelIdc")?.required()?.try_into()?,
+        chroma_format_idc: value.to_member("chromaFormatIdc")?.required()?.try_into()?,
+        bit_depth_luma_minus8: value
+            .to_member("bitDepthLumaMinus8")?
+            .required()?
+            .try_into()?,
+        bit_depth_chroma_minus8: value
+            .to_member("bitDepthChromaMinus8")?
+            .required()?
+            .try_into()?,
+        min_spatial_segmentation_idc: value
+            .to_member("minSpatialSegmentationIdc")?
+            .required()?
+            .try_into()?,
+        parallelism_type: value.to_member("parallelismType")?.required()?.try_into()?,
+        avg_frame_rate: value.to_member("avgFrameRate")?.required()?.try_into()?,
+        constant_frame_rate: value
+            .to_member("constantFrameRate")?
+            .required()?
+            .try_into()?,
+        num_temporal_layers: value
+            .to_member("numTemporalLayers")?
+            .required()?
+            .try_into()?,
+        temporal_id_nested: value
+            .to_member("temporalIdNested")?
+            .required()?
+            .try_into()?,
+        length_size_minus_one: value
+            .to_member("lengthSizeMinusOne")?
+            .required()?
+            .try_into()?,
+        nalu_array_count: nalu_types_vec.len() as u32,
+        nalu_types: nalu_types as *const u8,
+        nalu_counts: nalu_counts as *const u32,
+        nalu_data,
+        nalu_sizes,
+    })
+}
+
+/// HEV1 サンプルエントリーのメモリを解放する
+///
+/// `parse_json_mp4_sample_entry_hev1()` で割り当てられたメモリを解放する
+pub fn mp4_sample_entry_hev1_free(entry: &mut Mp4SampleEntryHev1) {
+    if !entry.nalu_types.is_null() {
+        unsafe {
+            crate::mp4_free(entry.nalu_types.cast_mut() as *mut u8, 0);
+        }
+        entry.nalu_types = std::ptr::null();
+    }
+
+    if !entry.nalu_counts.is_null() {
+        unsafe {
+            crate::mp4_free(entry.nalu_counts.cast_mut() as *mut u8, 0);
+        }
+        entry.nalu_counts = std::ptr::null();
+    }
+
+    if !entry.nalu_data.is_null() {
+        crate::boxes::free_array_list(
+            entry.nalu_data as *const *const u8 as *mut *mut u8,
+            entry.nalu_sizes as *const u32 as *mut u32,
+            entry.nalu_array_count,
+        );
+        entry.nalu_data = std::ptr::null();
+        entry.nalu_sizes = std::ptr::null();
+    }
+
+    entry.nalu_array_count = 0;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +284,52 @@ mod tests {
         assert!(json.contains(r#""generalLevelIdc":120"#));
         assert!(json.contains(r#""lengthSizeMinusOne":3"#));
         assert!(json.contains(r#""naluArrays":"#));
+    }
+
+    #[test]
+    fn test_json_to_hev1() {
+        let json_str = r#"{
+            "kind": "hev1",
+            "width": 1920,
+            "height": 1080,
+            "generalProfileSpace": 0,
+            "generalTierFlag": 0,
+            "generalProfileIdc": 2,
+            "generalProfileCompatibilityFlags": 1610612736,
+            "generalConstraintIndicatorFlags": 12682136550675546112,
+            "generalLevelIdc": 120,
+            "chromaFormatIdc": 1,
+            "bitDepthLumaMinus8": 0,
+            "bitDepthChromaMinus8": 0,
+            "minSpatialSegmentationIdc": 0,
+            "parallelismType": 0,
+            "avgFrameRate": 0,
+            "constantFrameRate": 0,
+            "numTemporalLayers": 1,
+            "temporalIdNested": 0,
+            "lengthSizeMinusOne": 3,
+            "naluArrays": [
+                {"naluType": 32, "units": [[64, 1, 12, 1]]},
+                {"naluType": 33, "units": [[66, 1, 1, 1]]},
+                {"naluType": 34, "units": [[68, 1, 0]]}
+            ]
+        }"#;
+
+        let json = nojson::RawJson::parse(json_str).expect("valid JSON");
+        let mut sample_entry =
+            parse_json_mp4_sample_entry_hev1(json.value()).expect("valid hev1 JSON");
+
+        assert_eq!(sample_entry.width, 1920);
+        assert_eq!(sample_entry.height, 1080);
+        assert_eq!(sample_entry.general_profile_idc, 2);
+        assert_eq!(sample_entry.general_level_idc, 120);
+        assert_eq!(sample_entry.length_size_minus_one, 3);
+        assert_eq!(sample_entry.nalu_array_count, 3);
+
+        // メモリ解放
+        mp4_sample_entry_hev1_free(&mut sample_entry);
+        assert_eq!(sample_entry.nalu_array_count, 0);
+        assert!(sample_entry.nalu_types.is_null());
+        assert!(sample_entry.nalu_counts.is_null());
     }
 }
