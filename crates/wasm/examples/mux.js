@@ -94,13 +94,14 @@ function writeOutputBoxes(muxerPtr, file, label) {
                 break;
             }
 
-            const offsetView = new BigUint64Array(memory.buffer, outputOffsetPtr, 1);
-            const sizeView = new Uint32Array(memory.buffer, outputSizePtr, 1);
-            const dataPtrView = new Uint32Array(memory.buffer, outputDataPtrPtr, 1);
+            // [NOTE] wasm は little endian なので、ホストが big endian の場合に備えて DataView を使用している
+            const offsetView = new DataView(memory.buffer, outputOffsetPtr, 8);
+            const sizeView = new DataView(memory.buffer, outputSizePtr, 4);
+            const dataPtrView = new DataView(memory.buffer, outputDataPtrPtr, 4);
 
-            const offset = Number(offsetView[0]);
-            const size = sizeView[0];
-            const dataPtr = dataPtrView[0];
+            const offset = Number(offsetView.getBigUint64(0, true));  // true = little endian
+            const size = sizeView.getUint32(0, true);
+            const dataPtr = dataPtrView.getUint32(0, true);
 
             if (size === 0) break;
 
