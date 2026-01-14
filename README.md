@@ -47,7 +47,7 @@ WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 ## 規格書
 
 - ISO/IEC 14496-1
-- ISO/IEC 14496-1v
+- ISO/IEC 14496-12
 - ISO/IEC 14496-14
 - ISO/IEC 14496-15
 - [VP Codec ISO Media File Format Binding](https://www.webmproject.org/vp9/mp4/)
