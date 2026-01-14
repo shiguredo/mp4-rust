@@ -1,4 +1,4 @@
-# mp4-rust
+# mp4-rs
 
 [![shiguredo_mp4](https://img.shields.io/crates/v/shiguredo_mp4.svg)](https://crates.io/crates/shiguredo_mp4)
 [![Documentation](https://docs.rs/shiguredo_mp4/badge.svg)](https://docs.rs/shiguredo_mp4)
@@ -20,13 +20,14 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 
 ## 特徴
 
-- 依存ライブラリ 0 で実現
+- 依存ライブラリ 0
 - `no_std` 環境での利用
   - <https://docs.rust-embedded.org/book/intro/no-std.html>
-- sans I/O 化
+- Sans I/O
   - <https://sans-io.readthedocs.io/index.html>
 - 高レベル API の提供
 - C API の提供
+- WebAssembly API の提供
 - Windows / macOS / Linux 対応
 - Opus / FLAC / AAC 対応
 - VP8 / VP9 / AV1 / H.264 / H.265 対応
@@ -41,13 +42,13 @@ Rust で実装された MP4 ファイルを読み書きするためのライブ�
 
 WebAssembly を使ったサンプルを GitHub Pages に用意しています。
 
-- [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
-- [MP4 Transcode](https://shiguredo.github.io/mp4-rust/examples/transcode/)
+- [MP4 Dump](https://shiguredo.github.io/mp4-rs/examples/dump/)
+- [MP4 Transcode](https://shiguredo.github.io/mp4-rs/examples/transcode/)
 
 ## 規格書
 
 - ISO/IEC 14496-1
-- ISO/IEC 14496-1v
+- ISO/IEC 14496-12
 - ISO/IEC 14496-14
 - ISO/IEC 14496-15
 - [VP Codec ISO Media File Format Binding](https://www.webmproject.org/vp9/mp4/)

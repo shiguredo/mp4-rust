@@ -11,6 +11,38 @@
 
 ## develop
 
+- [ADD] WebAssembly API (crates/wasm) を追加する
+  - demux / mux の機能を wasm32-unknown-unknown ターゲットで利用可能にする
+  - 基本的には C API が提供している関数群をそのまま wasm 向けにも提供している
+  - ただし wasm ではホスト側とメモリ空間が分かれており、構造体などの複雑なデータ構造を直接やりとりすることもできないため、以下の補助関数群を追加する:
+    - `mp4_alloc`: wasm メモリ空間にバイト列を確保
+    - `mp4_free`: 確保したメモリを解放
+    - `mp4_vec_ptr`: Vec<u8> のポインタ取得
+    - `mp4_vec_len`: Vec<u8> の長さ取得
+    - `mp4_vec_free`: Vec<u8> の解放
+    - `mp4_mux_sample_from_json`: JSON から Mp4MuxSample 構造体を生成
+    - `mp4_mux_sample_free`: mp4_mux_sample_from_json で確保したメモリの解放
+    - `mp4_demux_track_info_to_json`: トラック情報を JSON に変換
+    - `mp4_demux_sample_to_json`: デマルチプレックスしたサンプルを JSON に変換
+  - JSON 処理には nojson を使用:
+    - サンプルエントリー内のバイナリデータ (SPS/PPS/NALU 等) は数値配列で表現する
+  - @voluntas
+- [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
+  - 理由:
+    - `mp4_estimate_maximum_moov_box_size()` の返り値は `u32` なので一貫性がない
+    - moov ボックスのサイズが 4GB に収まらないことは現実的にはあり得ないので `u64` は過剰
+    - `u64` だと wasm にして JavaScript から呼ぶ場合に、通常の数値型ではなく BigInt を使う必要があって少し煩雑になる
+  - @sile
+
+### misc
+
+- [ADD] CI で wasm ビルドを artifact としてアップロードする
+  - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
+  - @voluntas
+- [ADD] Release で wasm バイナリを公開する
+  - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
+  - @voluntas
+
 ## 2026.1.0
 
 - [UPDATE] `Mp4FileDemuxer::handle_input()` に要求を満たさない入力データが渡された場合はエラー扱いにする
@@ -38,7 +70,7 @@
   - これによって、`std` 有効時に使えていた以下の機能は廃止となる:
     - `Error` 構造体の `backtrace` フィールド（`std::backtrace::Backtrace`):
       - そもそもほぼ使うことがなかったのと、以下理由による削除は問題ないと判断:
-        - mp4-rust はその性質上、問題が発生しても、同じ入力を与えて関数を実行すれば確実に再現できる
+        - mp4-rs はその性質上、問題が発生しても、同じ入力を与えて関数を実行すれば確実に再現できる
         - 問題が発生した MP4 ボックスの名前やファイルの情報は常にエラーに含まれるので、通常はそれで十分
     - `Mp4FileMuxerOptions` 構造体の `creation_timestamp` フィールドのデフォルト値:
       - `std` 有効時には現在時刻を使っていたのが、UNIX エポック時刻固定となる
@@ -54,7 +86,7 @@
 - [FIX] 入力データが破損している場合などに、デコード時に大量のメモリを消費する可能性がある問題を修正する
   - `Vec::with_capacity()` を使っている箇所を `Vec::new()` に置換する
   - `Vec::with_capacity()` は実際には不要だとしても、指定のサイズ分のメモリを事前に確保しようとするため、入力データが破損していると大量のメモリが必要になる可能性があった
-  - mp4-rust のユースケースでは `with_capacity()` と `new()` で、性能に有意な差が出ることも考えにくいため、今後は常に `new()` を使うようにする
+  - mp4-rs のユースケースでは `with_capacity()` と `new()` で、性能に有意な差が出ることも考えにくいため、今後は常に `new()` を使うようにする
   - @sile
 - [FIX] HvccBox, VpccBox, EsDescriptor 関連のデコード時にスライス境界チェックを追加する
   - 破損データでサイズが巨大な値になると、ペイロード長を超えて範囲外アクセスが発生し panic するのを防ぐ
@@ -141,7 +173,7 @@
   - std 環境がデフォルトなので、既存のコードへの影響はない
   - @voluntas
 - [CHANGE] `MdatBox::is_variable_size` フィールドを削除する
-  -  4 GB までのペイロードしか扱えず中途半端だったので、`MdatBox` 構造体から `is_variable_size` フィールドを削除した
+  - 4 GB までのペイロードしか扱えず中途半端だったので、`MdatBox` 構造体から `is_variable_size` フィールドを削除した
   - 今後は可変長ペイロードを表現する場合は、`MdatBox` ではなく [`BoxHeader`] を直接使用する必要がある
   - @sile
 - [CHANGE] IgnoredBox 構造体を削除する
@@ -151,7 +183,7 @@
   - std::io モジュールへの依存をなくしたのに伴い、独自の ErrorKind enum を定義し、使用するようにした
   - @sile
 - [CHANGE] Encode および Decode トレイトを I/O に依存しない設計に変更する（sans-I/O 対応）
-  - モチベーション: no_std / wasm / C API に対応する際に、I/O と密結合になっていると取り回しが難しいので、mp4-rust レイヤーでは I/O に依存しないようにする
+  - モチベーション: no_std / wasm / C API に対応する際に、I/O と密結合になっていると取り回しが難しいので、mp4-rs レイヤーでは I/O に依存しないようにする
   - std::io::{Read, Write} に対してではなく、バッファ（&[u8]）に対して操作を行うように変更した
   - @sile
 

@@ -6,7 +6,7 @@
 // # ビルド
 //
 // ```bash
-// # mp4-rust のプロジェクトルートで libmp4.a をビルド
+// # mp4-rs のプロジェクトルートで libmp4.a をビルド
 // cargo build
 //
 // # remux.c をコンパイル

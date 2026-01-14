@@ -73,6 +73,39 @@ jobs:
         if: contains(matrix.os, 'windows')
         run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib
 
+  test-wasm:
+    name: Test WebAssembly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: rustup target add wasm32-unknown-unknown
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Build WebAssembly
+        run: cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
+
+      - name: Run mux.js test
+        run: |
+          node crates/wasm/examples/mux.js /tmp/test_output.mp4
+          if [ ! -f /tmp/test_output.mp4 ]; then
+            echo "Error: mux.js did not create output file"
+            exit 1
+          fi
+          echo "mux.js completed successfully"
+
+      - name: Run demux.js test
+        run: |
+          node crates/wasm/examples/demux.js /tmp/test_output.mp4
+          echo "demux.js completed successfully"
+
   lints:
     name: Lints
     strategy:
@@ -149,8 +182,45 @@ jobs:
           name: c-api-${{ matrix.artifact-name }}
           path: artifacts/
 
+  build-wasm:
+    name: Build WebAssembly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+      - run: rustup update stable
+      - run: rustup default stable
+      - run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-opt
+        run: |
+          curl -L -o binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_125/binaryen-version_125-x86_64-linux.tar.gz
+          echo "7c3bc16599c8274a04d34a504fe4be2047884f900e0e2da2f6fb9cd667183be4  binaryen.tar.gz" | sha256sum -c -
+          tar xzf binaryen.tar.gz
+          sudo mv binaryen-version_125/bin/wasm-opt /usr/local/bin/
+
+      - name: Build WebAssembly
+        run: cargo build --profile release-wasm --package wasm --target wasm32-unknown-unknown
+
+      - name: Optimize with wasm-opt
+        run: |
+          wasm-opt -Oz --enable-bulk-memory -o target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
+          mv target/wasm32-unknown-unknown/release-wasm/mp4_wasm-opt.wasm target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/wasm32-unknown-unknown/release-wasm/mp4_wasm.wasm artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: artifacts/
+
   slack_notify_failed:
-    needs: [check, test, lints, build-c-api]
+    needs: [check, test, lints, build-c-api, build-wasm]
     runs-on: ubuntu-24.04
     if: ${{ failure() }}
     steps:

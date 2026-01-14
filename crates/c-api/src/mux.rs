@@ -457,7 +457,7 @@ pub unsafe extern "C" fn mp4_file_muxer_get_last_error(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_muxer_set_reserved_moov_box_size(
     muxer: *mut Mp4FileMuxer,
-    size: u64,
+    size: u32,
 ) -> Mp4Error {
     if muxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
