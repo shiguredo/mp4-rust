@@ -100,11 +100,12 @@ async function demuxMP4File(filePath) {
         }
 
         // 値を読み取る
-        const requiredPosView = new BigUint64Array(memory.buffer, requiredPosPtr, 1);
-        const requiredSizeView = new Int32Array(memory.buffer, requiredSizePtr, 1);
+        // [NOTE] wasm は little endian なので、ホストが big endian の場合に備えて DataView を使用している
+        const requiredPosView = new DataView(memory.buffer, requiredPosPtr, 8);
+        const requiredSizeView = new DataView(memory.buffer, requiredSizePtr, 4);
 
-        const requiredPos = requiredPosView[0];
-        let requiredSize = requiredSizeView[0];
+        const requiredPos = requiredPosView.getBigUint64(0, true); // true = リトルエンディアン
+        let requiredSize = requiredSizeView.getInt32(0, true); // true = リトルエンディアン
 
         mp4_free(requiredPosPtr, 8);
         mp4_free(requiredSizePtr, 4);
@@ -160,14 +161,15 @@ async function demuxMP4File(filePath) {
     }
 
     // トラック数を取得
-    const trackCountView = new Uint32Array(memory.buffer, trackCountPtr, 1);
-    const trackCount = trackCountView[0];
+    // [NOTE] wasm は little endian なので、ホストが big endian の場合に備えて DataView を使用している
+    const trackCountView = new DataView(memory.buffer, trackCountPtr, 4);
+    const trackCount = trackCountView.getUint32(0, true); // true = リトルエンディアン
 
     console.log(`\nFound ${trackCount} track(s)\n`);
 
     // トラック情報を表示
-    const tracksPointerView = new BigUint64Array(memory.buffer, tracksPtr, 1);
-    const tracksPointer = Number(tracksPointerView[0]);
+    const tracksPointerView = new DataView(memory.buffer, tracksPtr, 8);
+    const tracksPointer = Number(tracksPointerView.getBigUint64(0, true)); // true = リトルエンディアン
 
     for (let i = 0; i < trackCount; i++) {
         // Mp4DemuxTrackInfo のサイズを計算（id: u32, kind: u32, duration: u64, timescale: u32）
