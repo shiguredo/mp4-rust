@@ -1,5 +1,5 @@
 /**
- * Node.js で mp4-rust の WASM を使って MP4 ファイルに無音の Opus を 10 秒分書き込むサンプル
+ * Node.js で mp4-rs の WASM を使って MP4 ファイルに無音の Opus を 10 秒分書き込むサンプル
  *
  * # 使用方法
  *
