@@ -6,7 +6,7 @@ test:
 
 # PBT を実行する
 pbt:
-	cargo test -p mp4_pbt
+	cargo llvm-cov -p mp4_pbt --tests
 
 # Fuzzing を全ターゲットで 30 秒ずつ実行する
 fuzzing:
