@@ -71,6 +71,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mp4_fuzz"
+version = "0.0.0"
+dependencies = [
+ "libfuzzer-sys",
+ "shiguredo_mp4",
+]
+
+[[package]]
 name = "r-efi"
 version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -78,15 +86,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "shiguredo_mp4"
-version = "2025.4.0"
-
-[[package]]
-name = "shiguredo_mp4_fuzz"
-version = "0.0.0"
-dependencies = [
- "libfuzzer-sys",
- "shiguredo_mp4",
-]
+version = "2026.2.0-canary.0"
 
 [[package]]
 name = "shlex"

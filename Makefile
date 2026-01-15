@@ -1,12 +1,12 @@
 .PHONY: test pbt fuzzing fuzzing-list check clippy fmt clean
 
-# 全テストを実行する
+# 単体テストを実行する
 test:
 	cargo test
 
-# Property-Based Testing を実行する
+# PBT を実行する
 pbt:
-	cargo test --test 'proptest_*'
+	cargo test -p mp4_pbt
 
 # Fuzzing を全ターゲットで 30 秒ずつ実行する
 fuzzing:

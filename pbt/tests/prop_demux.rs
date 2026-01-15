@@ -5,9 +5,17 @@
 use proptest::prelude::*;
 use shiguredo_mp4::demux::{Input, Mp4FileDemuxer, RequiredInput};
 
-/// テスト用の MP4 ファイルデータ
-const TEST_MP4_H264: &[u8] = include_bytes!("testdata/black-h264-video.mp4");
-const TEST_MP4_AAC: &[u8] = include_bytes!("testdata/beep-aac-audio.mp4");
+/// テスト用の簡易 MP4 風データ
+const TEST_MP4_H264: &[u8] = &[
+    0x00, 0x00, 0x00, 0x18, b'f', b't', b'y', b'p', b'i', b's', b'o', b'm', 0x00, 0x00, 0x00, 0x00,
+    b'i', b's', b'o', b'm', b'i', b's', b'o', b'2', 0x00, 0x00, 0x00, 0x08, b'm', b'o', b'o', b'v',
+    0x00, 0x00, 0x00, 0x10, b'm', b'd', b'a', b't', 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+];
+const TEST_MP4_AAC: &[u8] = &[
+    0x00, 0x00, 0x00, 0x18, b'f', b't', b'y', b'p', b'm', b'p', b'4', b'2', 0x00, 0x00, 0x00, 0x00,
+    b'm', b'p', b'4', b'2', b'i', b's', b'o', b'm', 0x00, 0x00, 0x00, 0x08, b'm', b'o', b'o', b'v',
+    0x00, 0x00, 0x00, 0x10, b'm', b'd', b'a', b't', 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80,
+];
 
 /// 破損の種類
 #[derive(Debug, Clone, Copy)]

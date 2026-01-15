@@ -1,0 +1,9 @@
+[package]
+name = "mp4_pbt"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dev-dependencies]
+shiguredo_mp4 = { path = "../" }
+proptest = "1.9.0"

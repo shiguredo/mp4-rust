@@ -13,11 +13,15 @@ categories = ["no-std"]
 
 [dependencies]
 
-[dev-dependencies]
-proptest = "1.9"
-
 [workspace]
-members = ["crates/c-api", "crates/wasm", "examples/dump_wasm", "examples/transcode_wasm"]
+members = [
+    "crates/c-api",
+    "crates/wasm",
+    "examples/dump_wasm",
+    "examples/transcode_wasm",
+    "pbt",
+]
+exclude = ["fuzz"]
 
 # wasm リリース用のビルドプロファイル (サイズ最小化)
 # cargo build --profile release-wasm --package wasm --target wasm32-unknown-unknown

@@ -252,6 +252,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
+name = "mp4_pbt"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "shiguredo_mp4",
+]
+
+[[package]]
 name = "nojson"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,9 +483,6 @@ dependencies = [
 [[package]]
 name = "shiguredo_mp4"
 version = "2026.2.0-canary.0"
-dependencies = [
- "proptest",
-]
 
 [[package]]
 name = "slab"

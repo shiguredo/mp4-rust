@@ -1,5 +1,5 @@
 [package]
-name = "shiguredo_mp4_fuzz"
+name = "mp4_fuzz"
 version = "0.0.0"
 publish = false
 edition = "2024"
@@ -18,6 +18,20 @@ path = ".."
 [[bin]]
 name = "fuzz_box_header"
 path = "fuzz_targets/fuzz_box_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_basic_types"
+path = "fuzz_targets/fuzz_basic_types.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_descriptors"
+path = "fuzz_targets/fuzz_descriptors.rs"
 test = false
 doc = false
 bench = false
