@@ -1,4 +1,4 @@
-.PHONY: test pbt fuzzing fuzzing-list check clippy fmt clean
+.PHONY: test pbt pbt-with-cover fuzzing fuzzing-list check clippy fmt clean
 
 # 単体テストを実行する
 test:
@@ -6,6 +6,10 @@ test:
 
 # PBT を実行する
 pbt:
+	cargo test -p mp4_pbt
+
+# PBT をカバレッジ付きで実行する
+pbt-with-cover:
 	cargo llvm-cov -p mp4_pbt --tests
 
 # Fuzzing を全ターゲットで 30 秒ずつ実行する
