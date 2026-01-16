@@ -247,3 +247,167 @@ mod boundary_tests {
         assert!(result.is_ok());
     }
 }
+
+// ===== RequiredInput のテスト =====
+
+mod required_input_tests {
+    use shiguredo_mp4::demux::{Input, RequiredInput};
+
+    /// 要求が完全に満たされる場合
+    #[test]
+    fn is_satisfied_by_exact_match() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(50),
+        };
+        let input = Input {
+            position: 100,
+            data: &[0u8; 50],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    /// 入力データが要求より大きい場合
+    #[test]
+    fn is_satisfied_by_larger_input() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(50),
+        };
+        let input = Input {
+            position: 50,
+            data: &[0u8; 200],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    /// 入力データの開始位置が要求位置より後ろの場合 (false)
+    #[test]
+    fn is_satisfied_by_input_starts_after_required() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(50),
+        };
+        let input = Input {
+            position: 150,
+            data: &[0u8; 100],
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    /// 入力データの終端位置が要求位置より前の場合 (false)
+    #[test]
+    fn is_satisfied_by_input_ends_before_required() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(50),
+        };
+        let input = Input {
+            position: 0,
+            data: &[0u8; 50], // 終端位置は 50、要求位置 100 より前
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    /// 要求サイズがない場合 (size: None)
+    #[test]
+    fn is_satisfied_by_no_size_requirement() {
+        let required = RequiredInput {
+            position: 100,
+            size: None,
+        };
+        let input = Input {
+            position: 50,
+            data: &[0u8; 100], // 位置 50 から 100 バイト、終端 150
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    /// 要求の終端が入力データの終端を超える場合 (false)
+    #[test]
+    fn is_satisfied_by_required_end_exceeds_input() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(100),
+        };
+        let input = Input {
+            position: 100,
+            data: &[0u8; 50], // 50 バイトしかない
+        };
+        assert!(!required.is_satisfied_by(input));
+    }
+
+    /// to_input() のテスト
+    #[test]
+    fn to_input_creates_correct_input() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(50),
+        };
+        let data = [1u8, 2, 3, 4, 5];
+        let input = required.to_input(&data);
+
+        assert_eq!(input.position, 100);
+        assert_eq!(input.data, &data);
+    }
+
+    /// 境界値: position が 0 の場合
+    #[test]
+    fn is_satisfied_by_position_zero() {
+        let required = RequiredInput {
+            position: 0,
+            size: Some(10),
+        };
+        let input = Input {
+            position: 0,
+            data: &[0u8; 10],
+        };
+        assert!(required.is_satisfied_by(input));
+    }
+
+    /// 境界値: offset が入力データの長さちょうどの場合
+    #[test]
+    fn is_satisfied_by_offset_equals_data_len() {
+        let required = RequiredInput {
+            position: 100,
+            size: Some(10),
+        };
+        let input = Input {
+            position: 0,
+            data: &[0u8; 100], // offset = 100, data.len() = 100
+        };
+        // offset > data.len() ではなく offset == data.len() なので、
+        // size が 10 で end が 110 になり、110 > 100 なので false
+        assert!(!required.is_satisfied_by(input));
+    }
+}
+
+// ===== DemuxError のテスト =====
+
+mod demux_error_tests {
+    use shiguredo_mp4::{
+        aux::SampleTableAccessorError,
+        demux::{DemuxError, RequiredInput},
+    };
+
+    /// DemuxError::SampleTableError の From 実装
+    #[test]
+    fn demux_error_from_sample_table_error() {
+        let error = SampleTableAccessorError::ChunksExistButNoSamples { chunk_count: 5 };
+        let demux_error: DemuxError = error.into();
+        let debug_str = format!("{:?}", demux_error);
+        assert!(debug_str.contains("5"));
+    }
+
+    /// DemuxError::InputRequired
+    #[test]
+    fn demux_error_input_required() {
+        let required = RequiredInput {
+            position: 1000,
+            size: Some(500),
+        };
+        let demux_error = DemuxError::InputRequired(required);
+        let debug_str = format!("{:?}", demux_error);
+        assert!(debug_str.contains("1000"));
+    }
+}

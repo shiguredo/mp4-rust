@@ -604,3 +604,442 @@ mod boundary_tests {
         assert_eq!(decoded.visual.height, 1080);
     }
 }
+
+// ===== RootBox のテスト =====
+
+mod root_box_tests {
+    use shiguredo_mp4::{
+        BaseBox, BoxSize, BoxType, Decode, Encode,
+        boxes::{Brand, FreeBox, MdatBox, RootBox, UnknownBox},
+    };
+
+    /// RootBox::Free の encode/decode roundtrip
+    #[test]
+    fn root_box_free_roundtrip() {
+        let free = FreeBox {
+            payload: vec![0u8; 100],
+        };
+        let root = RootBox::Free(free);
+
+        let encoded = root.encode_to_vec().unwrap();
+        let (decoded, size) = RootBox::decode(&encoded).unwrap();
+
+        assert_eq!(size, encoded.len());
+        assert!(matches!(decoded, RootBox::Free(_)));
+        assert_eq!(decoded.box_type(), FreeBox::TYPE);
+        assert!(!decoded.is_unknown_box());
+
+        // children() のテスト
+        assert_eq!(decoded.children().count(), 0);
+    }
+
+    /// RootBox::Mdat の encode/decode roundtrip
+    #[test]
+    fn root_box_mdat_roundtrip() {
+        let mdat = MdatBox {
+            payload: vec![1, 2, 3, 4, 5],
+        };
+        let root = RootBox::Mdat(mdat);
+
+        let encoded = root.encode_to_vec().unwrap();
+        let (decoded, size) = RootBox::decode(&encoded).unwrap();
+
+        assert_eq!(size, encoded.len());
+        assert!(matches!(decoded, RootBox::Mdat(_)));
+        assert_eq!(decoded.box_type(), MdatBox::TYPE);
+        assert!(!decoded.is_unknown_box());
+    }
+
+    /// RootBox::Unknown の encode/decode roundtrip
+    #[test]
+    fn root_box_unknown_roundtrip() {
+        let unknown = UnknownBox {
+            box_type: BoxType::Normal(*b"test"),
+            box_size: BoxSize::with_payload_size(BoxType::Normal(*b"test"), 10),
+            payload: vec![0u8; 10],
+        };
+        let root = RootBox::Unknown(unknown);
+
+        let encoded = root.encode_to_vec().unwrap();
+        let (decoded, size) = RootBox::decode(&encoded).unwrap();
+
+        assert_eq!(size, encoded.len());
+        assert!(matches!(decoded, RootBox::Unknown(_)));
+        assert_eq!(decoded.box_type(), BoxType::Normal(*b"test"));
+        assert!(decoded.is_unknown_box());
+    }
+
+    /// Brand の Debug 実装テスト: 有効な UTF-8
+    #[test]
+    fn brand_debug_valid_utf8() {
+        let brand = Brand::new(*b"isom");
+        let debug_str = format!("{:?}", brand);
+        assert!(debug_str.contains("isom"));
+    }
+
+    /// Brand の Debug 実装テスト: 無効な UTF-8
+    #[test]
+    fn brand_debug_invalid_utf8() {
+        let brand = Brand::new([0xFF, 0xFE, 0x00, 0x01]);
+        let debug_str = format!("{:?}", brand);
+        // 無効な UTF-8 の場合はバイト配列として表示される
+        assert!(debug_str.contains("Brand"));
+    }
+
+    /// Brand の各定数のテスト
+    #[test]
+    fn brand_constants() {
+        assert_eq!(Brand::ISOM.get(), *b"isom");
+        assert_eq!(Brand::AVC1.get(), *b"avc1");
+        assert_eq!(Brand::ISO2.get(), *b"iso2");
+        assert_eq!(Brand::MP71.get(), *b"mp71");
+        assert_eq!(Brand::ISO3.get(), *b"iso3");
+        assert_eq!(Brand::ISO4.get(), *b"iso4");
+        assert_eq!(Brand::ISO5.get(), *b"iso5");
+        assert_eq!(Brand::ISO6.get(), *b"iso6");
+        assert_eq!(Brand::ISO7.get(), *b"iso7");
+        assert_eq!(Brand::ISO8.get(), *b"iso8");
+        assert_eq!(Brand::ISO9.get(), *b"iso9");
+        assert_eq!(Brand::ISOA.get(), *b"isoa");
+        assert_eq!(Brand::ISOB.get(), *b"isob");
+        assert_eq!(Brand::RELO.get(), *b"relo");
+        assert_eq!(Brand::MP41.get(), *b"mp41");
+        assert_eq!(Brand::AV01.get(), *b"av01");
+    }
+
+    /// Brand の encode/decode roundtrip
+    #[test]
+    fn brand_roundtrip() {
+        let brand = Brand::new(*b"test");
+        let encoded = brand.encode_to_vec().unwrap();
+        let (decoded, size) = Brand::decode(&encoded).unwrap();
+
+        assert_eq!(size, 4);
+        assert_eq!(decoded.get(), *b"test");
+    }
+}
+
+// ===== SampleEntry のメソッドテスト =====
+
+mod sample_entry_tests {
+    use std::num::NonZeroU16;
+
+    use shiguredo_mp4::{
+        BaseBox, BoxSize, BoxType, Decode, Encode, FixedPointNumber, Uint,
+        boxes::{
+            AudioSampleEntryFields, Av01Box, Av1cBox, Avc1Box, AvccBox, DopsBox, EsdsBox, FlacBox,
+            FlacMetadataBlock, Hev1Box, Hvc1Box, HvccBox, Mp4aBox, OpusBox, SampleEntry, UnknownBox,
+            VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox,
+        },
+        descriptors::{DecoderConfigDescriptor, EsDescriptor, SlConfigDescriptor},
+    };
+
+    fn create_audio_fields() -> AudioSampleEntryFields {
+        AudioSampleEntryFields {
+            data_reference_index: NonZeroU16::new(1).unwrap(),
+            channelcount: 2,
+            samplesize: 16,
+            samplerate: FixedPointNumber::new(48000, 0),
+        }
+    }
+
+    fn create_visual_fields() -> VisualSampleEntryFields {
+        VisualSampleEntryFields {
+            data_reference_index: NonZeroU16::new(1).unwrap(),
+            width: 1920,
+            height: 1080,
+            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+        }
+    }
+
+    /// SampleEntry::Opus の audio_* メソッドのテスト
+    #[test]
+    fn sample_entry_opus_audio_methods() {
+        let entry = SampleEntry::Opus(OpusBox {
+            audio: create_audio_fields(),
+            dops_box: DopsBox {
+                output_channel_count: 2,
+                pre_skip: 312,
+                input_sample_rate: 48000,
+                output_gain: 0,
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.audio_channel_count(), Some(2));
+        assert_eq!(entry.audio_sample_rate(), Some(48000));
+        assert_eq!(entry.audio_sample_size(), Some(16));
+        assert_eq!(entry.video_resolution(), None);
+        assert!(!entry.is_unknown_box());
+        assert_eq!(entry.box_type(), OpusBox::TYPE);
+    }
+
+    /// SampleEntry::Mp4a の audio_* メソッドのテスト
+    #[test]
+    fn sample_entry_mp4a_audio_methods() {
+        let entry = SampleEntry::Mp4a(Mp4aBox {
+            audio: create_audio_fields(),
+            esds_box: EsdsBox {
+                es: EsDescriptor {
+                    es_id: 1,
+                    stream_priority: Uint::new(0),
+                    depends_on_es_id: None,
+                    url_string: None,
+                    ocr_es_id: None,
+                    dec_config_descr: DecoderConfigDescriptor {
+                        object_type_indication: 0x40,
+                        stream_type: Uint::new(0x05),
+                        up_stream: Uint::new(0),
+                        buffer_size_db: Uint::new(0),
+                        max_bitrate: 128000,
+                        avg_bitrate: 128000,
+                        dec_specific_info: None,
+                    },
+                    sl_config_descr: SlConfigDescriptor,
+                },
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.audio_channel_count(), Some(2));
+        assert_eq!(entry.audio_sample_rate(), Some(48000));
+        assert_eq!(entry.audio_sample_size(), Some(16));
+        assert_eq!(entry.video_resolution(), None);
+    }
+
+    /// SampleEntry::Flac の audio_* メソッドのテスト
+    #[test]
+    fn sample_entry_flac_audio_methods() {
+        let entry = SampleEntry::Flac(FlacBox {
+            audio: create_audio_fields(),
+            dfla_box: shiguredo_mp4::boxes::DflaBox {
+                metadata_blocks: vec![FlacMetadataBlock {
+                    last_metadata_block_flag: Uint::new(1),
+                    block_type: Uint::new(0),
+                    block_data: vec![0; 34],
+                }],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.audio_channel_count(), Some(2));
+        assert_eq!(entry.audio_sample_rate(), Some(48000));
+        assert_eq!(entry.audio_sample_size(), Some(16));
+        assert_eq!(entry.video_resolution(), None);
+    }
+
+    /// SampleEntry::Avc1 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_avc1_video_methods() {
+        let entry = SampleEntry::Avc1(Avc1Box {
+            visual: create_visual_fields(),
+            avcc_box: AvccBox {
+                avc_profile_indication: 66,
+                profile_compatibility: 0,
+                avc_level_indication: 40,
+                length_size_minus_one: Uint::new(3),
+                sps_list: vec![],
+                pps_list: vec![],
+                chroma_format: None,
+                bit_depth_luma_minus8: None,
+                bit_depth_chroma_minus8: None,
+                sps_ext_list: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.audio_channel_count(), None);
+        assert_eq!(entry.audio_sample_rate(), None);
+        assert_eq!(entry.audio_sample_size(), None);
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Hev1 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_hev1_video_methods() {
+        let entry = SampleEntry::Hev1(Hev1Box {
+            visual: create_visual_fields(),
+            hvcc_box: HvccBox {
+                general_profile_space: Uint::new(0),
+                general_tier_flag: Uint::new(0),
+                general_profile_idc: Uint::new(1),
+                general_profile_compatibility_flags: 0,
+                general_constraint_indicator_flags: Uint::new(0),
+                general_level_idc: 0,
+                min_spatial_segmentation_idc: Uint::new(0),
+                parallelism_type: Uint::new(0),
+                chroma_format_idc: Uint::new(1),
+                bit_depth_luma_minus8: Uint::new(0),
+                bit_depth_chroma_minus8: Uint::new(0),
+                avg_frame_rate: 0,
+                constant_frame_rate: Uint::new(0),
+                num_temporal_layers: Uint::new(1),
+                temporal_id_nested: Uint::new(0),
+                length_size_minus_one: Uint::new(3),
+                nalu_arrays: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Hvc1 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_hvc1_video_methods() {
+        let entry = SampleEntry::Hvc1(Hvc1Box {
+            visual: create_visual_fields(),
+            hvcc_box: HvccBox {
+                general_profile_space: Uint::new(0),
+                general_tier_flag: Uint::new(0),
+                general_profile_idc: Uint::new(1),
+                general_profile_compatibility_flags: 0,
+                general_constraint_indicator_flags: Uint::new(0),
+                general_level_idc: 0,
+                min_spatial_segmentation_idc: Uint::new(0),
+                parallelism_type: Uint::new(0),
+                chroma_format_idc: Uint::new(1),
+                bit_depth_luma_minus8: Uint::new(0),
+                bit_depth_chroma_minus8: Uint::new(0),
+                avg_frame_rate: 0,
+                constant_frame_rate: Uint::new(0),
+                num_temporal_layers: Uint::new(1),
+                temporal_id_nested: Uint::new(0),
+                length_size_minus_one: Uint::new(3),
+                nalu_arrays: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Vp08 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_vp08_video_methods() {
+        let entry = SampleEntry::Vp08(Vp08Box {
+            visual: create_visual_fields(),
+            vpcc_box: VpccBox {
+                profile: 0,
+                level: 10,
+                bit_depth: Uint::new(8),
+                chroma_subsampling: Uint::new(1),
+                video_full_range_flag: Uint::new(0),
+                colour_primaries: 1,
+                transfer_characteristics: 1,
+                matrix_coefficients: 1,
+                codec_initialization_data: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Vp09 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_vp09_video_methods() {
+        let entry = SampleEntry::Vp09(Vp09Box {
+            visual: create_visual_fields(),
+            vpcc_box: VpccBox {
+                profile: 0,
+                level: 10,
+                bit_depth: Uint::new(8),
+                chroma_subsampling: Uint::new(1),
+                video_full_range_flag: Uint::new(0),
+                colour_primaries: 1,
+                transfer_characteristics: 1,
+                matrix_coefficients: 1,
+                codec_initialization_data: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Av01 の video_resolution メソッドのテスト
+    #[test]
+    fn sample_entry_av01_video_methods() {
+        let entry = SampleEntry::Av01(Av01Box {
+            visual: create_visual_fields(),
+            av1c_box: Av1cBox {
+                seq_profile: Uint::new(0),
+                seq_level_idx_0: Uint::new(0),
+                seq_tier_0: Uint::new(0),
+                high_bitdepth: Uint::new(0),
+                twelve_bit: Uint::new(0),
+                monochrome: Uint::new(0),
+                chroma_subsampling_x: Uint::new(1),
+                chroma_subsampling_y: Uint::new(1),
+                chroma_sample_position: Uint::new(0),
+                initial_presentation_delay_minus_one: None,
+                config_obus: vec![],
+            },
+            unknown_boxes: vec![],
+        });
+
+        assert_eq!(entry.video_resolution(), Some((1920, 1080)));
+    }
+
+    /// SampleEntry::Unknown のテスト
+    #[test]
+    fn sample_entry_unknown_methods() {
+        let entry = SampleEntry::Unknown(UnknownBox {
+            box_type: BoxType::Normal(*b"test"),
+            box_size: BoxSize::U32(8),
+            payload: vec![],
+        });
+
+        assert_eq!(entry.audio_channel_count(), None);
+        assert_eq!(entry.audio_sample_rate(), None);
+        assert_eq!(entry.audio_sample_size(), None);
+        assert_eq!(entry.video_resolution(), None);
+        assert!(entry.is_unknown_box());
+    }
+
+    /// SampleEntry の encode/decode roundtrip テスト
+    #[test]
+    fn sample_entry_encode_decode_roundtrip() {
+        let entry = SampleEntry::Opus(OpusBox {
+            audio: create_audio_fields(),
+            dops_box: DopsBox {
+                output_channel_count: 2,
+                pre_skip: 312,
+                input_sample_rate: 48000,
+                output_gain: 0,
+            },
+            unknown_boxes: vec![],
+        });
+
+        let encoded = entry.encode_to_vec().unwrap();
+        let (decoded, size) = SampleEntry::decode(&encoded).unwrap();
+
+        assert_eq!(size, encoded.len());
+        assert!(matches!(decoded, SampleEntry::Opus(_)));
+        assert_eq!(decoded.audio_channel_count(), Some(2));
+    }
+
+    /// SampleEntry::children() のテスト
+    #[test]
+    fn sample_entry_children() {
+        let entry = SampleEntry::Opus(OpusBox {
+            audio: create_audio_fields(),
+            dops_box: DopsBox {
+                output_channel_count: 2,
+                pre_skip: 312,
+                input_sample_rate: 48000,
+                output_gain: 0,
+            },
+            unknown_boxes: vec![],
+        });
+
+        // Opus の children は dops_box
+        let children: Vec<_> = entry.children().collect();
+        assert_eq!(children.len(), 1);
+    }
+}
