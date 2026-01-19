@@ -349,10 +349,10 @@ impl Encode for AvccBox {
         offset += self.avc_level_indication.encode(&mut buf[offset..])?;
         offset += (0b1111_1100 | self.length_size_minus_one.get()).encode(&mut buf[offset..])?;
 
-        let sps_count = u8::try_from(self.sps_list.len())
-            .ok()
-            .filter(|&n| n <= 31)
-            .ok_or_else(|| Error::invalid_input("Too many SPSs (max 31)"))?;
+        if self.sps_list.len() > 31 {
+            return Err(Error::invalid_input("Too many SPSs (max 31)"));
+        }
+        let sps_count = self.sps_list.len() as u8;
         offset += (0b1110_0000 | sps_count).encode(&mut buf[offset..])?;
         for sps in &self.sps_list {
             let size =
@@ -361,10 +361,10 @@ impl Encode for AvccBox {
             offset += sps.encode(&mut buf[offset..])?;
         }
 
-        let pps_count = u8::try_from(self.pps_list.len())
-            .ok()
-            .filter(|&n| n <= 31)
-            .ok_or_else(|| Error::invalid_input("Too many PPSs (max 31)"))?;
+        if self.pps_list.len() > 31 {
+            return Err(Error::invalid_input("Too many PPSs (max 31)"));
+        }
+        let pps_count = self.pps_list.len() as u8;
         offset += pps_count.encode(&mut buf[offset..])?;
         for pps in &self.pps_list {
             let size =
