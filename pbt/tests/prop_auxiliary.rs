@@ -364,10 +364,14 @@ mod timestamp_tests {
         // sample 4: timestamp 60-99
         // sample 5: timestamp 100-149
 
-        let sample = accessor.get_sample_by_timestamp(0).expect("sample not found");
+        let sample = accessor
+            .get_sample_by_timestamp(0)
+            .expect("sample not found");
         assert_eq!(sample.index().get(), 1);
 
-        let sample = accessor.get_sample_by_timestamp(9).expect("sample not found");
+        let sample = accessor
+            .get_sample_by_timestamp(9)
+            .expect("sample not found");
         assert_eq!(sample.index().get(), 1);
 
         let sample = accessor

@@ -728,8 +728,8 @@ mod sample_entry_tests {
         BaseBox, BoxSize, BoxType, Decode, Encode, FixedPointNumber, Uint,
         boxes::{
             AudioSampleEntryFields, Av01Box, Av1cBox, Avc1Box, AvccBox, DopsBox, EsdsBox, FlacBox,
-            FlacMetadataBlock, Hev1Box, Hvc1Box, HvccBox, Mp4aBox, OpusBox, SampleEntry, UnknownBox,
-            VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox,
+            FlacMetadataBlock, Hev1Box, Hvc1Box, HvccBox, Mp4aBox, OpusBox, SampleEntry,
+            UnknownBox, VisualSampleEntryFields, Vp08Box, Vp09Box, VpccBox,
         },
         descriptors::{DecoderConfigDescriptor, EsDescriptor, SlConfigDescriptor},
     };
