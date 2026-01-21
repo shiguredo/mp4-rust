@@ -26,6 +26,11 @@
 - コミットメッセージは命令形で書くこと
 - コミットメッセージは〜するという形で書くこと
 
+## テストについて
+
+- pbt 以下に unittest を書かないこと
+- unittest は pbt で実現できないものだけを書くこと
+
 ## pre-commit
 
 - cargo fmt / cargo clippy / cargo check / cargo test を実行すること
@@ -61,3 +66,5 @@
 - `.unwrap()` ではなく `.expect("MESSAGE")` を使用する
   - `.unwrap()` では情報が少ない
   - `.expect("MESSAGE")` を使用して、最低限「このパニックが状況によっては発生する可能性がある」のか、それとも「絶対に発生しない想定（発生した場合は実装バグ）」なのかがメッセージから分かるようにすること
+- 性能より堅牢性を優先すること
+- PBT(Property-Based Testing) や Fuzzing で必ずテストを行うこと
