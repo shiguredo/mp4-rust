@@ -150,7 +150,7 @@ impl FinalizedBoxes {
         .into_iter()
     }
 
-    /// 再構築された moov ボックスを返す
+    /// 構築された moov ボックスを返す
     pub fn moov_box(&self) -> &MoovBox {
         &self.moov_box
     }
