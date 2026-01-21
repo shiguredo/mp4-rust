@@ -180,7 +180,7 @@ proptest! {
         let finalized = muxer.finalize().expect("failed to finalize");
 
         // ファイルデータを構築
-        let file_data = build_file_data(&initial_bytes, &finalized, total_data_size);
+        let file_data = build_file_data(&initial_bytes, finalized, total_data_size);
 
         // Demux
         let mut demuxer = Mp4FileDemuxer::new();
@@ -242,7 +242,7 @@ proptest! {
         let finalized = muxer.finalize().expect("failed to finalize");
 
         // ファイルデータを構築
-        let file_data = build_file_data(&initial_bytes, &finalized, total_data_size);
+        let file_data = build_file_data(&initial_bytes, finalized, total_data_size);
 
         // Demux
         let mut demuxer = Mp4FileDemuxer::new();
@@ -328,7 +328,7 @@ proptest! {
         let finalized = muxer.finalize().expect("failed to finalize");
 
         // ファイルデータを構築
-        let file_data = build_file_data(&initial_bytes, &finalized, total_data_size);
+        let file_data = build_file_data(&initial_bytes, finalized, total_data_size);
 
         // Demux
         let mut demuxer = Mp4FileDemuxer::new();
@@ -381,7 +381,7 @@ mod boundary_tests {
         let initial_bytes = muxer.initial_boxes_bytes().to_vec();
         let finalized = muxer.finalize().expect("failed to finalize");
 
-        let file_data = build_file_data(&initial_bytes, &finalized, 100);
+        let file_data = build_file_data(&initial_bytes, finalized, 100);
 
         let mut demuxer = Mp4FileDemuxer::new();
         demuxer.handle_input(Input {
@@ -426,7 +426,7 @@ mod boundary_tests {
         assert!(finalized.is_faststart_enabled());
 
         // faststart 用のファイルデータを構築
-        let file_data = build_file_data(&initial_bytes, &finalized, 1024);
+        let file_data = build_file_data(&initial_bytes, finalized, 1024);
 
         let mut demuxer = Mp4FileDemuxer::new();
         demuxer.handle_input(Input {

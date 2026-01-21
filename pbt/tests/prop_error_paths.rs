@@ -1476,7 +1476,7 @@ mod base_box_tests {
         BaseBox, BoxType, Decode, Either, Encode, FixedPointNumber, Mp4FileTime,
         boxes::{
             AudioSampleEntryFields, Avc1Box, AvccBox, Co64Box, DinfBox, DopsBox, DrefBox, EdtsBox,
-            ElstBox, ElstEntry, Hev1Box, HdlrBox, HvccBox, HvccNalUintArray, MdhdBox, MdiaBox,
+            ElstBox, ElstEntry, HdlrBox, Hev1Box, HvccBox, HvccNalUintArray, MdhdBox, MdiaBox,
             MinfBox, MoovBox, MvhdBox, OpusBox, SampleEntry, SmhdBox, StblBox, StcoBox, StscBox,
             StsdBox, StszBox, SttsBox, TkhdBox, TrakBox, UrlBox, VmhdBox,
         },
@@ -2251,7 +2251,7 @@ mod base_box_tests {
                     url_string: None,
                     ocr_es_id: None,
                     dec_config_descr: DecoderConfigDescriptor {
-                        object_type_indication: 0x40, // AAC
+                        object_type_indication: 0x40,             // AAC
                         stream_type: shiguredo_mp4::Uint::new(5), // Audio
                         up_stream: shiguredo_mp4::Uint::new(0),
                         buffer_size_db: shiguredo_mp4::Uint::new(0),
@@ -2306,7 +2306,8 @@ mod base_box_tests {
         let hvc1 = create_hvc1_box();
         let mut buf = vec![0u8; 4096];
         let size = hvc1.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Hvc1(_)));
     }
@@ -2317,7 +2318,8 @@ mod base_box_tests {
         let vp08 = create_vp08_box();
         let mut buf = vec![0u8; 4096];
         let size = vp08.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Vp08(_)));
     }
@@ -2328,7 +2330,8 @@ mod base_box_tests {
         let vp09 = create_vp09_box();
         let mut buf = vec![0u8; 4096];
         let size = vp09.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Vp09(_)));
     }
@@ -2339,7 +2342,8 @@ mod base_box_tests {
         let av01 = create_av01_box();
         let mut buf = vec![0u8; 4096];
         let size = av01.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Av01(_)));
     }
@@ -2350,7 +2354,8 @@ mod base_box_tests {
         let mp4a = create_mp4a_box();
         let mut buf = vec![0u8; 4096];
         let size = mp4a.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Mp4a(_)));
     }
@@ -2361,7 +2366,8 @@ mod base_box_tests {
         let flac = create_flac_box();
         let mut buf = vec![0u8; 4096];
         let size = flac.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Flac(_)));
     }
@@ -2372,7 +2378,8 @@ mod base_box_tests {
         let hev1 = create_hev1_box();
         let mut buf = vec![0u8; 4096];
         let size = hev1.encode(&mut buf).expect("encode should succeed");
-        let (decoded, decoded_size) = SampleEntry::decode(&buf[..size]).expect("decode should succeed");
+        let (decoded, decoded_size) =
+            SampleEntry::decode(&buf[..size]).expect("decode should succeed");
         assert_eq!(size, decoded_size);
         assert!(matches!(decoded, SampleEntry::Hev1(_)));
     }

@@ -110,7 +110,7 @@ mod tests {
         assert_eq!(sample_entry.level, 31);
         assert_eq!(sample_entry.bit_depth, 8);
         assert_eq!(sample_entry.chroma_subsampling, 1);
-        assert_eq!(sample_entry.video_full_range_flag, false);
+        assert!(!sample_entry.video_full_range_flag);
         assert_eq!(sample_entry.colour_primaries, 1);
         assert_eq!(sample_entry.transfer_characteristics, 1);
         assert_eq!(sample_entry.matrix_coefficients, 1);
