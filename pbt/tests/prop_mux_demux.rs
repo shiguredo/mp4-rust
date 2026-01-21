@@ -13,7 +13,9 @@ use shiguredo_mp4::{
         VisualSampleEntryFields,
     },
     demux::{Input, Mp4FileDemuxer},
-    mux::{FinalizedBoxes, Mp4FileMuxer, Mp4FileMuxerOptions, Sample},
+    mux::{
+        FinalizedBoxes, Mp4FileMuxer, Mp4FileMuxerOptions, Sample, estimate_maximum_moov_box_size,
+    },
 };
 
 /// テスト用の H.264 SampleEntry を作成
@@ -434,5 +436,125 @@ mod boundary_tests {
 
         let tracks = demuxer.tracks().expect("failed to get tracks");
         assert_eq!(tracks.len(), 1);
+    }
+}
+
+// ===== estimate_maximum_moov_box_size のテスト =====
+
+mod estimate_moov_size_tests {
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        /// estimate_maximum_moov_box_size は非負の値を返す
+        #[test]
+        fn estimate_returns_non_negative(
+            track_counts in prop::collection::vec(0usize..10000, 0..10)
+        ) {
+            let result = estimate_maximum_moov_box_size(&track_counts);
+            prop_assert!(result > 0 || track_counts.is_empty());
+        }
+
+        /// estimate_maximum_moov_box_size はサンプル数に対して単調増加
+        #[test]
+        fn estimate_monotonically_increasing_with_samples(
+            base_count in 0usize..1000,
+            additional in 1usize..1000
+        ) {
+            let small = estimate_maximum_moov_box_size(&[base_count]);
+            let large = estimate_maximum_moov_box_size(&[base_count + additional]);
+            prop_assert!(large >= small, "estimate should increase with sample count");
+        }
+
+        /// estimate_maximum_moov_box_size はトラック数に対して単調増加
+        #[test]
+        fn estimate_monotonically_increasing_with_tracks(
+            sample_count in 0usize..1000,
+            track_count in 1usize..10
+        ) {
+            let single_track = estimate_maximum_moov_box_size(&[sample_count]);
+            let multi_track: Vec<usize> = (0..track_count).map(|_| sample_count).collect();
+            let result = estimate_maximum_moov_box_size(&multi_track);
+            prop_assert!(result >= single_track, "estimate should increase with track count");
+        }
+
+        /// estimate_maximum_moov_box_size の結果は実際の moov サイズより大きい
+        #[test]
+        fn estimate_is_upper_bound(
+            video_sample_count in 1usize..50,
+            audio_sample_count in 1usize..50
+        ) {
+            let estimated = estimate_maximum_moov_box_size(&[video_sample_count, audio_sample_count]);
+
+            // 実際に Muxer で moov を生成してサイズを比較
+            let mut muxer = Mp4FileMuxer::new().expect("failed to create muxer");
+            let mut data_offset = muxer.initial_boxes_bytes().len() as u64;
+
+            // ビデオサンプルを追加
+            let mut video_entry = Some(create_avc1_sample_entry(1920, 1080));
+            for _ in 0..video_sample_count {
+                let sample = Sample {
+                    track_kind: TrackKind::Video,
+                    sample_entry: video_entry.take(),
+                    keyframe: true,
+                    timescale: NonZeroU32::new(30).unwrap(),
+                    duration: 1,
+                    data_offset,
+                    data_size: 100,
+                };
+                muxer.append_sample(&sample).expect("failed to append video sample");
+                data_offset += 100;
+            }
+
+            // オーディオサンプルを追加
+            let mut audio_entry = Some(create_opus_sample_entry(2));
+            for _ in 0..audio_sample_count {
+                let sample = Sample {
+                    track_kind: TrackKind::Audio,
+                    sample_entry: audio_entry.take(),
+                    keyframe: false,
+                    timescale: NonZeroU32::new(48000).unwrap(),
+                    duration: 960,
+                    data_offset,
+                    data_size: 50,
+                };
+                muxer.append_sample(&sample).expect("failed to append audio sample");
+                data_offset += 50;
+            }
+
+            let finalized = muxer.finalize().expect("failed to finalize");
+            let actual_moov_size = finalized.moov_box_size();
+
+            prop_assert!(
+                estimated >= actual_moov_size,
+                "estimated {} should be >= actual {}",
+                estimated,
+                actual_moov_size
+            );
+        }
+    }
+
+    /// 空のトラックリストの場合
+    #[test]
+    fn estimate_empty_tracks() {
+        let result = estimate_maximum_moov_box_size(&[]);
+        // 基本オーバーヘッドのみ
+        assert!(result > 0);
+    }
+
+    /// 単一トラック、サンプルなし
+    #[test]
+    fn estimate_single_track_no_samples() {
+        let result = estimate_maximum_moov_box_size(&[0]);
+        assert!(result > 0);
+    }
+
+    /// 大量のサンプルがある場合
+    #[test]
+    fn estimate_large_sample_count() {
+        let result = estimate_maximum_moov_box_size(&[100000, 100000]);
+        // 大量のサンプルでもオーバーフローしない
+        assert!(result > 0);
     }
 }
