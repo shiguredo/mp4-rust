@@ -51,6 +51,13 @@
 - [ADD] Release で wasm バイナリを公開する
   - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
   - @voluntas
+- [ADD] pbt/ 以下に PBT テストを追加
+  - make pbt で実行できる
+  - make pbt-with-cover で llvm-cov を利用したカバレッジ計測付きで実行できる
+  - @voluntas
+- [ADD] fuzz/ 以下に cargo-fuzz 用のターゲットを追加
+  - make fuzzing で全ターゲットを 30 秒ずつ実行できる
+  - @voluntas
 
 ## 2026.1.0
 

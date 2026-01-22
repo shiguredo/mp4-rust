@@ -14,7 +14,15 @@ categories = ["no-std"]
 [dependencies]
 
 [workspace]
-members = ["crates/c-api", "crates/wasm", "examples/dump_wasm", "examples/transcode_wasm"]
+members = [
+    "crates/c-api",
+    "crates/wasm",
+    "examples/dump_wasm",
+    "examples/transcode_wasm",
+    "pbt",
+    "fuzz",
+]
+
 
 # wasm リリース用のビルドプロファイル (サイズ最小化)
 # cargo build --profile release-wasm --package wasm --target wasm32-unknown-unknown
