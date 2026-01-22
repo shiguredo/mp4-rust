@@ -20,7 +20,9 @@ members = [
     "examples/dump_wasm",
     "examples/transcode_wasm",
     "pbt",
+    "fuzz",
 ]
+
 
 # wasm リリース用のビルドプロファイル (サイズ最小化)
 # cargo build --profile release-wasm --package wasm --target wasm32-unknown-unknown
