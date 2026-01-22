@@ -9,9 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-
-[dependencies.shiguredo_mp4]
-path = ".."
+shiguredo_mp4 = { path = ".." }
 
 [[bin]]
 name = "fuzz_box_header"
