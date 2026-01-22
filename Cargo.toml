@@ -20,8 +20,8 @@ members = [
     "examples/dump_wasm",
     "examples/transcode_wasm",
     "pbt",
-    "fuzz",
 ]
+exclude = ["fuzz"]
 
 
 # wasm リリース用のビルドプロファイル (サイズ最小化)
