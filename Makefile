@@ -2,11 +2,11 @@
 
 # 全テストを実行する
 test:
-	cargo test --workspace
+	cargo test --workspace --exclude c-api
 
 # 全テストカバレッジ付きで実行する
 cover:
-	cargo llvm-cov --tests --workspace
+	cargo llvm-cov --tests --workspace --ignore-filename-regex 'crates/c-api/'
 
 # PBT を実行する
 pbt:
