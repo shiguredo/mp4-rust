@@ -2,8 +2,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use shiguredo_mp4::{
-    descriptors::{DecoderConfigDescriptor, DecoderSpecificInfo, EsDescriptor, SlConfigDescriptor},
     Decode, Encode,
+    descriptors::{DecoderConfigDescriptor, DecoderSpecificInfo, EsDescriptor, SlConfigDescriptor},
 };
 
 fuzz_target!(|data: &[u8]| {

@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use shiguredo_mp4::{boxes::Av01Box, Decode, Encode};
+use shiguredo_mp4::{Decode, Encode, boxes::Av01Box};
 
 fuzz_target!(|data: &[u8]| {
     if let Ok((av01, _)) = Av01Box::decode(data) {

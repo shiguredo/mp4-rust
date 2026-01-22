@@ -2,8 +2,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use shiguredo_mp4::{
-    boxes::Brand,
-    Decode, Encode, FixedPointNumber, FullBoxFlags, FullBoxHeader, Utf8String,
+    Decode, Encode, FixedPointNumber, FullBoxFlags, FullBoxHeader, Utf8String, boxes::Brand,
 };
 
 fuzz_target!(|data: &[u8]| {
