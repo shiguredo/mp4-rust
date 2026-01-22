@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - run: rustup update ${{ matrix.toolchain }}
       - run: rustup default ${{ matrix.toolchain }}
       - run: cargo check --workspace
@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Windows の場合には MSVC 系ではなく MinGW 系を使うようにする
         if: contains(matrix.os, 'windows')
         run: rustup set default-host x86_64-pc-windows-gnu
@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - run: rustup update stable
       - run: rustup default stable
       - run: rustup target add wasm32-unknown-unknown
@@ -128,7 +128,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - run: rustup update ${{ matrix.toolchain }}
       - run: rustup default ${{ matrix.toolchain }}
       - run: rustup component add clippy
@@ -152,7 +152,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - run: rustup update stable
       - run: rustup default stable
 
@@ -188,7 +188,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - run: rustup update stable
       - run: rustup default stable
       - run: rustup target add wasm32-unknown-unknown
