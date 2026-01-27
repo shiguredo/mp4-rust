@@ -979,7 +979,13 @@ impl Decode for MfraBox {
                 crate::Error::invalid_data("Missing mandatory 'mfro' box in 'mfra' box")
             })?;
 
-            Ok((Self { tfra_boxes, mfro_box }, header.external_size() + payload.len()))
+            Ok((
+                Self {
+                    tfra_boxes,
+                    mfro_box,
+                },
+                header.external_size() + payload.len(),
+            ))
         })
     }
 }
@@ -1106,9 +1112,12 @@ impl Decode for TfraBox {
                     (time, moof_offset)
                 };
 
-                let traf_number = decode_variable_uint(payload, &mut offset, length_size_of_traf_num + 1)?;
-                let trun_number = decode_variable_uint(payload, &mut offset, length_size_of_trun_num + 1)?;
-                let sample_number = decode_variable_uint(payload, &mut offset, length_size_of_sample_num + 1)?;
+                let traf_number =
+                    decode_variable_uint(payload, &mut offset, length_size_of_traf_num + 1)?;
+                let trun_number =
+                    decode_variable_uint(payload, &mut offset, length_size_of_trun_num + 1)?;
+                let sample_number =
+                    decode_variable_uint(payload, &mut offset, length_size_of_sample_num + 1)?;
 
                 entries.push(TfraEntry {
                     time,
@@ -1256,7 +1265,9 @@ fn encode_variable_uint(value: u32, byte_count: u8, buf: &mut [u8]) -> Result<us
             Ok(3)
         }
         4 => value.encode(buf),
-        _ => Err(crate::Error::invalid_data("Invalid byte count for variable uint")),
+        _ => Err(crate::Error::invalid_data(
+            "Invalid byte count for variable uint",
+        )),
     }
 }
 
@@ -1285,7 +1296,11 @@ fn decode_variable_uint(buf: &[u8], offset: &mut usize, byte_count: u8) -> Resul
             v
         }
         4 => u32::decode_at(buf, offset)?,
-        _ => return Err(crate::Error::invalid_data("Invalid byte count for variable uint")),
+        _ => {
+            return Err(crate::Error::invalid_data(
+                "Invalid byte count for variable uint",
+            ));
+        }
     };
 
     Ok(value)

@@ -1,4 +1,4 @@
-use shiguredo_mp4::{boxes::RootBox, BoxType, Decode, Encode, Mp4File, Result};
+use shiguredo_mp4::{BoxType, Decode, Encode, Mp4File, Result, boxes::RootBox};
 
 #[test]
 fn decode_encode_black_h264_video_mp4() -> Result<()> {
