@@ -27,12 +27,39 @@
   - JSON 処理には nojson を使用:
     - サンプルエントリー内のバイナリデータ (SPS/PPS/NALU 等) は数値配列で表現する
   - @voluntas
+- [ADD] Fragmented MP4 (fMP4) 関連のボックスを追加する
+  - フラグメント用ボックス:
+    - MoofBox (Movie Fragment Box)
+    - MfhdBox (Movie Fragment Header Box)
+    - TrafBox (Track Fragment Box)
+    - TfhdBox (Track Fragment Header Box)
+    - TrunBox (Track Fragment Run Box)
+    - TfdtBox (Track Fragment Base Media Decode Time Box)
+  - セグメントインデックス用ボックス:
+    - SidxBox (Segment Index Box)
+  - ランダムアクセス用ボックス:
+    - MfraBox (Movie Fragment Random Access Box)
+    - TfraBox (Track Fragment Random Access Box)
+    - MfroBox (Movie Fragment Random Access Offset Box)
+  - moov 内の拡張用ボックス:
+    - MvexBox (Movie Extends Box)
+    - MehdBox (Movie Extends Header Box)
+    - TrexBox (Track Extends Box)
+  - RootBox に Moof, Mfra, Sidx バリアントを追加する
+  - @voluntas
+- [ADD] SampleFlags 型を追加する
+  - fMP4 で使用されるサンプルフラグを表現する型
+  - @voluntas
 - [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
   - 理由:
     - `mp4_estimate_maximum_moov_box_size()` の返り値は `u32` なので一貫性がない
     - moov ボックスのサイズが 4GB に収まらないことは現実的にはあり得ないので `u64` は過剰
     - `u64` だと wasm にして JavaScript から呼ぶ場合に、通常の数値型ではなく BigInt を使う必要があって少し煩雑になる
   - @sile
+- [CHANGE] MoovBox に mvex_box フィールドを追加する
+  - fMP4 対応のため `mvex_box: Option<MvexBox>` フィールドを追加した
+  - MoovBox を直接構築しているコードは `mvex_box: None` を追加する必要がある
+  - @voluntas
 - [FIX] EsDescriptor のエンコード時に URL 文字列長が 255 バイトを超える場合にエラーを返すようにする
   - URL 文字列長は u8 で表現されるため、255 バイトまでしか扱えない
   - これまでは長すぎる URL 文字列を与えた場合に暗黙的に切り捨てられていたが、明示的にエラーを返すようにした
