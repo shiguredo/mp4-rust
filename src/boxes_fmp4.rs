@@ -692,12 +692,13 @@ impl Decode for TrunBox {
                     ));
                 }
             } else {
-                // bytes_per_sample が 0 の場合、sample_count は remaining を超えてはならない
-                // （各サンプルに対して最低でも 0 バイトのデータがあると仮定）
-                // OOM 防止のため、sample_count を remaining に制限
-                if sample_count as usize > remaining {
+                // bytes_per_sample = 0 の場合、サンプルデータなしで sample_count 個のサンプルを許容
+                // ただし、極端に大きな sample_count による OOM を防ぐ
+                // TrunSample 構造体のサイズが約 32 バイトとして、512MB (= 16M サンプル) を上限とする
+                const MAX_SAMPLES_WITHOUT_DATA: usize = 16_777_216;
+                if sample_count as usize > MAX_SAMPLES_WITHOUT_DATA {
                     return Err(Error::invalid_data(
-                        "TrunBox sample_count exceeds available payload",
+                        "TrunBox sample_count exceeds maximum allowed when no per-sample data is present",
                     ));
                 }
             }
