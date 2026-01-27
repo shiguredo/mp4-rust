@@ -179,6 +179,7 @@ fn minimal_moov_box() -> MoovBox {
     MoovBox {
         mvhd_box: minimal_mvhd_box(),
         trak_boxes: vec![minimal_trak_box_audio(1)],
+        mvex_box: None,
         unknown_boxes: vec![],
     }
 }
@@ -413,6 +414,7 @@ proptest! {
                 next_track_id,
             },
             trak_boxes,
+            mvex_box: None,
             unknown_boxes: vec![],
         };
         let encoded = moov.encode_to_vec().unwrap();
@@ -450,6 +452,7 @@ mod boundary_tests {
                 minimal_trak_box_audio(2),
                 minimal_trak_box_audio(3),
             ],
+            mvex_box: None,
             unknown_boxes: vec![],
         };
         let encoded = moov.encode_to_vec().unwrap();

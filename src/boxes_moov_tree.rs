@@ -6,7 +6,7 @@ use core::num::NonZeroU32;
 
 use crate::{
     BaseBox, BoxHeader, BoxType, Decode, Either, Encode, Error, FixedPointNumber, FullBox,
-    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, Utf8String,
+    FullBoxFlags, FullBoxHeader, Mp4FileTime, Result, SampleFlags, Utf8String,
     basic_types::as_box_object,
     boxes::{SampleEntry, UnknownBox, check_mandatory_box, with_box_type},
     descriptors::EsDescriptor,
@@ -18,6 +18,7 @@ use crate::{
 pub struct MoovBox {
     pub mvhd_box: MvhdBox,
     pub trak_boxes: Vec<TrakBox>,
+    pub mvex_box: Option<MvexBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -32,6 +33,9 @@ impl Encode for MoovBox {
         let mut offset = header.encode(buf)?;
         offset += self.mvhd_box.encode(&mut buf[offset..])?;
         for b in &self.trak_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        if let Some(b) = &self.mvex_box {
             offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
@@ -51,6 +55,7 @@ impl Decode for MoovBox {
             let mut offset = 0;
             let mut mvhd_box = None;
             let mut trak_boxes = Vec::new();
+            let mut mvex_box = None;
             let mut unknown_boxes = Vec::new();
 
             while offset < payload.len() {
@@ -62,6 +67,9 @@ impl Decode for MoovBox {
                     TrakBox::TYPE => {
                         trak_boxes.push(TrakBox::decode_at(payload, &mut offset)?);
                     }
+                    MvexBox::TYPE if mvex_box.is_none() => {
+                        mvex_box = Some(MvexBox::decode_at(payload, &mut offset)?);
+                    }
                     _ => {
                         unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
                     }
@@ -72,6 +80,7 @@ impl Decode for MoovBox {
                 Self {
                     mvhd_box: check_mandatory_box(mvhd_box, "mvhd", "moov")?,
                     trak_boxes,
+                    mvex_box,
                     unknown_boxes,
                 },
                 header.external_size() + payload.len(),
@@ -90,6 +99,7 @@ impl BaseBox for MoovBox {
             core::iter::empty()
                 .chain(core::iter::once(&self.mvhd_box).map(as_box_object))
                 .chain(self.trak_boxes.iter().map(as_box_object))
+                .chain(self.mvex_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -2179,6 +2189,256 @@ impl BaseBox for EsdsBox {
 }
 
 impl FullBox for EsdsBox {
+    fn full_box_version(&self) -> u8 {
+        0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] MovieExtendsBox class (親: [`MoovBox`])
+///
+/// Fragmented MP4 で使用するムービー拡張ボックス。
+/// このボックスが存在する場合、ファイルは fMP4 フォーマットであることを示す。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct MvexBox {
+    pub mehd_box: Option<MehdBox>,
+    pub trex_boxes: Vec<TrexBox>,
+    pub unknown_boxes: Vec<UnknownBox>,
+}
+
+impl MvexBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"mvex");
+}
+
+impl Encode for MvexBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        if let Some(b) = &self.mehd_box {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        for b in &self.trex_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        for b in &self.unknown_boxes {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for MvexBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let mut mehd_box = None;
+            let mut trex_boxes = Vec::new();
+            let mut unknown_boxes = Vec::new();
+
+            while offset < payload.len() {
+                let (child_header, _) = BoxHeader::decode(&payload[offset..])?;
+                match child_header.box_type {
+                    MehdBox::TYPE if mehd_box.is_none() => {
+                        mehd_box = Some(MehdBox::decode_at(payload, &mut offset)?);
+                    }
+                    TrexBox::TYPE => {
+                        trex_boxes.push(TrexBox::decode_at(payload, &mut offset)?);
+                    }
+                    _ => {
+                        unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
+                    }
+                }
+            }
+
+            Ok((
+                Self {
+                    mehd_box,
+                    trex_boxes,
+                    unknown_boxes,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for MvexBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(
+            core::iter::empty()
+                .chain(self.mehd_box.iter().map(as_box_object))
+                .chain(self.trex_boxes.iter().map(as_box_object))
+                .chain(self.unknown_boxes.iter().map(as_box_object)),
+        )
+    }
+}
+
+/// [ISO/IEC 14496-12] MovieExtendsHeaderBox class (親: [`MvexBox`])
+///
+/// フラグメント化されたムービー全体の継続時間を格納する。
+/// このボックスはオプションであり、存在しない場合は継続時間が不明であることを意味する。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct MehdBox {
+    pub fragment_duration: u64,
+}
+
+impl MehdBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"mehd");
+}
+
+impl Encode for MehdBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        if self.full_box_version() == 1 {
+            offset += self.fragment_duration.encode(&mut buf[offset..])?;
+        } else {
+            offset += (self.fragment_duration as u32).encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for MehdBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+
+            let fragment_duration = if full_header.version == 1 {
+                u64::decode_at(payload, &mut offset)?
+            } else {
+                u32::decode_at(payload, &mut offset)? as u64
+            };
+
+            Ok((
+                Self { fragment_duration },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for MehdBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for MehdBox {
+    fn full_box_version(&self) -> u8 {
+        if self.fragment_duration > u32::MAX as u64 {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] TrackExtendsBox class (親: [`MvexBox`])
+///
+/// トラックフラグメントのデフォルト値を定義する。
+/// 各トラックに対して 1 つの TrexBox が必要。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct TrexBox {
+    pub track_id: u32,
+    pub default_sample_description_index: u32,
+    pub default_sample_duration: u32,
+    pub default_sample_size: u32,
+    pub default_sample_flags: SampleFlags,
+}
+
+impl TrexBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"trex");
+}
+
+impl Encode for TrexBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += self.track_id.encode(&mut buf[offset..])?;
+        offset += self
+            .default_sample_description_index
+            .encode(&mut buf[offset..])?;
+        offset += self.default_sample_duration.encode(&mut buf[offset..])?;
+        offset += self.default_sample_size.encode(&mut buf[offset..])?;
+        offset += self.default_sample_flags.encode(&mut buf[offset..])?;
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for TrexBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let _full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+
+            let track_id = u32::decode_at(payload, &mut offset)?;
+            let default_sample_description_index = u32::decode_at(payload, &mut offset)?;
+            let default_sample_duration = u32::decode_at(payload, &mut offset)?;
+            let default_sample_size = u32::decode_at(payload, &mut offset)?;
+            let default_sample_flags = SampleFlags::decode_at(payload, &mut offset)?;
+
+            Ok((
+                Self {
+                    track_id,
+                    default_sample_description_index,
+                    default_sample_duration,
+                    default_sample_size,
+                    default_sample_flags,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for TrexBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for TrexBox {
     fn full_box_version(&self) -> u8 {
         0
     }

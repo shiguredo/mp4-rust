@@ -99,6 +99,7 @@ impl OutputMp4Builder {
         Ok(MoovBox {
             mvhd_box,
             trak_boxes,
+            mvex_box: None,
             unknown_boxes: Vec::new(),
         })
     }

@@ -1931,6 +1931,7 @@ mod base_box_tests {
         MoovBox {
             mvhd_box: create_mvhd_box(),
             trak_boxes: vec![create_video_trak_box()],
+            mvex_box: None,
             unknown_boxes: vec![],
         }
     }
