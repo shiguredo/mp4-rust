@@ -4,8 +4,8 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
-    BaseBox, BoxHeader, BoxType, Decode, Encode, FullBox, FullBoxFlags, FullBoxHeader, Result,
-    SampleFlags,
+    BaseBox, BoxHeader, BoxType, Decode, Encode, Error, FullBox, FullBoxFlags, FullBoxHeader,
+    Result, SampleFlags,
     basic_types::as_box_object,
     boxes::{UnknownBox, with_box_type},
 };
@@ -664,6 +664,43 @@ impl Decode for TrunBox {
             } else {
                 None
             };
+
+            // サンプルあたりのバイト数を計算してオーバーフローチェック
+            let bytes_per_sample = {
+                let mut size = 0usize;
+                if flags & Self::FLAG_SAMPLE_DURATION_PRESENT != 0 {
+                    size += 4;
+                }
+                if flags & Self::FLAG_SAMPLE_SIZE_PRESENT != 0 {
+                    size += 4;
+                }
+                if flags & Self::FLAG_SAMPLE_FLAGS_PRESENT != 0 {
+                    size += 4;
+                }
+                if flags & Self::FLAG_SAMPLE_COMPOSITION_TIME_OFFSETS_PRESENT != 0 {
+                    size += 4;
+                }
+                size
+            };
+
+            let remaining = payload.len().saturating_sub(offset);
+            if bytes_per_sample > 0 {
+                let max_samples = remaining / bytes_per_sample;
+                if sample_count as usize > max_samples {
+                    return Err(Error::invalid_data(
+                        "TrunBox sample_count exceeds available payload",
+                    ));
+                }
+            } else {
+                // bytes_per_sample が 0 の場合、sample_count は remaining を超えてはならない
+                // （各サンプルに対して最低でも 0 バイトのデータがあると仮定）
+                // OOM 防止のため、sample_count を remaining に制限
+                if sample_count as usize > remaining {
+                    return Err(Error::invalid_data(
+                        "TrunBox sample_count exceeds available payload",
+                    ));
+                }
+            }
 
             let mut samples = Vec::new();
             for _ in 0..sample_count {
