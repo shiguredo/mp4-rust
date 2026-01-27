@@ -1,4 +1,4 @@
-# mp4-rust
+# mp4-rs
 
 [![shiguredo_mp4](https://img.shields.io/crates/v/shiguredo_mp4.svg)](https://crates.io/crates/shiguredo_mp4)
 [![Documentation](https://docs.rs/shiguredo_mp4/badge.svg)](https://docs.rs/shiguredo_mp4)
@@ -10,35 +10,40 @@ We will not respond to pull requests or issues that have not been discussed on D
 
 Please review <https://github.com/shiguredo/oss> before using this software.
 
+## About Shiguredo's open-source software
+
+Please read <https://github.com/shiguredo/oss> before using this software.
+
 ## Overview
 
-This is a Rust library for reading and writing MP4 files.
+A Rust library for reading and writing MP4 files.
 
 ## Features
 
-- Implemented without external dependencies
+- Zero dependency libraries
 - Compatible with `no_std` environments
   - <https://docs.rust-embedded.org/book/intro/no-std.html>
-- Sans I/O implementation
+- Sans I/O
   - <https://sans-io.readthedocs.io/index.html>
 - Provides high-level APIs
-- Exposes C APIs
+- Provides C APIs
+- Provides WebAssembly APIs
 - Supports Windows / macOS / Linux
-- Supports Opus / FLAC / AAC audio codecs
-- Supports VP8 / VP9 / AV1 / H.264 / H.265 video codecs
+- Supports Opus / FLAC / AAC
+- Supports VP8 / VP9 / AV1 / H.264 / H.265
 
 ## Roadmap
 
 - Support for AV2
 - Support for H.266 (VVC)
-- Support for fragmented MP4 files
+- Support for Fragmented MP4
 
 ## WebAssembly Sample Pages
 
 We have prepared sample implementations using WebAssembly on GitHub Pages:
 
-- [MP4 Dump](https://shiguredo.github.io/mp4-rust/examples/dump/)
-- [MP4 Transcode](https://shiguredo.github.io/mp4-rust/examples/transcode/)
+- [MP4 Dump](https://shiguredo.github.io/mp4-rs/examples/dump/)
+- [MP4 Transcode](https://shiguredo.github.io/mp4-rs/examples/transcode/)
 
 ## Specifications
 
