@@ -346,3 +346,94 @@ path = "fuzz_targets/fuzz_stsz_box.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_moof_box"
+path = "fuzz_targets/fuzz_moof_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mfhd_box"
+path = "fuzz_targets/fuzz_mfhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_traf_box"
+path = "fuzz_targets/fuzz_traf_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tfhd_box"
+path = "fuzz_targets/fuzz_tfhd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_trun_box"
+path = "fuzz_targets/fuzz_trun_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tfdt_box"
+path = "fuzz_targets/fuzz_tfdt_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sidx_box"
+path = "fuzz_targets/fuzz_sidx_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mfra_box"
+path = "fuzz_targets/fuzz_mfra_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tfra_box"
+path = "fuzz_targets/fuzz_tfra_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mfro_box"
+path = "fuzz_targets/fuzz_mfro_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mvex_box"
+path = "fuzz_targets/fuzz_mvex_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_mehd_box"
+path = "fuzz_targets/fuzz_mehd_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_trex_box"
+path = "fuzz_targets/fuzz_trex_box.rs"
+test = false
+doc = false
+bench = false
