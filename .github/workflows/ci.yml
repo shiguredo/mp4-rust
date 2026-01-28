@@ -4,6 +4,9 @@ on:
   push:
     paths-ignore:
       - "**.md"
+  schedule:
+    # JST 11:00 (UTC 02:00), 月-金
+    - cron: "0 2 * * 1-5"
 
 jobs:
   ci:
