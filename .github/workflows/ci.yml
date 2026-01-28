@@ -1,19 +1,13 @@
-# Based on https://github.com/actions-rs/meta/blob/master/recipes/quickstart.md
-
 name: CI
 
 on:
   push:
     paths-ignore:
       - "**.md"
-  schedule:
-    # UTC の 01:00 は JST だと 10:00 。
-    # 1-5 で 月曜日から金曜日
-    - cron: "0 1 * * 1-5"
 
 jobs:
-  check:
-    name: Check
+  ci:
+    name: CI
     strategy:
       matrix:
         os:
@@ -21,54 +15,33 @@ jobs:
           - ubuntu-24.04-arm
           - windows-2025
           - macos-26
-        toolchain:
-          - stable
-          - beta
-          - nightly
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
-      - run: rustup update ${{ matrix.toolchain }}
-      - run: rustup default ${{ matrix.toolchain }}
-      - run: cargo check --workspace
 
-  test:
-    name: Test Suite
-    strategy:
-      matrix:
-        os:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
-          - windows-2025
-          - macos-26
-        toolchain:
-          - stable
-          - beta
-          - nightly
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
       - name: Windows の場合には MSVC 系ではなく MinGW 系を使うようにする
         if: contains(matrix.os, 'windows')
         run: rustup set default-host x86_64-pc-windows-gnu
-      - run: rustup update ${{ matrix.toolchain }}
-      - run: rustup default ${{ matrix.toolchain }}
-      - run: rustup show
 
-      # NOTE: build は C API のテストで使用する libmp4.a を生成するために必要
+      - run: rustup update stable
+      - uses: shiguredo/github-actions/.github/actions/rust-cache@main
+        with:
+          toolchain: stable
+
+      - run: cargo fmt --all --check
+      - run: cargo check --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
       - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
-      - run: ls target/debug/
       - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
+      - run: cargo clippy --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz -- -D warnings
 
-      - name: Windows の場合には MSVC 系でもビルドだけは試す（テスト用の実行可能バイナリの作成は、MSVC 固有のパス解決処理が複雑になりすぎるので見送り）
+      - name: Windows の場合には MSVC 系でもビルドだけは試す
         if: contains(matrix.os, 'windows')
         run: |
           rustup target add x86_64-pc-windows-msvc
           cargo build --package c-api --target x86_64-pc-windows-msvc
+
       - name: MSVC ビルド成果物の確認
         if: contains(matrix.os, 'windows')
         run: ls target/x86_64-pc-windows-msvc/debug/mp4.lib
@@ -80,14 +53,17 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
+
       - run: rustup update stable
-      - run: rustup default stable
       - run: rustup target add wasm32-unknown-unknown
+      - uses: shiguredo/github-actions/.github/actions/rust-cache@main
+        with:
+          toolchain: stable
 
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: Build WebAssembly
         run: cargo build -p wasm --target wasm32-unknown-unknown --profile release-wasm
@@ -105,35 +81,6 @@ jobs:
         run: |
           node crates/wasm/examples/demux.js /tmp/test_output.mp4
           echo "demux.js completed successfully"
-
-  lints:
-    name: Lints
-    strategy:
-      matrix:
-        os:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
-          - windows-2025
-          - macos-26
-        toolchain:
-          # [NOTE]
-          # clippy は「stable と nightly の片方に対応したらもう片方で失敗する」といったケースが
-          # まれにあるのと、そもそも nightly のチェックを事前に行うメリットが
-          # 薄い（lint で警告がでても、別に普通に使う分には問題はない）ので、
-          # ここでは stable だけを使っている
-          - stable
-          # - beta
-          # - nightly
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v6
-      - run: rustup update ${{ matrix.toolchain }}
-      - run: rustup default ${{ matrix.toolchain }}
-      - run: rustup component add clippy
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace -- -D warnings
 
   build-c-api:
     name: Build C API Library
@@ -153,8 +100,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
+
       - run: rustup update stable
-      - run: rustup default stable
+      - uses: shiguredo/github-actions/.github/actions/rust-cache@main
+        with:
+          toolchain: stable
 
       - name: Build C API
         run: cargo build --release --package c-api
@@ -189,9 +139,12 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v6
+
       - run: rustup update stable
-      - run: rustup default stable
       - run: rustup target add wasm32-unknown-unknown
+      - uses: shiguredo/github-actions/.github/actions/rust-cache@main
+        with:
+          toolchain: stable
 
       - name: Install wasm-opt
         run: |
@@ -220,7 +173,7 @@ jobs:
           path: artifacts/
 
   slack_notify_failed:
-    needs: [check, test, lints, build-c-api, build-wasm]
+    needs: [ci, test-wasm, build-c-api, build-wasm]
     runs-on: ubuntu-24.04
     if: ${{ failure() }}
     steps:
