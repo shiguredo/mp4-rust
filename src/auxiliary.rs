@@ -222,7 +222,7 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
 }
 
 /// [`SampleTableAccessor::new()`] で発生する可能性があるエラー
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SampleTableAccessorError {
     /// [`SttsBox`] と他のボックスで、表現しているサンプル数が異なる
     InconsistentSampleCount {
