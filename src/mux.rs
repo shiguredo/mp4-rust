@@ -121,7 +121,7 @@ impl Default for Mp4FileMuxerOptions {
 }
 
 /// [`Mp4FileMuxer::finalize()`] の結果として得られる、MP4 ファイル構築の完了に必要なボックス情報
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FinalizedBoxes {
     moov_box_offset: u64,
     moov_box_bytes: Vec<u8>,
@@ -342,7 +342,7 @@ struct Chunk {
 /// 細かい制御は行えないようになっている。
 /// もし構築する MP4 ファイルの細部までコントロールしたい場合には、この構造体経由ではなく、
 /// 利用側で MP4 ボックス群を直接構築することを推奨する。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
     initial_boxes_bytes: Vec<u8>,

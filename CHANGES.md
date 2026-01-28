@@ -11,6 +11,17 @@
 
 ## develop
 
+- [UPDATE] マルチプレックス・デマルチプレックス関連の構造体やエラー型に `Clone` トレイトを実装する
+  - モチベーション: これらの型に `Clone` を実装しても特に問題はなく、利用側の使い方の選択肢が増えるため
+  - 対象:
+    - `Error`
+    - `SampleTableAccessorError`
+    - `TrackState`
+    - `DemuxError`
+    - `Mp4FileDemuxer`
+    - `FinalizedBoxes`
+    - `Mp4FileMuxer`
+  - @sile
 - [ADD] WebAssembly API (crates/wasm) を追加する
   - demux / mux の機能を wasm32-unknown-unknown ターゲットで利用可能にする
   - 基本的には C API が提供している関数群をそのまま wasm 向けにも提供している

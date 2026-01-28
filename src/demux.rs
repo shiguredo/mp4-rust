@@ -199,7 +199,7 @@ impl<'a> Input<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TrackState {
     table: SampleTableAccessor<StblBox>,
     timescale: NonZeroU32,
@@ -208,6 +208,7 @@ struct TrackState {
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
 #[non_exhaustive]
+#[derive(Clone)]
 pub enum DemuxError {
     /// MP4 ボックスのデコード処理中に発生したエラー
     DecodeError(Error),
@@ -309,7 +310,7 @@ enum Phase {
 /// ファイル読み込みなどを必要に応じて行うのは利用側の責務となっている。
 ///
 /// また、この構造体はストリーミング用途での使用は想定していない。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mp4FileDemuxer {
     phase: Phase,
     track_infos: Vec<TrackInfo>,
