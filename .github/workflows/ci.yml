@@ -31,6 +31,7 @@ jobs:
       - run: rustup update stable
       - uses: shiguredo/github-actions/.github/actions/rust-cache@main
         with:
+          os: ${{ matrix.os }}
           toolchain: stable
 
       - run: cargo fmt --all --check
@@ -61,6 +62,7 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - uses: shiguredo/github-actions/.github/actions/rust-cache@main
         with:
+          os: ubuntu-24.04
           toolchain: stable
 
       - name: Install Node.js
@@ -107,6 +109,7 @@ jobs:
       - run: rustup update stable
       - uses: shiguredo/github-actions/.github/actions/rust-cache@main
         with:
+          os: ${{ matrix.os }}
           toolchain: stable
 
       - name: Build C API
@@ -147,6 +150,7 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - uses: shiguredo/github-actions/.github/actions/rust-cache@main
         with:
+          os: ubuntu-24.04
           toolchain: stable
 
       - name: Install wasm-opt
