@@ -807,18 +807,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_seek(
         return Mp4Error::MP4_ERROR_INVALID_INPUT;
     }
 
-    let timescale = u64::from(timescale);
-    let secs = timestamp / timescale;
-    let subsec = timestamp % timescale;
-    let nanos = subsec
-        .checked_mul(1_000_000_000)
-        .and_then(|v| v.checked_div(timescale))
-        .and_then(|v| u32::try_from(v).ok());
-    let Some(nanos) = nanos else {
-        demuxer.set_last_error("[mp4_file_demuxer_seek] timestamp overflow");
-        return Mp4Error::MP4_ERROR_INVALID_INPUT;
-    };
-    let position = std::time::Duration::new(secs, nanos);
+    let position = std::time::Duration::from_secs(timestamp) / timescale;
     match demuxer.inner.seek(position) {
         Ok(()) => Mp4Error::MP4_ERROR_OK,
         Err(e) => {
