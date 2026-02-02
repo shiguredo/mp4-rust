@@ -505,7 +505,7 @@ impl Mp4FileDemuxer {
 
     /// MP4 ファイル内のすべてのメディアトラック情報を取得する
     ///
-    /// なお、トラック情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// なお、トラック情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
     /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
@@ -519,7 +519,7 @@ impl Mp4FileDemuxer {
     /// 最も早いタイムスタンプを持つサンプルを返す。
     /// サンプルが存在しない場合は `None` が返される。
     ///
-    /// なお、次のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// なお、次のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
     /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn next_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
@@ -562,7 +562,7 @@ impl Mp4FileDemuxer {
     ///
     /// すべてのトラックのうち、現在位置より前にあるサンプルから、
     /// 最も遅いタイムスタンプのものを返す。
-    /// 同一タイムスタンプのサンプルが複数ある場合は、トラックの走査順に依存する。
+    /// 同一タイムスタンプのサンプルが複数ある場合は、シーク後の [`next_sample()`] の走査対象に含まれる。
     /// サンプルが存在しない場合は `None` が返される。
     ///
     /// なお、前のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
@@ -603,6 +603,31 @@ impl Mp4FileDemuxer {
         }
     }
 
+    /// 指定した時刻にシークする
+    ///
+    /// 各トラックで指定時刻を含むサンプルを選び、次回の [`next_sample()`] が
+    /// その位置から開始されるようにする。
+    /// つまり次の [`Mp4FileDemuxer::next_sample()`] で返されるサンプルのタイムスタンプは、
+    /// 「`position` で指定した位置と同じか、少し前になることがある」ということを意味する。
+    ///
+    pub fn seek(&mut self, position: Duration) -> Result<(), DemuxError> {
+        self.ensure_initialized()?;
+
+        for track in &mut self.tracks {
+            let target_timestamp = duration_to_timestamp(position, track.timescale)?;
+            if let Some(sample) = track.table.get_sample_by_timestamp(target_timestamp) {
+                track.next_sample_index = sample.index();
+            } else {
+                let next_index = track.table.sample_count().checked_add(1).ok_or_else(|| {
+                    DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
+                })?;
+                track.next_sample_index = NonZeroU32::new(next_index).expect("bug");
+            }
+        }
+
+        Ok(())
+    }
+
     fn build_sample(&self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
         let track = &self.tracks[track_index];
         let sample_accessor = track.table.get_sample(sample_index).expect("bug");
@@ -610,7 +635,6 @@ impl Mp4FileDemuxer {
         let sample_entry_index = sample_accessor.chunk().sample_entry_index();
 
         // サンプルエントリーに変更があるかどうかをチェックする
-        // NOTE: 将来的にシークに対応する場合には、シーク直後は常に新規扱いにする必要がある
         let is_new_sample_entry = if let Some(prev_sample_index) =
             sample_index.get().checked_sub(1).and_then(NonZeroU32::new)
         {
@@ -646,6 +670,22 @@ impl Mp4FileDemuxer {
             Ok(())
         }
     }
+}
+
+fn duration_to_timestamp(duration: Duration, timescale: NonZeroU32) -> Result<u64, DemuxError> {
+    let timescale = u64::from(timescale.get());
+    let secs = duration.as_secs();
+    let subsec_nanos = u64::from(duration.subsec_nanos());
+    let secs_part = secs
+        .checked_mul(timescale)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))?;
+    let nanos_part = subsec_nanos
+        .checked_mul(timescale)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))?
+        / 1_000_000_000;
+    secs_part
+        .checked_add(nanos_part)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))
 }
 
 #[cfg(test)]

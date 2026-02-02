@@ -88,6 +88,21 @@ fn sample_to_digest(sample: &Sample<'_>) -> SampleDigest {
     }
 }
 
+fn ticks_to_duration(ticks: u64, timescale: u32) -> std::time::Duration {
+    let timescale = u64::from(timescale);
+    let secs = ticks / timescale;
+    let rem = ticks % timescale;
+    let nanos = rem * 1_000_000_000 / timescale;
+    std::time::Duration::new(secs, nanos as u32)
+}
+
+fn duration_to_ticks(duration: std::time::Duration, timescale: u32) -> u64 {
+    let timescale = u64::from(timescale);
+    let secs_part = duration.as_secs() * timescale;
+    let nanos_part = u64::from(duration.subsec_nanos()) * timescale / 1_000_000_000;
+    secs_part + nanos_part
+}
+
 /// 破損タイプを生成する Strategy
 fn arb_corruption(data_len: usize) -> impl Strategy<Value = CorruptionType> {
     prop_oneof![
@@ -284,6 +299,51 @@ proptest! {
             forward_again.push(sample_to_digest(sample.as_ref().expect("missing sample")));
         }
         prop_assert_eq!(forward_again.as_slice(), forward.as_slice());
+    }
+
+    /// seek() 後に next_sample() が指定時刻を含むサンプルを返すことを確認
+    #[test]
+    fn seek_returns_sample_containing_position(
+        file_choice in 0u8..2,
+        seek_ticks_offset in 0u64..5_000u64
+    ) {
+        let data = if file_choice == 0 {
+            TEST_MP4_AAC_FILE
+        } else {
+            TEST_MP4_H264_FILE
+        };
+        let input = Input {
+            position: 0,
+            data,
+        };
+        let mut demuxer = Mp4FileDemuxer::new();
+        demuxer.handle_input(input);
+        let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
+        prop_assume!(!tracks.is_empty());
+
+        let max_duration = tracks
+            .iter()
+            .map(|track| ticks_to_duration(track.duration, track.timescale.get()))
+            .max()
+            .expect("bug");
+        let offset_duration = std::time::Duration::from_millis(seek_ticks_offset);
+        let seek_duration = max_duration / 2 + offset_duration;
+
+        demuxer.seek(seek_duration).expect("failed to seek");
+        let sample = demuxer.next_sample().expect("failed to read sample");
+
+        let any_track_has_sample = tracks.iter().any(|track| {
+            let track_seek_ticks = duration_to_ticks(seek_duration, track.timescale.get());
+            track_seek_ticks < track.duration
+        });
+
+        if let Some(sample) = sample {
+            let sample_seek_ticks = duration_to_ticks(seek_duration, sample.track.timescale.get());
+            prop_assert!(sample.timestamp <= sample_seek_ticks);
+            prop_assert!(sample_seek_ticks < sample.timestamp + u64::from(sample.duration));
+        } else {
+            prop_assert!(!any_track_has_sample);
+        }
     }
 }
 

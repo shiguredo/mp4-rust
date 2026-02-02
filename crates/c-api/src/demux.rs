@@ -125,6 +125,7 @@ impl Mp4DemuxSample {
 /// - `mp4_file_demuxer_get_tracks()`: MP4 ファイル内のすべてのメディアトラック情報を取得する
 /// - `mp4_file_demuxer_next_sample()`: 時系列順に次のサンプルを取得する
 /// - `mp4_file_demuxer_prev_sample()`: 時系列順に前のサンプルを取得する
+/// - `mp4_file_demuxer_seek()`: 指定した時刻へシークする
 /// - `mp4_file_demuxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
 ///
 /// # Examples
@@ -164,6 +165,9 @@ impl Mp4DemuxSample {
 /// while (mp4_file_demuxer_prev_sample(demuxer, &sample) == MP4_ERROR_OK) {
 ///     // サンプルを処理...
 /// }
+///
+/// // timestamp=1500, timescale=1000 にシーク
+/// mp4_file_demuxer_seek(demuxer, 1500, 1000);
 ///
 /// // リソース解放
 /// mp4_file_demuxer_free(demuxer);
@@ -532,7 +536,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
 /// すべてのトラックから、まだ取得していないもののなかで、
 /// 最も早いタイムスタンプを持つサンプルを返す
 ///
-/// すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+/// ファイルの先頭に達した場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
 ///
 /// # サンプルデータの読み込みについて
 ///
@@ -554,7 +558,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
 ///
 /// - `MP4_ERROR_OK`: 正常にサンプルが取得された
 /// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
-/// - `MP4_ERROR_NO_MORE_SAMPLES`: ファイルの先頭に達した
+/// - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
 /// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
 ///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
 /// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
@@ -661,9 +665,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
 /// すべてのトラックのうち、現在位置より前にあるサンプルから、
 /// 最も遅いタイムスタンプのものを返す
 ///
-/// 同一タイムスタンプのサンプルが複数ある場合は、トラックの走査順に依存する
-///
-/// すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+/// ファイルの先頭に達した場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
 ///
 /// # サンプルデータの読み込みについて
 ///
@@ -685,7 +687,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
 ///
 /// - `MP4_ERROR_OK`: 正常にサンプルが取得された
 /// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
-/// - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
+/// - `MP4_ERROR_NO_MORE_SAMPLES`: ファイルの先頭に達した
 /// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
 ///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
 /// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
@@ -759,6 +761,55 @@ pub unsafe extern "C" fn mp4_file_demuxer_prev_sample(
         Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
         Err(e) => {
             demuxer.set_last_error(&format!("[mp4_file_demuxer_prev_sample] {e}"));
+            e.into()
+        }
+    }
+}
+
+/// MP4 ファイルの指定時刻にシークする
+///
+/// 各トラックで指定時刻を含むサンプルを選び、次回の `mp4_file_demuxer_next_sample()` が
+/// その位置から開始されるようにする
+///
+/// 同一タイムスタンプのサンプルが複数ある場合は、シーク後の `mp4_file_demuxer_next_sample()` の走査対象に含まれる
+///
+/// # 引数
+///
+/// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+/// - `timestamp`: シーク先の時刻を表すタイムスタンプ値（単位は `timescale` で指定）
+///   - 実際の秒数は `timestamp / timescale` で計算される
+/// - `timescale`: タイムスケール（1 秒間の単位数）
+///   - 0 の場合は `MP4_ERROR_INVALID_INPUT` が返される
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常にシークできた
+/// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+/// - `MP4_ERROR_INVALID_INPUT`: 引数の値が不正
+/// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+/// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_seek(
+    demuxer: *mut Mp4FileDemuxer,
+    timestamp: u64,
+    timescale: u32,
+) -> Mp4Error {
+    if demuxer.is_null() {
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
+    }
+    let demuxer = unsafe { &mut *demuxer };
+
+    let position = std::time::Duration::from_secs(timestamp).checked_div(timescale);
+    let Some(position) = position else {
+        demuxer.set_last_error("[mp4_file_demuxer_seek] timescale must be non-zero");
+        return Mp4Error::MP4_ERROR_INVALID_INPUT;
+    };
+    match demuxer.inner.seek(position) {
+        Ok(()) => Mp4Error::MP4_ERROR_OK,
+        Err(e) => {
+            demuxer.set_last_error(&format!("[mp4_file_demuxer_seek] {e}"));
             e.into()
         }
     }
