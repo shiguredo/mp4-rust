@@ -777,9 +777,8 @@ pub unsafe extern "C" fn mp4_file_demuxer_prev_sample(
 ///
 /// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
 ///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
-///
-/// - `timestamp`: シーク先のタイムスタンプ（タイムスケール単位）
-///
+/// - `timestamp`: シーク先の時刻を表すタイムスタンプ値（単位は `timescale` で指定）
+///   - 実際の秒数は `timestamp / timescale` で計算される
 /// - `timescale`: タイムスケール（1 秒間の単位数）
 ///   - 0 の場合は `MP4_ERROR_INVALID_INPUT` が返される
 ///
