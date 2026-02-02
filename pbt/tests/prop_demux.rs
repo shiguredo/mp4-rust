@@ -326,7 +326,7 @@ proptest! {
             .map(|track| ticks_to_duration(track.duration, track.timescale.get()))
             .max()
             .expect("bug");
-        let offset_duration = ticks_to_duration(seek_ticks_offset, tracks[0].timescale.get());
+        let offset_duration = std::time::Duration::from_millis(seek_ticks_offset);
         let seek_duration = max_duration / 2 + offset_duration;
 
         demuxer.seek(seek_duration).expect("failed to seek");

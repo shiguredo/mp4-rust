@@ -536,7 +536,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
 /// すべてのトラックから、まだ取得していないもののなかで、
 /// 最も早いタイムスタンプを持つサンプルを返す
 ///
-/// すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+/// ファイルの先頭に達した場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
 ///
 /// # サンプルデータの読み込みについて
 ///
