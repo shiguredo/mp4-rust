@@ -5,10 +5,10 @@ use alloc::{boxed::Box, format, vec::Vec};
 use core::num::NonZeroU16;
 
 use crate::{
-    basic_types::as_box_object,
-    boxes::{check_mandatory_box, with_box_type, EsdsBox, UnknownBox},
     BaseBox, BoxHeader, BoxType, Decode, Encode, Error, FixedPointNumber, FullBox, FullBoxFlags,
     FullBoxHeader, Result, Uint,
+    basic_types::as_box_object,
+    boxes::{EsdsBox, UnknownBox, check_mandatory_box, with_box_type},
 };
 
 /// [`StsdBox`][crate::boxes::StsdBox] に含まれるエントリー
