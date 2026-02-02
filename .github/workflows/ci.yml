@@ -39,7 +39,9 @@ jobs:
       - run: cargo build --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
       - run: cargo test --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
       - run: cargo clippy --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz -- -D warnings
-      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
+      - run: cargo doc --workspace --exclude dump_wasm --exclude transcode_wasm --exclude fuzz
+        env:
+          RUSTDOCFLAGS: "-D warnings"
 
       - name: Windows の場合には MSVC 系でもビルドだけは試す
         if: contains(matrix.os, 'windows')
