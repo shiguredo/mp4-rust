@@ -94,6 +94,9 @@
 
 ### misc
 
+- [UPDATE] CI で cargo doc の警告をエラー扱いにする
+  - rustdoc の警告を検出した場合に CI が失敗するようにする
+  - @sile
 - [ADD] CI で wasm ビルドを artifact としてアップロードする
   - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
   - @voluntas
