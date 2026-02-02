@@ -1152,10 +1152,10 @@ impl VmhdBox {
     /// ボックス種別
     pub const TYPE: BoxType = BoxType::Normal(*b"vmhd");
 
-    /// [`Vmhd::graphicsmode`] のデフォルト値（コピー）
+    /// [`VmhdBox::graphicsmode`] のデフォルト値（コピー）
     pub const DEFAULT_GRAPHICSMODE: u16 = 0;
 
-    /// [`Vmhd::graphicsmode`] のデフォルト値
+    /// [`VmhdBox::opcolor`] のデフォルト値
     pub const DEFAULT_OPCOLOR: [u16; 3] = [0, 0, 0];
 }
 

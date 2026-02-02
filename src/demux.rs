@@ -173,7 +173,7 @@ impl RequiredInput {
 /// [`Mp4FileDemuxer::handle_input()`] に渡す入力データを表す構造体
 ///
 /// [`Mp4FileDemuxer`] 自体は I/O 操作を行わず、各メソッドで I/O 操作が必要になった場合には、
-/// [`DemuxError::NeedInput`] を通して呼び出し元への要求が発行される。
+/// [`DemuxError::InputRequired`] を通して呼び出し元への要求が発行される。
 /// この構造体は、その要求をうけた呼び出し元が I/O 操作の結果を [`Mp4FileDemuxer`] に伝えるために使用される。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Input<'a> {
@@ -507,7 +507,7 @@ impl Mp4FileDemuxer {
     ///
     /// なお、トラック情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
-    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
+    /// [`Mp4FileDemuxer::handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn tracks(&mut self) -> Result<&[TrackInfo], DemuxError> {
         self.ensure_initialized()?;
         Ok(&self.track_infos)
@@ -521,7 +521,7 @@ impl Mp4FileDemuxer {
     ///
     /// なお、次のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
-    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
+    /// [`Mp4FileDemuxer::handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn next_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
         self.ensure_initialized()?;
 
@@ -562,12 +562,12 @@ impl Mp4FileDemuxer {
     ///
     /// すべてのトラックのうち、現在位置より前にあるサンプルから、
     /// 最も遅いタイムスタンプのものを返す。
-    /// 同一タイムスタンプのサンプルが複数ある場合は、シーク後の [`next_sample()`] の走査対象に含まれる。
+    /// 同一タイムスタンプのサンプルが複数ある場合は、シーク後の [`Mp4FileDemuxer::next_sample()`] の走査対象に含まれる。
     /// サンプルが存在しない場合は `None` が返される。
     ///
     /// なお、前のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
-    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
+    /// [`Mp4FileDemuxer::handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn prev_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
         self.ensure_initialized()?;
 
@@ -605,7 +605,7 @@ impl Mp4FileDemuxer {
 
     /// 指定した時刻にシークする
     ///
-    /// 各トラックで指定時刻を含むサンプルを選び、次回の [`next_sample()`] が
+    /// 各トラックで指定時刻を含むサンプルを選び、次回の [`Mp4FileDemuxer::next_sample()`] が
     /// その位置から開始されるようにする。
     /// つまり次の [`Mp4FileDemuxer::next_sample()`] で返されるサンプルのタイムスタンプは、
     /// 「`position` で指定した位置と同じか、少し前になることがある」ということを意味する。

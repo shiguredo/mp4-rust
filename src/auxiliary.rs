@@ -224,36 +224,36 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
 /// [`SampleTableAccessor::new()`] で発生する可能性があるエラー
 #[derive(Debug, Clone)]
 pub enum SampleTableAccessorError {
-    /// [`SttsBox`] と他のボックスで、表現しているサンプル数が異なる
+    /// [`SttsBox`][crate::boxes::SttsBox] と他のボックスで、表現しているサンプル数が異なる
     InconsistentSampleCount {
-        /// [`SttsBox`] 準拠のサンプル数
+        /// [`SttsBox`][crate::boxes::SttsBox] 準拠のサンプル数
         stts_sample_count: u32,
 
-        /// [`SttsBox`] とは異なるサンプル数を表しているボックスの種別
+        /// [`SttsBox`][crate::boxes::SttsBox] とは異なるサンプル数を表しているボックスの種別
         other_box_type: BoxType,
 
         /// `other_box_type` 準拠のサンプル数
         other_sample_count: u32,
     },
 
-    /// [`StscBox`] の最初のエントリのチャンクインデックスが 1 ではない
+    /// [`StscBox`][crate::boxes::StscBox] の最初のエントリのチャンクインデックスが 1 ではない
     FirstChunkIndexIsNotOne {
         /// 実際の最初のチャンクインデックスの値
         actual_chunk_index: NonZeroU32,
     },
 
-    /// [`StscBox`] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
+    /// [`StscBox`][crate::boxes::StscBox] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
     LastChunkIndexIsTooLarge {
-        /// [`StcoBox`] ないし [`Co64Box`] が表すチャンクインデックスの最大値
+        /// [`StcoBox`][crate::boxes::StcoBox] ないし [`Co64Box`][crate::boxes::Co64Box] が表すチャンクインデックスの最大値
         max_chunk_index: NonZeroU32,
 
-        /// [`StscBox`] の最後のエントリのチャンクインデックス
+        /// [`StscBox`][crate::boxes::StscBox] の最後のエントリのチャンクインデックス
         last_chunk_index: NonZeroU32,
     },
 
-    /// [`StscBox`] が存在しない [`SampleEntry`] を参照している
+    /// [`StscBox`][crate::boxes::StscBox] が存在しない [`SampleEntry`][crate::boxes::SampleEntry] を参照している
     MissingSampleEntry {
-        /// [`StscEntry`] のインデックス
+        /// [`StscEntry`][crate::boxes::StscEntry] のインデックス
         stsc_entry_index: usize,
 
         /// 存在しないサンプルエントリーのインデックス
