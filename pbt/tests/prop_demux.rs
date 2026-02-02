@@ -321,14 +321,13 @@ proptest! {
         let tracks = demuxer.tracks().expect("failed to get tracks").to_vec();
         prop_assume!(!tracks.is_empty());
 
-        let max_duration_ticks = tracks
+        let max_duration = tracks
             .iter()
-            .map(|track| track.duration)
+            .map(|track| ticks_to_duration(track.duration, track.timescale.get()))
             .max()
             .expect("bug");
-        let seek_ticks = seek_ticks_offset.saturating_add(max_duration_ticks / 2);
-        let timescale = tracks[0].timescale.get();
-        let seek_duration = ticks_to_duration(seek_ticks, timescale);
+        let offset_duration = ticks_to_duration(seek_ticks_offset, tracks[0].timescale.get());
+        let seek_duration = max_duration / 2 + offset_duration;
 
         demuxer.seek(seek_duration).expect("failed to seek");
         let sample = demuxer.next_sample().expect("failed to read sample");

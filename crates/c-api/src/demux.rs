@@ -558,7 +558,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_get_tracks(
 ///
 /// - `MP4_ERROR_OK`: 正常にサンプルが取得された
 /// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
-/// - `MP4_ERROR_NO_MORE_SAMPLES`: ファイルの先頭に達した
+/// - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
 /// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
 ///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
 /// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
@@ -689,7 +689,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
 ///
 /// - `MP4_ERROR_OK`: 正常にサンプルが取得された
 /// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
-/// - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
+/// - `MP4_ERROR_NO_MORE_SAMPLES`: ファイルの先頭に達した
 /// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
 ///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
 /// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
