@@ -543,46 +543,96 @@ impl Mp4FileDemuxer {
 
         // 最も早いサンプルを提供したトラックを進める
         if let Some((_timestamp, track_index)) = earliest_sample {
-            let sample_index = self.tracks[track_index].next_sample_index;
-            self.tracks[track_index].next_sample_index =
-                sample_index.checked_add(1).ok_or_else(|| {
+            let sample_index = {
+                let track = &mut self.tracks[track_index];
+                let sample_index = track.next_sample_index;
+                track.next_sample_index = sample_index.checked_add(1).ok_or_else(|| {
                     DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
                 })?;
-
-            let track = &mut self.tracks[track_index];
-            let sample_accessor = track.table.get_sample(sample_index).expect("bug");
-            let sample_entry = sample_accessor.chunk().sample_entry();
-            let sample_entry_index = sample_accessor.chunk().sample_entry_index();
-
-            // サンプルエントリーに変更があるかどうかをチェックする
-            // NOTE: 将来的にシークに対応する場合には、シーク直後は常に新規扱いにする必要がある
-            let is_new_sample_entry = if let Some(prev_sample_index) =
-                NonZeroU32::new(sample_index.get() - 1)
-            {
-                let prev_sample_accessor = track.table.get_sample(prev_sample_index).expect("bug");
-                if prev_sample_accessor.chunk().sample_entry_index() == sample_entry_index {
-                    // サンプルエントリーのインデックスが等しい場合には、内容も常に等しい
-                    false
-                } else {
-                    prev_sample_accessor.chunk().sample_entry() != sample_entry
-                }
-            } else {
-                // 最初のサンプル
-                true
+                sample_index
             };
-
-            let sample = Sample {
-                track: &self.track_infos[track_index],
-                sample_entry: is_new_sample_entry.then_some(sample_entry),
-                keyframe: sample_accessor.is_sync_sample(),
-                timestamp: sample_accessor.timestamp(),
-                duration: sample_accessor.duration(),
-                data_offset: sample_accessor.data_offset(),
-                data_size: sample_accessor.data_size() as usize,
-            };
+            let sample = self.build_sample(track_index, sample_index);
             Ok(Some(sample))
         } else {
             Ok(None)
+        }
+    }
+
+    /// 時系列順に前のサンプルを取得する
+    ///
+    /// すべてのトラックから、まだ取得済みのものの中で、
+    /// 最も遅いタイムスタンプを持つサンプルを返す。
+    /// サンプルが存在しない場合は `None` が返される。
+    ///
+    /// なお、前のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
+    /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
+    pub fn prev_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
+        self.ensure_initialized()?;
+
+        let mut latest_sample: Option<(Duration, usize, NonZeroU32)> = None;
+
+        // 全トラックの中で最も遅いタイムスタンプを持つサンプルを探す
+        for (track_index, track) in self.tracks.iter().enumerate() {
+            let Some(prev_sample_index) = track
+                .next_sample_index
+                .get()
+                .checked_sub(1)
+                .and_then(NonZeroU32::new)
+            else {
+                continue;
+            };
+            let Some(sample_accessor) = track.table.get_sample(prev_sample_index) else {
+                continue;
+            };
+            let timestamp =
+                Duration::from_secs(sample_accessor.timestamp()) / track.timescale.get();
+            if latest_sample.as_ref().is_some_and(|s| timestamp <= s.0) {
+                continue;
+            }
+            latest_sample = Some((timestamp, track_index, prev_sample_index));
+        }
+
+        if let Some((_timestamp, track_index, sample_index)) = latest_sample {
+            self.tracks[track_index].next_sample_index = sample_index;
+            let sample = self.build_sample(track_index, sample_index);
+            Ok(Some(sample))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn build_sample(&self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
+        let track = &self.tracks[track_index];
+        let sample_accessor = track.table.get_sample(sample_index).expect("bug");
+        let sample_entry = sample_accessor.chunk().sample_entry();
+        let sample_entry_index = sample_accessor.chunk().sample_entry_index();
+
+        // サンプルエントリーに変更があるかどうかをチェックする
+        // NOTE: 将来的にシークに対応する場合には、シーク直後は常に新規扱いにする必要がある
+        let is_new_sample_entry = if let Some(prev_sample_index) =
+            sample_index.get().checked_sub(1).and_then(NonZeroU32::new)
+        {
+            let prev_sample_accessor = track.table.get_sample(prev_sample_index).expect("bug");
+            if prev_sample_accessor.chunk().sample_entry_index() == sample_entry_index {
+                // サンプルエントリーのインデックスが等しい場合には、内容も常に等しい
+                false
+            } else {
+                prev_sample_accessor.chunk().sample_entry() != sample_entry
+            }
+        } else {
+            // 最初のサンプル
+            true
+        };
+
+        Sample {
+            track: &self.track_infos[track_index],
+            sample_entry: is_new_sample_entry.then_some(sample_entry),
+            keyframe: sample_accessor.is_sync_sample(),
+            timestamp: sample_accessor.timestamp(),
+            duration: sample_accessor.duration(),
+            data_offset: sample_accessor.data_offset(),
+            data_size: sample_accessor.data_size() as usize,
         }
     }
 

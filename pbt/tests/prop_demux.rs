@@ -3,7 +3,7 @@
 //! 破損した MP4 データで無限ループが発生する問題を再現・検出するテスト
 
 use proptest::prelude::*;
-use shiguredo_mp4::demux::{Input, Mp4FileDemuxer, RequiredInput};
+use shiguredo_mp4::demux::{Input, Mp4FileDemuxer, RequiredInput, Sample};
 
 /// テスト用の簡易 MP4 風データ
 const TEST_MP4_H264: &[u8] = &[
@@ -16,6 +16,8 @@ const TEST_MP4_AAC: &[u8] = &[
     b'm', b'p', b'4', b'2', b'i', b's', b'o', b'm', 0x00, 0x00, 0x00, 0x08, b'm', b'o', b'o', b'v',
     0x00, 0x00, 0x00, 0x10, b'm', b'd', b'a', b't', 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80,
 ];
+const TEST_MP4_AAC_FILE: &[u8] = include_bytes!("../../tests/testdata/beep-aac-audio.mp4");
+const TEST_MP4_H264_FILE: &[u8] = include_bytes!("../../tests/testdata/black-h264-video.mp4");
 
 /// 破損の種類
 #[derive(Debug, Clone, Copy)]
@@ -61,6 +63,29 @@ fn corrupt_mp4(data: &[u8], corruption: CorruptionType) -> Vec<u8> {
     }
 
     corrupted
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SampleDigest {
+    track_id: u32,
+    timestamp: u64,
+    duration: u32,
+    data_offset: u64,
+    data_size: usize,
+    keyframe: bool,
+    sample_entry_present: bool,
+}
+
+fn sample_to_digest(sample: &Sample<'_>) -> SampleDigest {
+    SampleDigest {
+        track_id: sample.track.track_id,
+        timestamp: sample.timestamp,
+        duration: sample.duration,
+        data_offset: sample.data_offset,
+        data_size: sample.data_size,
+        keyframe: sample.keyframe,
+        sample_entry_present: sample.sample_entry.is_some(),
+    }
 }
 
 /// 破損タイプを生成する Strategy
@@ -202,6 +227,44 @@ proptest! {
         }
         let result = demux_with_loop_detection(&corrupted, 1000);
         prop_assert!(result.is_ok(), "Error: {:?}", result.err());
+    }
+
+    /// prev_sample() が next_sample() と往復できることを確認
+    #[test]
+    fn prev_sample_roundtrip(
+        file_choice in 0u8..2,
+        max_samples in 1usize..200
+    ) {
+        let data = if file_choice == 0 {
+            TEST_MP4_AAC_FILE
+        } else {
+            TEST_MP4_H264_FILE
+        };
+        let input = Input {
+            position: 0,
+            data,
+        };
+        let mut demuxer = Mp4FileDemuxer::new();
+        demuxer.handle_input(input);
+        let _ = demuxer.tracks().expect("failed to get tracks");
+
+        let mut forward = Vec::new();
+        while let Some(sample) = demuxer.next_sample().expect("failed to read next sample") {
+            forward.push(sample_to_digest(&sample));
+            if forward.len() >= max_samples {
+                break;
+            }
+        }
+        prop_assert!(!forward.is_empty());
+
+        let mut backward = Vec::new();
+        for _ in 0..forward.len() {
+            let sample = demuxer.prev_sample().expect("failed to read previous sample");
+            prop_assert!(sample.is_some());
+            backward.push(sample_to_digest(sample.as_ref().expect("missing sample")));
+        }
+        backward.reverse();
+        prop_assert_eq!(backward, forward);
     }
 }
 
