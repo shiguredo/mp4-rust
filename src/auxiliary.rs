@@ -236,24 +236,24 @@ pub enum SampleTableAccessorError {
         other_sample_count: u32,
     },
 
-    /// [`StscBox`][crate::boxes::StscBox] の最初のエントリのチャンクインデックスが 1 ではない
+    /// [`StscBox`] の最初のエントリのチャンクインデックスが 1 ではない
     FirstChunkIndexIsNotOne {
         /// 実際の最初のチャンクインデックスの値
         actual_chunk_index: NonZeroU32,
     },
 
-    /// [`StscBox`][crate::boxes::StscBox] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
+    /// [`StscBox`] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
     LastChunkIndexIsTooLarge {
         /// [`StcoBox`][crate::boxes::StcoBox] ないし [`Co64Box`][crate::boxes::Co64Box] が表すチャンクインデックスの最大値
         max_chunk_index: NonZeroU32,
 
-        /// [`StscBox`][crate::boxes::StscBox] の最後のエントリのチャンクインデックス
+        /// [`StscBox`] の最後のエントリのチャンクインデックス
         last_chunk_index: NonZeroU32,
     },
 
-    /// [`StscBox`][crate::boxes::StscBox] が存在しない [`SampleEntry`][crate::boxes::SampleEntry] を参照している
+    /// [`StscBox`] が存在しない [`SampleEntry`] を参照している
     MissingSampleEntry {
-        /// [`StscEntry`][crate::boxes::StscEntry] のインデックス
+        /// [`StscEntry`] のインデックス
         stsc_entry_index: usize,
 
         /// 存在しないサンプルエントリーのインデックス
