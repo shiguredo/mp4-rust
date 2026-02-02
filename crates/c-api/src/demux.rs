@@ -166,8 +166,8 @@ impl Mp4DemuxSample {
 ///     // サンプルを処理...
 /// }
 ///
-/// // 1.5 秒にシーク
-/// mp4_file_demuxer_seek(demuxer, 1, 500000000);
+/// // timestamp=1500, timescale=1000 にシーク
+/// mp4_file_demuxer_seek(demuxer, 1500, 1000);
 ///
 /// // リソース解放
 /// mp4_file_demuxer_free(demuxer);
@@ -778,10 +778,10 @@ pub unsafe extern "C" fn mp4_file_demuxer_prev_sample(
 /// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
 ///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
 ///
-/// - `position_seconds`: シーク先の秒
+/// - `timestamp`: シーク先のタイムスタンプ（タイムスケール単位）
 ///
-/// - `position_nanos`: シーク先のナノ秒（0 <= position_nanos < 1_000_000_000）
-///   - 範囲外の場合は `MP4_ERROR_INVALID_INPUT` が返される
+/// - `timescale`: タイムスケール（1 秒間の単位数）
+///   - 0 の場合は `MP4_ERROR_INVALID_INPUT` が返される
 ///
 /// # 戻り値
 ///
@@ -794,20 +794,31 @@ pub unsafe extern "C" fn mp4_file_demuxer_prev_sample(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mp4_file_demuxer_seek(
     demuxer: *mut Mp4FileDemuxer,
-    position_seconds: u64,
-    position_nanos: u32,
+    timestamp: u64,
+    timescale: u32,
 ) -> Mp4Error {
     if demuxer.is_null() {
         return Mp4Error::MP4_ERROR_NULL_POINTER;
     }
     let demuxer = unsafe { &mut *demuxer };
 
-    if position_nanos >= 1_000_000_000 {
-        demuxer.set_last_error("[mp4_file_demuxer_seek] position_nanos is out of range");
+    if timescale == 0 {
+        demuxer.set_last_error("[mp4_file_demuxer_seek] timescale is zero");
         return Mp4Error::MP4_ERROR_INVALID_INPUT;
     }
 
-    let position = std::time::Duration::new(position_seconds, position_nanos);
+    let timescale = u64::from(timescale);
+    let secs = timestamp / timescale;
+    let subsec = timestamp % timescale;
+    let nanos = subsec
+        .checked_mul(1_000_000_000)
+        .and_then(|v| v.checked_div(timescale))
+        .and_then(|v| u32::try_from(v).ok());
+    let Some(nanos) = nanos else {
+        demuxer.set_last_error("[mp4_file_demuxer_seek] timestamp overflow");
+        return Mp4Error::MP4_ERROR_INVALID_INPUT;
+    };
+    let position = std::time::Duration::new(secs, nanos);
     match demuxer.inner.seek(position) {
         Ok(()) => Mp4Error::MP4_ERROR_OK,
         Err(e) => {

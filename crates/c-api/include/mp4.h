@@ -164,8 +164,8 @@ typedef enum Mp4SampleEntryKind {
  *     // サンプルを処理...
  * }
  *
- * // 1.5 秒にシーク
- * mp4_file_demuxer_seek(demuxer, 1, 500000000);
+ * // timestamp=1500, timescale=1000 にシーク
+ * mp4_file_demuxer_seek(demuxer, 1500, 1000);
  *
  * // リソース解放
  * mp4_file_demuxer_free(demuxer);
@@ -1326,10 +1326,10 @@ enum Mp4Error mp4_file_demuxer_prev_sample(struct Mp4FileDemuxer *demuxer,
  * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
  *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
  *
- * - `position_seconds`: シーク先の秒
+ * - `timestamp`: シーク先のタイムスタンプ（タイムスケール単位）
  *
- * - `position_nanos`: シーク先のナノ秒（0 <= position_nanos < 1_000_000_000）
- *   - 範囲外の場合は `MP4_ERROR_INVALID_INPUT` が返される
+ * - `timescale`: タイムスケール（1 秒間の単位数）
+ *   - 0 の場合は `MP4_ERROR_INVALID_INPUT` が返される
  *
  * # 戻り値
  *
@@ -1341,8 +1341,8 @@ enum Mp4Error mp4_file_demuxer_prev_sample(struct Mp4FileDemuxer *demuxer,
  * - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
  */
 enum Mp4Error mp4_file_demuxer_seek(struct Mp4FileDemuxer *demuxer,
-                                    uint64_t position_seconds,
-                                    uint32_t position_nanos);
+                                    uint64_t timestamp,
+                                    uint32_t timescale);
 
 /**
  * 構築する MP4 ファイルの moov ボックスの最大サイズを見積もるための関数
