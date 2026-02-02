@@ -803,7 +803,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_seek(
 
     let position = std::time::Duration::from_secs(timestamp).checked_div(timescale);
     let Some(position) = position else {
-        demuxer.set_last_error("[mp4_file_demuxer_seek] timescale is zero");
+        demuxer.set_last_error("[mp4_file_demuxer_seek] timescale must be non-zero");
         return Mp4Error::MP4_ERROR_INVALID_INPUT;
     };
     match demuxer.inner.seek(position) {
