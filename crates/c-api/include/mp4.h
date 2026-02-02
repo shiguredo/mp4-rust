@@ -1283,8 +1283,6 @@ enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
  * すべてのトラックのうち、現在位置より前にあるサンプルから、
  * 最も遅いタイムスタンプのものを返す
  *
- * 同一タイムスタンプのサンプルが複数ある場合は、シーク後の `mp4_file_demuxer_next_sample()` の走査対象に含まれる
- *
  * すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
  *
  * # サンプルデータの読み込みについて
@@ -1321,7 +1319,7 @@ enum Mp4Error mp4_file_demuxer_prev_sample(struct Mp4FileDemuxer *demuxer,
  * 各トラックで指定時刻を含むサンプルを選び、次回の `mp4_file_demuxer_next_sample()` が
  * その位置から開始されるようにする
  *
- * 同一タイムスタンプのサンプルが複数ある場合は、トラックの走査順に依存する
+ * 同一タイムスタンプのサンプルが複数ある場合は、シーク後の `mp4_file_demuxer_next_sample()` の走査対象に含まれる
  *
  * # 引数
  *
