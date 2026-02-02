@@ -204,7 +204,6 @@ struct TrackState {
     table: SampleTableAccessor<StblBox>,
     timescale: NonZeroU32,
     next_sample_index: NonZeroU32,
-    force_sample_entry: bool,
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
@@ -497,7 +496,6 @@ impl Mp4FileDemuxer {
                 table,
                 timescale,
                 next_sample_index: NonZeroU32::MIN,
-                force_sample_entry: false,
             })
         }
 
@@ -612,13 +610,11 @@ impl Mp4FileDemuxer {
     /// つまり次の [`Mp4FileDemuxer::next_sample()`] で返されるサンプルのタイムスタンプは、
     /// 「`position` で指定した位置と同じか、少し前になることがある」ということを意味する。
     ///
-    /// なお、シーク直後のサンプルでは常にサンプルエントリーの値が Some になる。
     pub fn seek(&mut self, position: Duration) -> Result<(), DemuxError> {
         self.ensure_initialized()?;
 
         for track in &mut self.tracks {
             let target_timestamp = duration_to_timestamp(position, track.timescale)?;
-            track.force_sample_entry = true;
             if let Some(sample) = track.table.get_sample_by_timestamp(target_timestamp) {
                 track.next_sample_index = sample.index();
             } else {
@@ -632,22 +628,14 @@ impl Mp4FileDemuxer {
         Ok(())
     }
 
-    fn build_sample(&mut self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
-        let force_sample_entry = {
-            let track = &mut self.tracks[track_index];
-            let value = track.force_sample_entry;
-            track.force_sample_entry = false;
-            value
-        };
+    fn build_sample(&self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
         let track = &self.tracks[track_index];
         let sample_accessor = track.table.get_sample(sample_index).expect("bug");
         let sample_entry = sample_accessor.chunk().sample_entry();
         let sample_entry_index = sample_accessor.chunk().sample_entry_index();
 
         // サンプルエントリーに変更があるかどうかをチェックする
-        let is_new_sample_entry = if force_sample_entry {
-            true
-        } else if let Some(prev_sample_index) =
+        let is_new_sample_entry = if let Some(prev_sample_index) =
             sample_index.get().checked_sub(1).and_then(NonZeroU32::new)
         {
             let prev_sample_accessor = track.table.get_sample(prev_sample_index).expect("bug");
