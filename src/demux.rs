@@ -683,10 +683,7 @@ impl Mp4FileDemuxer {
     }
 }
 
-fn duration_to_timestamp(
-    duration: Duration,
-    timescale: NonZeroU32,
-) -> Result<u64, DemuxError> {
+fn duration_to_timestamp(duration: Duration, timescale: NonZeroU32) -> Result<u64, DemuxError> {
     let timescale = u64::from(timescale.get());
     let secs = duration.as_secs();
     let subsec_nanos = u64::from(duration.subsec_nanos());
