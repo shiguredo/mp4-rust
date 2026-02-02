@@ -204,6 +204,7 @@ struct TrackState {
     table: SampleTableAccessor<StblBox>,
     timescale: NonZeroU32,
     next_sample_index: NonZeroU32,
+    force_sample_entry: bool,
 }
 
 /// MP4 デマルチプレックス処理中に発生するエラーを表す列挙型
@@ -496,6 +497,7 @@ impl Mp4FileDemuxer {
                 table,
                 timescale,
                 next_sample_index: NonZeroU32::MIN,
+                force_sample_entry: false,
             })
         }
 
@@ -603,15 +605,48 @@ impl Mp4FileDemuxer {
         }
     }
 
-    fn build_sample(&self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
+    /// 指定した時刻にシークする
+    ///
+    /// 各トラックで指定時刻を含むサンプルを選び、次回の [`next_sample()`] が
+    /// その位置から開始されるようにする。
+    /// 同一タイムスタンプのサンプルが複数ある場合は、トラックの走査順に依存する。
+    ///
+    /// なお、シーク直後のサンプルは常に新規のサンプルエントリーが返される。
+    pub fn seek(&mut self, position: Duration) -> Result<(), DemuxError> {
+        self.ensure_initialized()?;
+
+        for track in &mut self.tracks {
+            let target_timestamp = duration_to_timestamp(position, track.timescale)?;
+            track.force_sample_entry = true;
+            if let Some(sample) = track.table.get_sample_by_timestamp(target_timestamp) {
+                track.next_sample_index = sample.index();
+            } else {
+                let next_index = track.table.sample_count().checked_add(1).ok_or_else(|| {
+                    DemuxError::DecodeError(Error::invalid_data("sample index overflow"))
+                })?;
+                track.next_sample_index = NonZeroU32::new(next_index).expect("bug");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn build_sample(&mut self, track_index: usize, sample_index: NonZeroU32) -> Sample<'_> {
+        let force_sample_entry = {
+            let track = &mut self.tracks[track_index];
+            let value = track.force_sample_entry;
+            track.force_sample_entry = false;
+            value
+        };
         let track = &self.tracks[track_index];
         let sample_accessor = track.table.get_sample(sample_index).expect("bug");
         let sample_entry = sample_accessor.chunk().sample_entry();
         let sample_entry_index = sample_accessor.chunk().sample_entry_index();
 
         // サンプルエントリーに変更があるかどうかをチェックする
-        // NOTE: 将来的にシークに対応する場合には、シーク直後は常に新規扱いにする必要がある
-        let is_new_sample_entry = if let Some(prev_sample_index) =
+        let is_new_sample_entry = if force_sample_entry {
+            true
+        } else if let Some(prev_sample_index) =
             sample_index.get().checked_sub(1).and_then(NonZeroU32::new)
         {
             let prev_sample_accessor = track.table.get_sample(prev_sample_index).expect("bug");
@@ -646,6 +681,25 @@ impl Mp4FileDemuxer {
             Ok(())
         }
     }
+}
+
+fn duration_to_timestamp(
+    duration: Duration,
+    timescale: NonZeroU32,
+) -> Result<u64, DemuxError> {
+    let timescale = u64::from(timescale.get());
+    let secs = duration.as_secs();
+    let subsec_nanos = u64::from(duration.subsec_nanos());
+    let secs_part = secs
+        .checked_mul(timescale)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))?;
+    let nanos_part = subsec_nanos
+        .checked_mul(timescale)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))?
+        / 1_000_000_000;
+    secs_part
+        .checked_add(nanos_part)
+        .ok_or_else(|| DemuxError::DecodeError(Error::invalid_data("timestamp overflow")))
 }
 
 #[cfg(test)]
