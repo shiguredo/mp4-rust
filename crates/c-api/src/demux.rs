@@ -665,7 +665,7 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
 /// すべてのトラックのうち、現在位置より前にあるサンプルから、
 /// 最も遅いタイムスタンプのものを返す
 ///
-/// すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+/// ファイルの先頭に達した場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
 ///
 /// # サンプルデータの読み込みについて
 ///
@@ -802,12 +802,11 @@ pub unsafe extern "C" fn mp4_file_demuxer_seek(
     }
     let demuxer = unsafe { &mut *demuxer };
 
-    if timescale == 0 {
+    let position = std::time::Duration::from_secs(timestamp).checked_div(timescale);
+    let Some(position) = position else {
         demuxer.set_last_error("[mp4_file_demuxer_seek] timescale is zero");
         return Mp4Error::MP4_ERROR_INVALID_INPUT;
-    }
-
-    let position = std::time::Duration::from_secs(timestamp) / timescale;
+    };
     match demuxer.inner.seek(position) {
         Ok(()) => Mp4Error::MP4_ERROR_OK,
         Err(e) => {
