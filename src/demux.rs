@@ -564,7 +564,7 @@ impl Mp4FileDemuxer {
     /// 最も遅いタイムスタンプを持つサンプルを返す。
     /// サンプルが存在しない場合は `None` が返される。
     ///
-    /// なお、前のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::NeedInput`] が返される。
+    /// なお、前のサンプルの情報を取得するために I/O 操作が必要な場合は [`DemuxError::InputRequired`] が返される。
     /// その場合、呼び出し元は指定された位置とサイズのファイルデータを読み込み、
     /// [`handle_input()`] に渡した後、再度このメソッドを呼び出す必要がある。
     pub fn prev_sample(&mut self) -> Result<Option<Sample<'_>>, DemuxError> {
