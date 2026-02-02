@@ -122,6 +122,7 @@ typedef enum Mp4SampleEntryKind {
  * - `mp4_file_demuxer_handle_input()`: ファイルデータを入力として受け取る
  * - `mp4_file_demuxer_get_tracks()`: MP4 ファイル内のすべてのメディアトラック情報を取得する
  * - `mp4_file_demuxer_next_sample()`: 時系列順に次のサンプルを取得する
+ * - `mp4_file_demuxer_prev_sample()`: 時系列順に前のサンプルを取得する
  * - `mp4_file_demuxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
  *
  * # Examples
@@ -154,6 +155,11 @@ typedef enum Mp4SampleEntryKind {
  * // サンプルを取得
  * Mp4DemuxSample sample;
  * while (mp4_file_demuxer_next_sample(demuxer, &sample) == MP4_ERROR_OK) {
+ *     // サンプルを処理...
+ * }
+ *
+ * // 前のサンプルを取得
+ * while (mp4_file_demuxer_prev_sample(demuxer, &sample) == MP4_ERROR_OK) {
  *     // サンプルを処理...
  * }
  *
@@ -1265,6 +1271,42 @@ enum Mp4Error mp4_file_demuxer_get_tracks(struct Mp4FileDemuxer *demuxer,
  * ```
  */
 enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
+                                           struct Mp4DemuxSample *out_sample);
+
+/**
+ * MP4 ファイルから時系列順に前のメディアサンプルを取得する
+ *
+ * すべてのトラックのうち、現在位置より前にあるサンプルから、
+ * 最も遅いタイムスタンプのものを返す
+ *
+ * すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+ *
+ * # サンプルデータの読み込みについて
+ *
+ * この関数は、サンプルのメタデータ（タイムスタンプ、サイズ、ファイル内の位置など）のみを返すので、
+ * 実際のサンプルデータ（音声フレームや映像フレーム）の読み込みは呼び出し元の責務となる
+ *
+ * サンプルデータを処理する場合には、返された `Mp4DemuxSample` の `data_offset` と `data_size` フィールドを使用して、
+ * 入力ファイルから直接サンプルデータを読み込む必要がある
+ *
+ * # 引数
+ *
+ * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `out_sample`: 取得したサンプル情報を受け取るポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常にサンプルが取得された
+ * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ * - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
+ * - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+ *   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+ * - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
+ */
+enum Mp4Error mp4_file_demuxer_prev_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4DemuxSample *out_sample);
 
 /**

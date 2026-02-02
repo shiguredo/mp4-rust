@@ -124,6 +124,7 @@ impl Mp4DemuxSample {
 /// - `mp4_file_demuxer_handle_input()`: ファイルデータを入力として受け取る
 /// - `mp4_file_demuxer_get_tracks()`: MP4 ファイル内のすべてのメディアトラック情報を取得する
 /// - `mp4_file_demuxer_next_sample()`: 時系列順に次のサンプルを取得する
+/// - `mp4_file_demuxer_prev_sample()`: 時系列順に前のサンプルを取得する
 /// - `mp4_file_demuxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
 ///
 /// # Examples
@@ -156,6 +157,11 @@ impl Mp4DemuxSample {
 /// // サンプルを取得
 /// Mp4DemuxSample sample;
 /// while (mp4_file_demuxer_next_sample(demuxer, &sample) == MP4_ERROR_OK) {
+///     // サンプルを処理...
+/// }
+///
+/// // 前のサンプルを取得
+/// while (mp4_file_demuxer_prev_sample(demuxer, &sample) == MP4_ERROR_OK) {
 ///     // サンプルを処理...
 /// }
 ///
@@ -645,6 +651,112 @@ pub unsafe extern "C" fn mp4_file_demuxer_next_sample(
         Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
         Err(e) => {
             demuxer.set_last_error(&format!("[mp4_file_demuxer_next_sample] {e}"));
+            e.into()
+        }
+    }
+}
+
+/// MP4 ファイルから時系列順に前のメディアサンプルを取得する
+///
+/// すべてのトラックのうち、現在位置より前にあるサンプルから、
+/// 最も遅いタイムスタンプのものを返す
+///
+/// すべてのサンプルを取得し終えた場合は `MP4_ERROR_NO_MORE_SAMPLES` が返される
+///
+/// # サンプルデータの読み込みについて
+///
+/// この関数は、サンプルのメタデータ（タイムスタンプ、サイズ、ファイル内の位置など）のみを返すので、
+/// 実際のサンプルデータ（音声フレームや映像フレーム）の読み込みは呼び出し元の責務となる
+///
+/// サンプルデータを処理する場合には、返された `Mp4DemuxSample` の `data_offset` と `data_size` フィールドを使用して、
+/// 入力ファイルから直接サンプルデータを読み込む必要がある
+///
+/// # 引数
+///
+/// - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// - `out_sample`: 取得したサンプル情報を受け取るポインタ
+///   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+///
+/// # 戻り値
+///
+/// - `MP4_ERROR_OK`: 正常にサンプルが取得された
+/// - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+/// - `MP4_ERROR_NO_MORE_SAMPLES`: すべてのサンプルを取得し終えた
+/// - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+///   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+/// - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mp4_file_demuxer_prev_sample(
+    demuxer: *mut Mp4FileDemuxer,
+    out_sample: *mut Mp4DemuxSample,
+) -> Mp4Error {
+    // 最初に mp4_file_demuxer_get_tracks() を呼んで、demuxer.tracks が確実に初期化されているようにする
+    let mut tracks_ptr: *const Mp4DemuxTrackInfo = std::ptr::null();
+    let mut track_count: u32 = 0;
+    let result = unsafe { mp4_file_demuxer_get_tracks(demuxer, &mut tracks_ptr, &mut track_count) };
+    if !matches!(result, Mp4Error::MP4_ERROR_OK) {
+        return result;
+    }
+
+    if demuxer.is_null() {
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
+    }
+    let demuxer = unsafe { &mut *demuxer };
+
+    if out_sample.is_null() {
+        demuxer.set_last_error("[mp4_file_demuxer_prev_sample] out_sample is null");
+        return Mp4Error::MP4_ERROR_NULL_POINTER;
+    }
+
+    match demuxer.inner.prev_sample() {
+        Ok(Some(sample)) => {
+            let Some(track_info) = demuxer
+                .tracks
+                .iter()
+                .find(|t| t.track_id == sample.track.track_id)
+            else {
+                demuxer.set_last_error(
+                    "[mp4_file_demuxer_prev_sample] track info not found for sample",
+                );
+                return Mp4Error::MP4_ERROR_INVALID_STATE;
+            };
+
+            let sample_entry = if let Some(sample_entry) = sample.sample_entry {
+                let sample_entry_box_type = sample_entry.box_type();
+                if let Some(entry) = demuxer
+                    .sample_entries
+                    .iter()
+                    .find_map(|entry| (entry.0 == *sample_entry).then_some(&entry.2))
+                {
+                    Some(&**entry)
+                } else {
+                    let Some(entry_owned) = Mp4SampleEntryOwned::new(sample_entry.clone()) else {
+                        demuxer.set_last_error(&format!(
+                            "[mp4_file_demuxer_prev_sample] Unsupported sample entry box type: {sample_entry_box_type}",
+                        ));
+                        return Mp4Error::MP4_ERROR_UNSUPPORTED;
+                    };
+                    let entry = Box::new(entry_owned.to_mp4_sample_entry());
+                    demuxer
+                        .sample_entries
+                        .push((sample_entry.clone(), entry_owned, entry));
+                    demuxer.sample_entries.last().map(|entry| &*entry.2)
+                }
+            } else {
+                None
+            };
+
+            unsafe {
+                *out_sample = Mp4DemuxSample::new(sample, track_info, sample_entry);
+            }
+
+            Mp4Error::MP4_ERROR_OK
+        }
+        Ok(None) => Mp4Error::MP4_ERROR_NO_MORE_SAMPLES,
+        Err(e) => {
+            demuxer.set_last_error(&format!("[mp4_file_demuxer_prev_sample] {e}"));
             e.into()
         }
     }
