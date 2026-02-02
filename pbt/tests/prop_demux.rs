@@ -233,6 +233,7 @@ proptest! {
     #[test]
     fn prev_sample_roundtrip(
         file_choice in 0u8..2,
+        skip_samples in 0usize..20,
         max_samples in 1usize..200
     ) {
         let data = if file_choice == 0 {
@@ -248,6 +249,16 @@ proptest! {
         demuxer.handle_input(input);
         let _ = demuxer.tracks().expect("failed to get tracks");
 
+        let mut skipped = 0usize;
+        while skipped < skip_samples {
+            match demuxer.next_sample().expect("failed to read next sample") {
+                Some(_) => {
+                    skipped += 1;
+                }
+                None => break,
+            }
+        }
+
         let mut forward = Vec::new();
         while let Some(sample) = demuxer.next_sample().expect("failed to read next sample") {
             forward.push(sample_to_digest(&sample));
@@ -255,7 +266,7 @@ proptest! {
                 break;
             }
         }
-        prop_assert!(!forward.is_empty());
+        prop_assume!(!forward.is_empty());
 
         let mut backward = Vec::new();
         for _ in 0..forward.len() {
@@ -264,7 +275,15 @@ proptest! {
             backward.push(sample_to_digest(sample.as_ref().expect("missing sample")));
         }
         backward.reverse();
-        prop_assert_eq!(backward, forward);
+        prop_assert_eq!(backward.as_slice(), forward.as_slice());
+
+        let mut forward_again = Vec::new();
+        for _ in 0..forward.len() {
+            let sample = demuxer.next_sample().expect("failed to read next sample");
+            prop_assert!(sample.is_some());
+            forward_again.push(sample_to_digest(sample.as_ref().expect("missing sample")));
+        }
+        prop_assert_eq!(forward_again.as_slice(), forward.as_slice());
     }
 }
 
