@@ -88,9 +88,15 @@
   - これまでは 32 個以上の SPS/PPS を与えた場合に暗黙的に切り捨てられる可能性があったが、明示的にエラーを返すようにした
   - エラーメッセージも "Too many SPSs" から "Too many SPSs (max 31)" に改善し、上限値を明示するようにした
   - @sile
+- [FIX] rustdoc の警告を解消する
+  - 構造体やメソッドの参照を明示し、モジュールをまたぐ参照は `crate::` のパス付きリンクにする
+  - @sile
 
 ### misc
 
+- [UPDATE] CI で cargo doc の警告をエラー扱いにする
+  - rustdoc の警告を検出した場合に CI が失敗するようにする
+  - @sile
 - [ADD] CI で wasm ビルドを artifact としてアップロードする
   - release-wasm プロファイルと wasm-opt で最適化した mp4_wasm.wasm を含む
   - @voluntas

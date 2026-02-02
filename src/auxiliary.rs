@@ -224,12 +224,12 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
 /// [`SampleTableAccessor::new()`] で発生する可能性があるエラー
 #[derive(Debug, Clone)]
 pub enum SampleTableAccessorError {
-    /// [`SttsBox`] と他のボックスで、表現しているサンプル数が異なる
+    /// [`SttsBox`][crate::boxes::SttsBox] と他のボックスで、表現しているサンプル数が異なる
     InconsistentSampleCount {
-        /// [`SttsBox`] 準拠のサンプル数
+        /// [`SttsBox`][crate::boxes::SttsBox] 準拠のサンプル数
         stts_sample_count: u32,
 
-        /// [`SttsBox`] とは異なるサンプル数を表しているボックスの種別
+        /// [`SttsBox`][crate::boxes::SttsBox] とは異なるサンプル数を表しているボックスの種別
         other_box_type: BoxType,
 
         /// `other_box_type` 準拠のサンプル数
@@ -244,7 +244,7 @@ pub enum SampleTableAccessorError {
 
     /// [`StscBox`] の最後のエントリのチャンクインデックスが大きすぎる（存在しないチャンクを参照している）
     LastChunkIndexIsTooLarge {
-        /// [`StcoBox`] ないし [`Co64Box`] が表すチャンクインデックスの最大値
+        /// [`StcoBox`][crate::boxes::StcoBox] ないし [`Co64Box`][crate::boxes::Co64Box] が表すチャンクインデックスの最大値
         max_chunk_index: NonZeroU32,
 
         /// [`StscBox`] の最後のエントリのチャンクインデックス

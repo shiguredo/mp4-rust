@@ -11,7 +11,7 @@ use crate::{
 
 /// 全てのボックスが実装するトレイト
 ///
-/// 本来なら `Box` という名前が適切だが、それだと標準ライブラリの [`core::boxed::Box`] と名前が
+/// 本来なら `Box` という名前が適切だが、それだと標準ライブラリの [`alloc::boxed::Box`] と名前が
 /// 衝突してしまうので、それを避けるために `BaseBox` としている
 pub trait BaseBox {
     /// ボックスの種別
@@ -20,8 +20,7 @@ pub trait BaseBox {
     /// 未知のボックスかどうか
     ///
     /// 基本的には `false` を返すデフォルト実装のままで問題ないが、
-    /// [`UnknownBox`](crate::boxes::UnknownBox) や [`IgnoredBox`](crate::boxes::IgnoredBox) を
-    /// 含む `enum` を定義する場合には、独自の実装が必要となる
+    /// [`UnknownBox`][crate::boxes::UnknownBox] を含む `enum` を定義する場合には、独自の実装が必要となる
     fn is_unknown_box(&self) -> bool {
         false
     }

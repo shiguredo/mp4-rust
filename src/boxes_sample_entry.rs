@@ -11,7 +11,7 @@ use crate::{
     boxes::{EsdsBox, UnknownBox, check_mandatory_box, with_box_type},
 };
 
-/// [`StsdBox`] に含まれるエントリー
+/// [`StsdBox`][crate::boxes::StsdBox] に含まれるエントリー
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum SampleEntry {
@@ -237,7 +237,7 @@ impl Decode for VisualSampleEntryFields {
     }
 }
 
-/// [ISO/IEC 14496-15] AVCSampleEntry class (親: [`StsdBox`])
+/// [ISO/IEC 14496-15] AVCSampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Avc1Box {
@@ -504,7 +504,7 @@ impl BaseBox for AvccBox {
     }
 }
 
-/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`])
+/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Hev1Box {
@@ -582,7 +582,7 @@ impl BaseBox for Hev1Box {
     }
 }
 
-/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`])
+/// [ISO/IEC 14496-15] HEVCSampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Hvc1Box {
@@ -864,7 +864,7 @@ impl BaseBox for HvccBox {
     }
 }
 
-/// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class (親: [`StsdBox`])
+/// [<https://www.webmproject.org/vp9/mp4/>] VP8SampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Vp08Box {
@@ -942,7 +942,7 @@ impl BaseBox for Vp08Box {
     }
 }
 
-/// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class (親: [`StsdBox`])
+/// [<https://www.webmproject.org/vp9/mp4/>] VP9SampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Vp09Box {
@@ -1132,7 +1132,7 @@ impl FullBox for VpccBox {
     }
 }
 
-/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class (親: [`StsdBox`])
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1SampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Av01Box {
@@ -1210,7 +1210,7 @@ impl BaseBox for Av01Box {
     }
 }
 
-/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class (親: [`StsdBox`])
+/// [<https://aomediacodec.github.io/av1-isobmff/>] AV1CodecConfigurationBox class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct Av1cBox {
@@ -1334,7 +1334,7 @@ impl BaseBox for Av1cBox {
     }
 }
 
-/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class (親: [`StsdBox`])
+/// [<https://gitlab.xiph.org/xiph/opus/-/blob/main/doc/opus_in_isobmff.html>] OpusSampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub struct OpusBox {
@@ -1490,7 +1490,7 @@ impl BaseBox for Mp4aBox {
     }
 }
 
-/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSampleEntry class (親: [`StsdBox`])
+/// [Encapsulation of FLAC in ISO Base Media File Format] FLACSampleEntry class (親: [`StsdBox`][crate::boxes::StsdBox])
 ///
 /// <https://github.com/xiph/flac/blob/master/doc/isoflac.txt>
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1784,7 +1784,7 @@ impl AudioSampleEntryFields {
     /// [`AudioSampleEntryFields::data_reference_index`] のデフォルト値
     pub const DEFAULT_DATA_REFERENCE_INDEX: NonZeroU16 = NonZeroU16::MIN;
 
-    /// [`AudioSampleEntryFields::sample_size`] のデフォルト値 (16)
+    /// [`AudioSampleEntryFields::samplesize`] のデフォルト値 (16)
     pub const DEFAULT_SAMPLESIZE: u16 = 16;
 }
 
