@@ -67,6 +67,7 @@
   - @sile
 - [ADD] Mp4FileDemuxer に seek() を追加する
   - 指定した時刻にシークできるようにする
+  - C API に mp4_file_demuxer_seek() を追加する
   - @sile
 - [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
   - 理由:

@@ -123,6 +123,7 @@ typedef enum Mp4SampleEntryKind {
  * - `mp4_file_demuxer_get_tracks()`: MP4 ファイル内のすべてのメディアトラック情報を取得する
  * - `mp4_file_demuxer_next_sample()`: 時系列順に次のサンプルを取得する
  * - `mp4_file_demuxer_prev_sample()`: 時系列順に前のサンプルを取得する
+ * - `mp4_file_demuxer_seek()`: 指定した時刻へシークする
  * - `mp4_file_demuxer_get_last_error()`: 最後に発生したエラーのメッセージを取得する
  *
  * # Examples
@@ -162,6 +163,9 @@ typedef enum Mp4SampleEntryKind {
  * while (mp4_file_demuxer_prev_sample(demuxer, &sample) == MP4_ERROR_OK) {
  *     // サンプルを処理...
  * }
+ *
+ * // 1.5 秒にシーク
+ * mp4_file_demuxer_seek(demuxer, 1, 500000000);
  *
  * // リソース解放
  * mp4_file_demuxer_free(demuxer);
@@ -1310,6 +1314,37 @@ enum Mp4Error mp4_file_demuxer_next_sample(struct Mp4FileDemuxer *demuxer,
  */
 enum Mp4Error mp4_file_demuxer_prev_sample(struct Mp4FileDemuxer *demuxer,
                                            struct Mp4DemuxSample *out_sample);
+
+/**
+ * MP4 ファイルの指定時刻にシークする
+ *
+ * 各トラックで指定時刻を含むサンプルを選び、次回の `mp4_file_demuxer_next_sample()` が
+ * その位置から開始されるようにする
+ *
+ * 同一タイムスタンプのサンプルが複数ある場合は、トラックの走査順に依存する
+ *
+ * # 引数
+ *
+ * - `demuxer`: `Mp4FileDemuxer` インスタンスへのポインタ
+ *   - NULL ポインタが渡された場合、`MP4_ERROR_NULL_POINTER` が返される
+ *
+ * - `position_seconds`: シーク先の秒
+ *
+ * - `position_nanos`: シーク先のナノ秒（0 <= position_nanos < 1_000_000_000）
+ *   - 範囲外の場合は `MP4_ERROR_INVALID_INPUT` が返される
+ *
+ * # 戻り値
+ *
+ * - `MP4_ERROR_OK`: 正常にシークできた
+ * - `MP4_ERROR_NULL_POINTER`: 引数として NULL ポインタが渡された
+ * - `MP4_ERROR_INVALID_INPUT`: 引数の値が不正
+ * - `MP4_ERROR_INPUT_REQUIRED`: 初期化に必要な入力データが不足している
+ *   - `mp4_file_demuxer_get_required_input()` および `mp4_file_demuxer_handle_input()` のハンドリングが必要
+ * - その他のエラー: 入力ファイルが破損していたり、未対応のコーデックを含んでいる場合
+ */
+enum Mp4Error mp4_file_demuxer_seek(struct Mp4FileDemuxer *demuxer,
+                                    uint64_t position_seconds,
+                                    uint32_t position_nanos);
 
 /**
  * 構築する MP4 ファイルの moov ボックスの最大サイズを見積もるための関数
