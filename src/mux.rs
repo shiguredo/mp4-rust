@@ -65,6 +65,9 @@ use crate::{
     },
 };
 
+mod mux_hybrid;
+pub use mux_hybrid::{Mp4HybridFileMuxer, Mp4HybridFileMuxerOptions, Mp4HybridSample};
+
 /// MP4 ファイルの moov ボックスの最大サイズを見積もる
 ///
 /// [`Mp4FileMuxerOptions::reserved_moov_box_size`] に設定する値を簡易的に決定するために使用できる関数。
