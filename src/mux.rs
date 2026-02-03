@@ -52,6 +52,13 @@
 //! # Ok(())
 //! # }
 //! ```
+mod fmp4;
+
+pub use fmp4::{
+    Fmp4MuxError, FragmentOutput, FragmentSample, Mp4FragmentedFileMuxer,
+    Mp4FragmentedFileMuxerOptions, TrackConfig,
+};
+
 use alloc::{vec, vec::Vec};
 use core::{num::NonZeroU32, time::Duration};
 
