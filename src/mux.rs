@@ -111,6 +111,11 @@ pub struct Mp4FileMuxerOptions {
     /// moov ボックスはファイル末尾に配置され、faststart 形式は無効になる。
     ///
     /// デフォルト値は 0（faststart は常に無効となる）。
+    //
+    // [NOTE]
+    // ftyp 更新用の余白（`RESERVED_FTYP_UPDATE_FREE_PAYLOAD_SIZE`）は常に確保されるため、
+    // `reserved_moov_box_size = 0` でも理論上は非常に小さい moov なら faststart になる余地がある。
+    // ただし実際の moov は通常もっと大きくなるため、実運用ではほぼ該当しない。
     pub reserved_moov_box_size: usize,
 
     /// ファイル作成時刻（構築される MP4 ファイル内のメタデータとして使われる）
@@ -408,11 +413,6 @@ impl Mp4FileMuxer {
 
         // ftyp 更新用の余白と moov 用の予約領域を、共有 free ボックスとして確保する
         // （finalize 時に実際の利用状況に合わせて先頭領域を書き換える）
-        //
-        // [NOTE]
-        // `reserved_moov_box_size = 0` でも、この ftyp 更新用余白（64 bytes）は常に確保されるため、
-        // 理論上は非常に小さい moov なら faststart になる余地がある。
-        // ただし実際の moov は通常もっと大きくなるため、実運用ではほぼ該当しない。
         let shared_free_payload_size = self
             .options
             .reserved_moov_box_size
