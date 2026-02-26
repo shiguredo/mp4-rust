@@ -481,6 +481,7 @@ proptest! {
             muxer
                 .append_sample(&sample)
                 .expect("failed to append audio sample");
+            data_offset += 256;
             total_data_size += 256;
         } else {
             if (codec_mask & 0b0001) != 0 {
@@ -500,9 +501,15 @@ proptest! {
             }
             if (codec_mask & 0b1000) != 0 {
                 append_video_sample(&mut muxer, data_offset, create_av01_sample_entry(1280, 720));
+                data_offset += 256;
                 total_data_size += 256;
             }
         }
+
+        prop_assert_eq!(
+            data_offset,
+            muxer.initial_boxes_bytes().len() as u64 + total_data_size as u64
+        );
 
         let initial_bytes = muxer.initial_boxes_bytes().to_vec();
         let finalized = muxer.finalize().expect("failed to finalize");
