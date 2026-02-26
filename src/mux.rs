@@ -263,15 +263,6 @@ pub enum MuxError {
         /// 実際に提供されたタイムスケール
         actual: NonZeroU32,
     },
-
-    /// 先頭予約領域のサイズが不足している
-    HeadReservationTooSmall {
-        /// 必要だったサイズ
-        required: usize,
-
-        /// 利用可能だったサイズ
-        available: usize,
-    },
 }
 
 impl From<Error> for MuxError {
@@ -315,15 +306,6 @@ impl core::fmt::Display for MuxError {
                 write!(
                     f,
                     "Timescale mismatch for {track_kind:?} track: expected {expected}, but got {actual}",
-                )
-            }
-            MuxError::HeadReservationTooSmall {
-                required,
-                available,
-            } => {
-                write!(
-                    f,
-                    "Head reservation too small: required {required} bytes, but only {available} bytes available",
                 )
             }
         }
@@ -682,12 +664,10 @@ impl Mp4FileMuxer {
     }
 
     fn build_free_box_bytes(total_size: usize) -> Result<Vec<u8>, MuxError> {
-        if total_size < BoxHeader::MIN_SIZE {
-            return Err(MuxError::HeadReservationTooSmall {
-                required: BoxHeader::MIN_SIZE,
-                available: total_size,
-            });
-        }
+        assert!(
+            total_size >= BoxHeader::MIN_SIZE,
+            "bug: free box size should be larger than BoxHeader::MIN_SIZE",
+        );
 
         let box_size = if let Ok(box_size) = u32::try_from(total_size) {
             BoxSize::U32(box_size)
