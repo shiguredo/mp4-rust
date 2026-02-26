@@ -372,7 +372,6 @@ struct Chunk {
 pub struct Mp4FileMuxer {
     options: Mp4FileMuxerOptions,
     initial_boxes_bytes: Vec<u8>,
-    free_box_offset: u64,
     mdat_box_offset: u64,
     next_position: u64,
     last_sample_kind: Option<TrackKind>,
@@ -394,7 +393,6 @@ impl Mp4FileMuxer {
         let mut this = Self {
             options,
             initial_boxes_bytes: Vec::new(),
-            free_box_offset: 0,
             mdat_box_offset: 0,
             next_position: 0,
             last_sample_kind: None,
@@ -421,7 +419,6 @@ impl Mp4FileMuxer {
 
         // ftyp ボックスをヘッダーバイト列に追加
         self.initial_boxes_bytes = ftyp_box.encode_to_vec()?;
-        self.free_box_offset = self.initial_boxes_bytes.len() as u64;
 
         // ftyp 更新用の余白と moov 用の予約領域を、共有 free ボックスとして確保する
         // （finalize 時に実際の利用状況に合わせて先頭領域を書き換える）
@@ -647,23 +644,8 @@ impl Mp4FileMuxer {
         ftyp_box_bytes: &[u8],
         moov_box_bytes: &[u8],
     ) -> Result<(Vec<u8>, u64), MuxError> {
-        let free_box_offset =
-            usize::try_from(self.free_box_offset).expect("free_box_offset should fit in usize");
         let head_region_size =
             usize::try_from(self.mdat_box_offset).expect("mdat_box_offset should fit in usize");
-
-        if ftyp_box_bytes.len() > head_region_size {
-            return Err(MuxError::HeadReservationTooSmall {
-                required: ftyp_box_bytes.len(),
-                available: head_region_size,
-            });
-        }
-        if ftyp_box_bytes.len() < free_box_offset {
-            return Err(MuxError::HeadReservationTooSmall {
-                required: free_box_offset,
-                available: ftyp_box_bytes.len(),
-            });
-        }
 
         // moov を先頭領域に配置できる場合は faststart にする
         if let Some(required_head_size) = ftyp_box_bytes.len().checked_add(moov_box_bytes.len())
@@ -672,8 +654,7 @@ impl Mp4FileMuxer {
             let trailing_size = head_region_size - required_head_size;
             if trailing_size == 0 || trailing_size >= BoxHeader::MIN_SIZE {
                 let mut head_boxes_bytes = ftyp_box_bytes.to_vec();
-                let moov_box_offset =
-                    self.free_box_offset + (head_boxes_bytes.len() - free_box_offset) as u64;
+                let moov_box_offset = ftyp_box_bytes.len() as u64;
                 head_boxes_bytes.extend_from_slice(moov_box_bytes);
                 if trailing_size > 0 {
                     let free_box_bytes = Self::build_free_box_bytes(trailing_size)?;
@@ -684,13 +665,9 @@ impl Mp4FileMuxer {
         }
 
         // 先頭に moov を置けない場合は、ftyp + free に再構成して moov は末尾に追記する
-        let trailing_size = head_region_size - ftyp_box_bytes.len();
-        if trailing_size > 0 && trailing_size < BoxHeader::MIN_SIZE {
-            return Err(MuxError::HeadReservationTooSmall {
-                required: ftyp_box_bytes.len() + BoxHeader::MIN_SIZE,
-                available: head_region_size,
-            });
-        }
+        let trailing_size = head_region_size
+            .checked_sub(ftyp_box_bytes.len())
+            .expect("bug: finalized ftyp should fit in reserved head region");
 
         let mut head_boxes_bytes = ftyp_box_bytes.to_vec();
         if trailing_size > 0 {
