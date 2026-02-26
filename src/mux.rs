@@ -65,6 +65,12 @@ use crate::{
     },
 };
 
+// ftyp 更新時に必要となる free 予約の最小値は以下:
+// - 追加ブランド最大 4 個 × 4 bytes = 16 bytes
+// - free ボックス再構築に必要な最小ヘッダーサイズ = 8 bytes
+// => 最低 24 bytes
+//
+// ここでは将来のブランド追加やレイアウト変更に備えて余裕を持たせ、64 bytes を予約する。
 const RESERVED_FTYP_UPDATE_FREE_PAYLOAD_SIZE: usize = 64;
 
 /// MP4 ファイルの moov ボックスの最大サイズを見積もる
