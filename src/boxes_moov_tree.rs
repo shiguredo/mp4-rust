@@ -1467,10 +1467,13 @@ impl FullBox for UrlBox {
 pub struct StblBox {
     pub stsd_box: StsdBox,
     pub stts_box: SttsBox,
+    pub ctts_box: Option<CttsBox>,
+    pub cslg_box: Option<CslgBox>,
     pub stsc_box: StscBox,
     pub stsz_box: StszBox,
     pub stco_or_co64_box: Either<StcoBox, Co64Box>,
     pub stss_box: Option<StssBox>,
+    pub sdtp_box: Option<SdtpBox>,
     pub unknown_boxes: Vec<UnknownBox>,
 }
 
@@ -1485,6 +1488,12 @@ impl Encode for StblBox {
         let mut offset = header.encode(buf)?;
         offset += self.stsd_box.encode(&mut buf[offset..])?;
         offset += self.stts_box.encode(&mut buf[offset..])?;
+        if let Some(b) = &self.ctts_box {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        if let Some(b) = &self.cslg_box {
+            offset += b.encode(&mut buf[offset..])?;
+        }
         offset += self.stsc_box.encode(&mut buf[offset..])?;
         offset += self.stsz_box.encode(&mut buf[offset..])?;
         match &self.stco_or_co64_box {
@@ -1492,6 +1501,9 @@ impl Encode for StblBox {
             Either::B(b) => offset += b.encode(&mut buf[offset..])?,
         }
         if let Some(b) = &self.stss_box {
+            offset += b.encode(&mut buf[offset..])?;
+        }
+        if let Some(b) = &self.sdtp_box {
             offset += b.encode(&mut buf[offset..])?;
         }
         for b in &self.unknown_boxes {
@@ -1511,11 +1523,14 @@ impl Decode for StblBox {
             let mut offset = 0;
             let mut stsd_box = None;
             let mut stts_box = None;
+            let mut ctts_box = None;
+            let mut cslg_box = None;
             let mut stsc_box = None;
             let mut stsz_box = None;
             let mut stco_box = None;
             let mut co64_box = None;
             let mut stss_box = None;
+            let mut sdtp_box = None;
             let mut unknown_boxes = Vec::new();
 
             while offset < payload.len() {
@@ -1526,6 +1541,12 @@ impl Decode for StblBox {
                     }
                     SttsBox::TYPE if stts_box.is_none() => {
                         stts_box = Some(SttsBox::decode_at(payload, &mut offset)?);
+                    }
+                    CttsBox::TYPE if ctts_box.is_none() => {
+                        ctts_box = Some(CttsBox::decode_at(payload, &mut offset)?);
+                    }
+                    CslgBox::TYPE if cslg_box.is_none() => {
+                        cslg_box = Some(CslgBox::decode_at(payload, &mut offset)?);
                     }
                     StscBox::TYPE if stsc_box.is_none() => {
                         stsc_box = Some(StscBox::decode_at(payload, &mut offset)?);
@@ -1542,6 +1563,9 @@ impl Decode for StblBox {
                     StssBox::TYPE if stss_box.is_none() => {
                         stss_box = Some(StssBox::decode_at(payload, &mut offset)?);
                     }
+                    SdtpBox::TYPE if sdtp_box.is_none() => {
+                        sdtp_box = Some(SdtpBox::decode_at(payload, &mut offset)?);
+                    }
                     _ => {
                         unknown_boxes.push(UnknownBox::decode_at(payload, &mut offset)?);
                     }
@@ -1552,6 +1576,8 @@ impl Decode for StblBox {
                 Self {
                     stsd_box: check_mandatory_box(stsd_box, "stsd", "stbl")?,
                     stts_box: check_mandatory_box(stts_box, "stts", "stbl")?,
+                    ctts_box,
+                    cslg_box,
                     stsc_box: check_mandatory_box(stsc_box, "stsc", "stbl")?,
                     stsz_box: check_mandatory_box(stsz_box, "stsz", "stbl")?,
                     stco_or_co64_box: check_mandatory_box(
@@ -1560,6 +1586,7 @@ impl Decode for StblBox {
                         "stbl",
                     )?,
                     stss_box,
+                    sdtp_box,
                     unknown_boxes,
                 },
                 header.external_size() + payload.len(),
@@ -1578,10 +1605,13 @@ impl BaseBox for StblBox {
             core::iter::empty()
                 .chain(core::iter::once(&self.stsd_box).map(as_box_object))
                 .chain(core::iter::once(&self.stts_box).map(as_box_object))
+                .chain(self.ctts_box.iter().map(as_box_object))
+                .chain(self.cslg_box.iter().map(as_box_object))
                 .chain(core::iter::once(&self.stsc_box).map(as_box_object))
                 .chain(core::iter::once(&self.stsz_box).map(as_box_object))
                 .chain(core::iter::once(&self.stco_or_co64_box).map(as_box_object))
                 .chain(self.stss_box.iter().map(as_box_object))
+                .chain(self.sdtp_box.iter().map(as_box_object))
                 .chain(self.unknown_boxes.iter().map(as_box_object)),
         )
     }
@@ -1752,6 +1782,412 @@ impl BaseBox for SttsBox {
 impl FullBox for SttsBox {
     fn full_box_version(&self) -> u8 {
         0
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [`CttsBox`] が保持するエントリー
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct CttsEntry {
+    pub sample_count: u32,
+    pub sample_offset: i64,
+}
+
+/// [ISO/IEC 14496-12] CompositionOffsetBox class (親: [`StblBox`])
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct CttsBox {
+    pub version: u8,
+    pub entries: Vec<CttsEntry>,
+}
+
+impl CttsBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"ctts");
+}
+
+impl Encode for CttsBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let version = self.full_box_version();
+        if version > 1 {
+            return Err(Error::invalid_input(format!(
+                "Invalid ctts box version: {version}"
+            )));
+        }
+
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        offset += (self.entries.len() as u32).encode(&mut buf[offset..])?;
+        for entry in &self.entries {
+            offset += entry.sample_count.encode(&mut buf[offset..])?;
+            if version == 1 {
+                let sample_offset = i32::try_from(entry.sample_offset).map_err(|_| {
+                    Error::invalid_input(format!(
+                        "ctts version 1 requires sample_offset to be in i32 range, got {}",
+                        entry.sample_offset
+                    ))
+                })?;
+                offset += sample_offset.encode(&mut buf[offset..])?;
+            } else {
+                let sample_offset = u32::try_from(entry.sample_offset).map_err(|_| {
+                    Error::invalid_input(format!(
+                        "ctts version 0 requires non-negative sample_offset, got {}",
+                        entry.sample_offset
+                    ))
+                })?;
+                offset += sample_offset.encode(&mut buf[offset..])?;
+            }
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for CttsBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            let count = u32::decode_at(payload, &mut offset)? as usize;
+
+            let mut entries = Vec::new();
+            for _ in 0..count {
+                let sample_count = u32::decode_at(payload, &mut offset)?;
+                let sample_offset = if full_header.version == 1 {
+                    i32::decode_at(payload, &mut offset)? as i64
+                } else {
+                    u32::decode_at(payload, &mut offset)? as i64
+                };
+                entries.push(CttsEntry {
+                    sample_count,
+                    sample_offset,
+                });
+            }
+
+            Ok((
+                Self {
+                    version: full_header.version,
+                    entries,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for CttsBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for CttsBox {
+    fn full_box_version(&self) -> u8 {
+        self.version
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] CompositionToDecodeBox class (親: [`StblBox`])
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct CslgBox {
+    pub version: u8,
+    pub composition_to_dts_shift: i64,
+    pub least_decode_to_display_delta: i64,
+    pub greatest_decode_to_display_delta: i64,
+    pub composition_start_time: i64,
+    pub composition_end_time: i64,
+}
+
+impl CslgBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"cslg");
+}
+
+impl Encode for CslgBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let version = self.full_box_version();
+        if version > 1 {
+            return Err(Error::invalid_input(format!(
+                "Invalid cslg box version: {version}"
+            )));
+        }
+
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+
+        if version == 1 {
+            offset += self.composition_to_dts_shift.encode(&mut buf[offset..])?;
+            offset += self
+                .least_decode_to_display_delta
+                .encode(&mut buf[offset..])?;
+            offset += self
+                .greatest_decode_to_display_delta
+                .encode(&mut buf[offset..])?;
+            offset += self.composition_start_time.encode(&mut buf[offset..])?;
+            offset += self.composition_end_time.encode(&mut buf[offset..])?;
+        } else {
+            offset += i32::try_from(self.composition_to_dts_shift)
+                .map_err(|_| {
+                    Error::invalid_input(format!(
+                        "cslg version 0 requires composition_to_dts_shift to be in i32 range, got {}",
+                        self.composition_to_dts_shift
+                    ))
+                })?
+                .encode(&mut buf[offset..])?;
+            offset += i32::try_from(self.least_decode_to_display_delta)
+                .map_err(|_| {
+                    Error::invalid_input(format!(
+                        "cslg version 0 requires least_decode_to_display_delta to be in i32 range, got {}",
+                        self.least_decode_to_display_delta
+                    ))
+                })?
+                .encode(&mut buf[offset..])?;
+            offset += i32::try_from(self.greatest_decode_to_display_delta)
+                .map_err(|_| {
+                    Error::invalid_input(format!(
+                        "cslg version 0 requires greatest_decode_to_display_delta to be in i32 range, got {}",
+                        self.greatest_decode_to_display_delta
+                    ))
+                })?
+                .encode(&mut buf[offset..])?;
+            offset += i32::try_from(self.composition_start_time)
+                .map_err(|_| {
+                    Error::invalid_input(format!(
+                        "cslg version 0 requires composition_start_time to be in i32 range, got {}",
+                        self.composition_start_time
+                    ))
+                })?
+                .encode(&mut buf[offset..])?;
+            offset += i32::try_from(self.composition_end_time)
+                .map_err(|_| {
+                    Error::invalid_input(format!(
+                        "cslg version 0 requires composition_end_time to be in i32 range, got {}",
+                        self.composition_end_time
+                    ))
+                })?
+                .encode(&mut buf[offset..])?;
+        }
+
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for CslgBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+
+            let (
+                composition_to_dts_shift,
+                least_decode_to_display_delta,
+                greatest_decode_to_display_delta,
+                composition_start_time,
+                composition_end_time,
+            ) = if full_header.version == 1 {
+                (
+                    i64::decode_at(payload, &mut offset)?,
+                    i64::decode_at(payload, &mut offset)?,
+                    i64::decode_at(payload, &mut offset)?,
+                    i64::decode_at(payload, &mut offset)?,
+                    i64::decode_at(payload, &mut offset)?,
+                )
+            } else {
+                (
+                    i32::decode_at(payload, &mut offset)? as i64,
+                    i32::decode_at(payload, &mut offset)? as i64,
+                    i32::decode_at(payload, &mut offset)? as i64,
+                    i32::decode_at(payload, &mut offset)? as i64,
+                    i32::decode_at(payload, &mut offset)? as i64,
+                )
+            };
+
+            Ok((
+                Self {
+                    version: full_header.version,
+                    composition_to_dts_shift,
+                    least_decode_to_display_delta,
+                    greatest_decode_to_display_delta,
+                    composition_start_time,
+                    composition_end_time,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for CslgBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for CslgBox {
+    fn full_box_version(&self) -> u8 {
+        self.version
+    }
+
+    fn full_box_flags(&self) -> FullBoxFlags {
+        FullBoxFlags::new(0)
+    }
+}
+
+/// [ISO/IEC 14496-12] SampleDependencyTypeBox の 1 サンプル分のフラグ
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SdtpSampleFlags(u8);
+
+impl SdtpSampleFlags {
+    /// フィールド値を直接指定して新しいフラグを作成する
+    pub const fn from_fields(
+        is_leading: u8,
+        sample_depends_on: u8,
+        sample_is_depended_on: u8,
+        sample_has_redundancy: u8,
+    ) -> Self {
+        let value = ((is_leading & 0b11) << 6)
+            | ((sample_depends_on & 0b11) << 4)
+            | ((sample_is_depended_on & 0b11) << 2)
+            | (sample_has_redundancy & 0b11);
+        Self(value)
+    }
+
+    /// 生の 1 バイト値を返す
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+
+    /// is_leading フィールド（2 bits）を返す
+    pub const fn is_leading(self) -> u8 {
+        self.0 >> 6
+    }
+
+    /// sample_depends_on フィールド（2 bits）を返す
+    pub const fn sample_depends_on(self) -> u8 {
+        (self.0 >> 4) & 0b11
+    }
+
+    /// sample_is_depended_on フィールド（2 bits）を返す
+    pub const fn sample_is_depended_on(self) -> u8 {
+        (self.0 >> 2) & 0b11
+    }
+
+    /// sample_has_redundancy フィールド（2 bits）を返す
+    pub const fn sample_has_redundancy(self) -> u8 {
+        self.0 & 0b11
+    }
+}
+
+impl Encode for SdtpSampleFlags {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        self.0.encode(buf)
+    }
+}
+
+impl Decode for SdtpSampleFlags {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        let (value, size) = u8::decode(buf)?;
+        Ok((Self(value), size))
+    }
+}
+
+/// [ISO/IEC 14496-12] SampleDependencyTypeBox class (親: [`StblBox`])
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct SdtpBox {
+    pub version: u8,
+    pub entries: Vec<SdtpSampleFlags>,
+}
+
+impl SdtpBox {
+    /// ボックス種別
+    pub const TYPE: BoxType = BoxType::Normal(*b"sdtp");
+}
+
+impl Encode for SdtpBox {
+    fn encode(&self, buf: &mut [u8]) -> Result<usize> {
+        let version = self.full_box_version();
+        if version > 1 {
+            return Err(Error::invalid_input(format!(
+                "Invalid sdtp box version: {version}"
+            )));
+        }
+
+        let header = BoxHeader::new_variable_size(Self::TYPE);
+        let mut offset = header.encode(buf)?;
+        offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
+        for entry in &self.entries {
+            offset += entry.encode(&mut buf[offset..])?;
+        }
+        header.finalize_box_size(&mut buf[..offset])?;
+        Ok(offset)
+    }
+}
+
+impl Decode for SdtpBox {
+    fn decode(buf: &[u8]) -> Result<(Self, usize)> {
+        with_box_type(Self::TYPE, || {
+            let (header, payload) = BoxHeader::decode_header_and_payload(buf)?;
+            header.box_type.expect(Self::TYPE)?;
+
+            let mut offset = 0;
+            let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+
+            let mut entries = Vec::new();
+            while offset < payload.len() {
+                entries.push(SdtpSampleFlags::decode_at(payload, &mut offset)?);
+            }
+
+            Ok((
+                Self {
+                    version: full_header.version,
+                    entries,
+                },
+                header.external_size() + payload.len(),
+            ))
+        })
+    }
+}
+
+impl BaseBox for SdtpBox {
+    fn box_type(&self) -> BoxType {
+        Self::TYPE
+    }
+
+    fn children<'a>(&'a self) -> Box<dyn 'a + Iterator<Item = &'a dyn BaseBox>> {
+        Box::new(core::iter::empty())
+    }
+}
+
+impl FullBox for SdtpBox {
+    fn full_box_version(&self) -> u8 {
+        self.version
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {

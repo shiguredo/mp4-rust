@@ -69,6 +69,11 @@
   - 指定した時刻にシークできるようにする
   - C API に mp4_file_demuxer_seek() を追加する
   - @sile
+- [ADD] B フレーム関連 box (`ctts` / `cslg` / `sdtp`) の構造体対応を追加する
+  - `StblBox` で `ctts` / `cslg` / `sdtp` を decode / encode できるようにする
+  - `UnknownBox` 扱いだった `ctts` / `sdtp` を通常 box として扱うようにする
+  - `aux::SampleTableAccessor` に `contains_b_frames()` を追加し、`ctts` の非ゼロオフセット有無で B フレーム含有を判定できるようにする
+  - @sile
 - [CHANGE] C API の `mp4_file_muxer_set_reserved_moov_box_size()` の `size` 引数の型を `u64` から `u32` に変更する
   - 理由:
     - `mp4_estimate_maximum_moov_box_size()` の返り値は `u32` なので一貫性がない
