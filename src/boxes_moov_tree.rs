@@ -1791,17 +1791,23 @@ impl FullBox for SttsBox {
 
 /// [`CttsBox`] が保持するエントリー
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct CttsEntry {
+    /// このエントリーが適用されるサンプル数
     pub sample_count: u32,
+
+    /// 合成時刻オフセット
+    ///
+    /// version 0 では非負値、version 1 では負値も許容される。
     pub sample_offset: i64,
 }
 
 /// [ISO/IEC 14496-12] CompositionOffsetBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct CttsBox {
+    /// full box version
     pub version: u8,
+
+    /// エントリー列
     pub entries: Vec<CttsEntry>,
 }
 
@@ -1905,13 +1911,23 @@ impl FullBox for CttsBox {
 
 /// [ISO/IEC 14496-12] CompositionToDecodeBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct CslgBox {
+    /// full box version
     pub version: u8,
+
+    /// composition to decode time shift
     pub composition_to_dts_shift: i64,
+
+    /// decode から display への最小差分
     pub least_decode_to_display_delta: i64,
+
+    /// decode から display への最大差分
     pub greatest_decode_to_display_delta: i64,
+
+    /// composition start time
     pub composition_start_time: i64,
+
+    /// composition end time
     pub composition_end_time: i64,
 }
 
@@ -2119,9 +2135,11 @@ impl Decode for SdtpSampleFlags {
 
 /// [ISO/IEC 14496-12] SampleDependencyTypeBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[allow(missing_docs)]
 pub struct SdtpBox {
+    /// full box version
     pub version: u8,
+
+    /// サンプル単位の依存関係フラグ列
     pub entries: Vec<SdtpSampleFlags>,
 }
 
