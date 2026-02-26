@@ -1116,42 +1116,42 @@ mod b_frame_detection_tests {
         }
     }
 
-    #[test]
-    fn contains_b_frames_without_ctts() {
-        let stbl_box = make_stbl_box(None);
-        let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-        assert!(!accessor.contains_b_frames());
-    }
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(50))]
 
-    #[test]
-    fn contains_b_frames_with_all_zero_offsets() {
-        let stbl_box = make_stbl_box(Some(CttsBox {
-            version: 0,
-            entries: vec![
-                CttsEntry {
-                    sample_count: 2,
-                    sample_offset: 0,
-                },
-                CttsEntry {
+        #[test]
+        fn contains_b_frames_without_ctts(_dummy in Just(())) {
+            let stbl_box = make_stbl_box(None);
+            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
+            prop_assert!(!accessor.contains_b_frames());
+        }
+
+        #[test]
+        fn contains_b_frames_with_all_zero_offsets(entry_count in 1usize..10) {
+            let entries = (0..entry_count)
+                .map(|_| CttsEntry {
                     sample_count: 1,
                     sample_offset: 0,
-                },
-            ],
-        }));
-        let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-        assert!(!accessor.contains_b_frames());
-    }
+                })
+                .collect();
+            let stbl_box = make_stbl_box(Some(CttsBox { version: 0, entries }));
+            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
+            prop_assert!(!accessor.contains_b_frames());
+        }
 
-    #[test]
-    fn contains_b_frames_with_non_zero_offset() {
-        let stbl_box = make_stbl_box(Some(CttsBox {
-            version: 0,
-            entries: vec![CttsEntry {
-                sample_count: 3,
-                sample_offset: 2,
-            }],
-        }));
-        let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-        assert!(accessor.contains_b_frames());
+        #[test]
+        fn contains_b_frames_with_non_zero_offset(
+            non_zero_offset in any::<i64>().prop_filter("offset must be non-zero", |v| *v != 0)
+        ) {
+            let stbl_box = make_stbl_box(Some(CttsBox {
+                version: 1,
+                entries: vec![CttsEntry {
+                    sample_count: 3,
+                    sample_offset: non_zero_offset,
+                }],
+            }));
+            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
+            prop_assert!(accessor.contains_b_frames());
+        }
     }
 }
