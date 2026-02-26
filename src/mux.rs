@@ -152,16 +152,14 @@ impl FinalizedBoxes {
 
     /// MP4 ファイルの構築を完了するために、ファイルに書きこむべきボックスのオフセットとバイト列の組を返す
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
-        let moov_box_pair = (self.moov_box_offset >= self.mdat_box_offset)
-            .then_some((self.moov_box_offset, self.moov_box_bytes.as_slice()))
-            .into_iter();
-
-        core::iter::once((0, self.head_boxes_bytes.as_slice()))
-            .chain(moov_box_pair)
-            .chain(core::iter::once((
-                self.mdat_box_offset,
-                self.mdat_box_header_bytes.as_slice(),
-            )))
+        [
+            Some((0, self.head_boxes_bytes.as_slice())),
+            (self.moov_box_offset >= self.mdat_box_offset)
+                .then_some((self.moov_box_offset, self.moov_box_bytes.as_slice())),
+            Some((self.mdat_box_offset, self.mdat_box_header_bytes.as_slice())),
+        ]
+        .into_iter()
+        .flatten()
     }
 
     /// 構築された moov ボックスを返す
