@@ -113,6 +113,12 @@ impl Brand {
     /// [ISO/IEC 14496-12] `avc1` ブランド
     pub const AVC1: Self = Self::new(*b"avc1");
 
+    /// [ISO/IEC 14496-15] `hev1` ブランド
+    pub const HEV1: Self = Self::new(*b"hev1");
+
+    /// [ISO/IEC 14496-15] `hvc1` ブランド
+    pub const HVC1: Self = Self::new(*b"hvc1");
+
     /// [ISO/IEC 14496-12] `iso2` ブランド
     pub const ISO2: Self = Self::new(*b"iso2");
 

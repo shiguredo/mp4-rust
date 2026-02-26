@@ -75,7 +75,8 @@ impl From<MuxError> for Mp4Error {
             MuxError::AlreadyFinalized => Self::MP4_ERROR_INVALID_STATE,
             MuxError::PositionMismatch { .. }
             | MuxError::MissingSampleEntry { .. }
-            | MuxError::TimescaleMismatch { .. } => Self::MP4_ERROR_INVALID_INPUT,
+            | MuxError::TimescaleMismatch { .. }
+            | MuxError::HeadReservationTooSmall { .. } => Self::MP4_ERROR_INVALID_INPUT,
             _ => Self::MP4_ERROR_OTHER,
         }
     }

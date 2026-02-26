@@ -65,6 +65,8 @@ use crate::{
     },
 };
 
+const RESERVED_FTYP_UPDATE_FREE_PAYLOAD_SIZE: usize = 64;
+
 /// MP4 ファイルの moov ボックスの最大サイズを見積もる
 ///
 /// [`Mp4FileMuxerOptions::reserved_moov_box_size`] に設定する値を簡易的に決定するために使用できる関数。
@@ -123,6 +125,7 @@ impl Default for Mp4FileMuxerOptions {
 /// [`Mp4FileMuxer::finalize()`] の結果として得られる、MP4 ファイル構築の完了に必要なボックス情報
 #[derive(Debug, Clone)]
 pub struct FinalizedBoxes {
+    head_boxes_bytes: Vec<u8>,
     moov_box_offset: u64,
     moov_box_bytes: Vec<u8>,
     mdat_box_offset: u64,
@@ -143,11 +146,16 @@ impl FinalizedBoxes {
 
     /// MP4 ファイルの構築を完了するために、ファイルに書きこむべきボックスのオフセットとバイト列の組を返す
     pub fn offset_and_bytes_pairs(&self) -> impl Iterator<Item = (u64, &[u8])> {
-        [
-            (self.moov_box_offset, self.moov_box_bytes.as_slice()),
-            (self.mdat_box_offset, self.mdat_box_header_bytes.as_slice()),
-        ]
-        .into_iter()
+        let moov_box_pair = (self.moov_box_offset >= self.mdat_box_offset)
+            .then_some((self.moov_box_offset, self.moov_box_bytes.as_slice()))
+            .into_iter();
+
+        core::iter::once((0, self.head_boxes_bytes.as_slice()))
+            .chain(moov_box_pair)
+            .chain(core::iter::once((
+                self.mdat_box_offset,
+                self.mdat_box_header_bytes.as_slice(),
+            )))
     }
 
     /// 構築された moov ボックスを返す
@@ -251,6 +259,15 @@ pub enum MuxError {
         /// 実際に提供されたタイムスケール
         actual: NonZeroU32,
     },
+
+    /// 先頭予約領域のサイズが不足している
+    HeadReservationTooSmall {
+        /// 必要だったサイズ
+        required: usize,
+
+        /// 利用可能だったサイズ
+        available: usize,
+    },
 }
 
 impl From<Error> for MuxError {
@@ -294,6 +311,15 @@ impl core::fmt::Display for MuxError {
                 write!(
                     f,
                     "Timescale mismatch for {track_kind:?} track: expected {expected}, but got {actual}",
+                )
+            }
+            MuxError::HeadReservationTooSmall {
+                required,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Head reservation too small: required {required} bytes, but only {available} bytes available",
                 )
             }
         }
@@ -390,28 +416,25 @@ impl Mp4FileMuxer {
         let ftyp_box = FtypBox {
             major_brand: Brand::ISOM,
             minor_version: 0,
-            compatible_brands: vec![
-                Brand::ISOM,
-                Brand::ISO2,
-                Brand::MP41,
-                Brand::AVC1,
-                Brand::AV01,
-            ],
+            compatible_brands: vec![Brand::ISOM, Brand::ISO2, Brand::MP41],
         };
 
         // ftyp ボックスをヘッダーバイト列に追加
         self.initial_boxes_bytes = ftyp_box.encode_to_vec()?;
         self.free_box_offset = self.initial_boxes_bytes.len() as u64;
 
-        // faststart 用の moov ボックス用の領域を free ボックスで事前に確保する
-        // （先頭付近に moov ボックスを配置することで、動画プレイヤーの再生開始までに掛かる時間を短縮できる）
-        if self.options.reserved_moov_box_size > 0 {
-            let free_box = FreeBox {
-                payload: vec![0; self.options.reserved_moov_box_size],
-            };
-            self.initial_boxes_bytes
-                .extend_from_slice(&free_box.encode_to_vec()?);
-        }
+        // ftyp 更新用の余白と moov 用の予約領域を、共有 free ボックスとして確保する
+        // （finalize 時に実際の利用状況に合わせて先頭領域を書き換える）
+        let shared_free_payload_size = self
+            .options
+            .reserved_moov_box_size
+            .saturating_add(RESERVED_FTYP_UPDATE_FREE_PAYLOAD_SIZE);
+        let free_box = FreeBox {
+            payload: vec![0; shared_free_payload_size],
+        };
+        self.initial_boxes_bytes
+            .extend_from_slice(&free_box.encode_to_vec()?);
+
         self.mdat_box_offset = self.initial_boxes_bytes.len() as u64;
 
         // 可変長の mdat ボックスのヘッダーを書きこむ
@@ -552,28 +575,10 @@ impl Mp4FileMuxer {
 
         // moov ボックスを構築
         let moov_box = self.build_moov_box()?;
-        let mut moov_box_bytes = moov_box.encode_to_vec()?;
-
-        // moov ボックスの書き込み位置を決定
-        let moov_box_offset = if let Some(free_box_payload_size) = self
-            .options
-            .reserved_moov_box_size
-            .checked_sub(moov_box_bytes.len())
-        {
-            // 事前に確保した free ボックスのペイロード領域に収まる場合は、そこに moov ボックスを書き込む
-            // （free ボックスのヘッダーも更新して moov ボックスの末尾に追加する）
-            if free_box_payload_size > 0 {
-                let free_box_size =
-                    BoxSize::with_payload_size(FreeBox::TYPE, free_box_payload_size as u64);
-                let free_box_header = BoxHeader::new(FreeBox::TYPE, free_box_size);
-                moov_box_bytes.extend_from_slice(&free_box_header.encode_to_vec()?);
-            }
-
-            self.free_box_offset
-        } else {
-            // 収まらない場合はファイル末尾に moov ボックスを追記
-            self.next_position
-        };
+        let moov_box_bytes = moov_box.encode_to_vec()?;
+        let ftyp_box_bytes = self.build_final_ftyp_box().encode_to_vec()?;
+        let (head_boxes_bytes, moov_box_offset) =
+            self.build_head_boxes_bytes(&ftyp_box_bytes, &moov_box_bytes)?;
 
         // mdat ボックスヘッダーのサイズ部分を確定する
         let mdat_box_size = self.next_position - self.mdat_box_offset;
@@ -581,6 +586,7 @@ impl Mp4FileMuxer {
         let mdat_box_header_bytes = mdat_box_header.encode_to_vec()?;
 
         self.finalized_boxes = Some(FinalizedBoxes {
+            head_boxes_bytes,
             moov_box_offset,
             moov_box_bytes,
             mdat_box_offset: self.mdat_box_offset,
@@ -597,6 +603,124 @@ impl Mp4FileMuxer {
     /// [`Mp4FileMuxer::finalize()`] の呼び出し前は `None` が返される。
     pub fn finalized_boxes(&self) -> Option<&FinalizedBoxes> {
         self.finalized_boxes.as_ref()
+    }
+
+    fn build_final_ftyp_box(&self) -> FtypBox {
+        let mut has_avc1 = false;
+        let mut has_hev1 = false;
+        let mut has_hvc1 = false;
+        let mut has_av01 = false;
+
+        for chunk in self.audio_chunks.iter().chain(self.video_chunks.iter()) {
+            match chunk.sample_entry {
+                SampleEntry::Avc1(_) => has_avc1 = true,
+                SampleEntry::Hev1(_) => has_hev1 = true,
+                SampleEntry::Hvc1(_) => has_hvc1 = true,
+                SampleEntry::Av01(_) => has_av01 = true,
+                _ => {}
+            }
+        }
+
+        let mut compatible_brands = vec![Brand::ISOM, Brand::ISO2, Brand::MP41];
+        if has_avc1 {
+            compatible_brands.push(Brand::AVC1);
+        }
+        if has_hev1 {
+            compatible_brands.push(Brand::HEV1);
+        }
+        if has_hvc1 {
+            compatible_brands.push(Brand::HVC1);
+        }
+        if has_av01 {
+            compatible_brands.push(Brand::AV01);
+        }
+
+        FtypBox {
+            major_brand: Brand::ISOM,
+            minor_version: 0,
+            compatible_brands,
+        }
+    }
+
+    fn build_head_boxes_bytes(
+        &self,
+        ftyp_box_bytes: &[u8],
+        moov_box_bytes: &[u8],
+    ) -> Result<(Vec<u8>, u64), MuxError> {
+        let free_box_offset =
+            usize::try_from(self.free_box_offset).expect("free_box_offset should fit in usize");
+        let head_region_size =
+            usize::try_from(self.mdat_box_offset).expect("mdat_box_offset should fit in usize");
+
+        if ftyp_box_bytes.len() > head_region_size {
+            return Err(MuxError::HeadReservationTooSmall {
+                required: ftyp_box_bytes.len(),
+                available: head_region_size,
+            });
+        }
+        if ftyp_box_bytes.len() < free_box_offset {
+            return Err(MuxError::HeadReservationTooSmall {
+                required: free_box_offset,
+                available: ftyp_box_bytes.len(),
+            });
+        }
+
+        // moov を先頭領域に配置できる場合は faststart にする
+        if let Some(required_head_size) = ftyp_box_bytes.len().checked_add(moov_box_bytes.len())
+            && required_head_size <= head_region_size
+        {
+            let trailing_size = head_region_size - required_head_size;
+            if trailing_size == 0 || trailing_size >= BoxHeader::MIN_SIZE {
+                let mut head_boxes_bytes = ftyp_box_bytes.to_vec();
+                let moov_box_offset =
+                    self.free_box_offset + (head_boxes_bytes.len() - free_box_offset) as u64;
+                head_boxes_bytes.extend_from_slice(moov_box_bytes);
+                if trailing_size > 0 {
+                    let free_box_bytes = Self::build_free_box_bytes(trailing_size)?;
+                    head_boxes_bytes.extend_from_slice(&free_box_bytes);
+                }
+                return Ok((head_boxes_bytes, moov_box_offset));
+            }
+        }
+
+        // 先頭に moov を置けない場合は、ftyp + free に再構成して moov は末尾に追記する
+        let trailing_size = head_region_size - ftyp_box_bytes.len();
+        if trailing_size > 0 && trailing_size < BoxHeader::MIN_SIZE {
+            return Err(MuxError::HeadReservationTooSmall {
+                required: ftyp_box_bytes.len() + BoxHeader::MIN_SIZE,
+                available: head_region_size,
+            });
+        }
+
+        let mut head_boxes_bytes = ftyp_box_bytes.to_vec();
+        if trailing_size > 0 {
+            let free_box_bytes = Self::build_free_box_bytes(trailing_size)?;
+            head_boxes_bytes.extend_from_slice(&free_box_bytes);
+        }
+        Ok((head_boxes_bytes, self.next_position))
+    }
+
+    fn build_free_box_bytes(total_size: usize) -> Result<Vec<u8>, MuxError> {
+        if total_size < BoxHeader::MIN_SIZE {
+            return Err(MuxError::HeadReservationTooSmall {
+                required: BoxHeader::MIN_SIZE,
+                available: total_size,
+            });
+        }
+
+        let box_size = if let Ok(box_size) = u32::try_from(total_size) {
+            BoxSize::U32(box_size)
+        } else {
+            BoxSize::U64(total_size as u64)
+        };
+        let header = BoxHeader::new(FreeBox::TYPE, box_size);
+        let payload_size = total_size
+            .checked_sub(header.external_size())
+            .expect("free box total size should be larger than its header size");
+
+        let mut bytes = header.encode_to_vec()?;
+        bytes.extend_from_slice(&vec![0; payload_size]);
+        Ok(bytes)
     }
 
     fn build_moov_box(&self) -> Result<MoovBox, MuxError> {
