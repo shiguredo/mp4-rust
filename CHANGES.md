@@ -88,6 +88,10 @@
   - これまでは 32 個以上の SPS/PPS を与えた場合に暗黙的に切り捨てられる可能性があったが、明示的にエラーを返すようにした
   - エラーメッセージも "Too many SPSs" から "Too many SPSs (max 31)" に改善し、上限値を明示するようにした
   - @sile
+- [FIX] Mp4FileMuxer が使用した SampleEntry に応じて ftyp の compatible brands を更新する
+  - 初期化時の ftyp は最小構成 (`isom` / `iso2` / `mp41`) にして、finalize 時に実際に使われた映像 SampleEntry (`avc1` / `hev1` / `hvc1` / `av01`) を反映する
+  - ftyp 更新用の予約領域と faststart 用 moov 予約領域を単一 free ボックスで共有し、finalize 時に先頭領域を一括更新する
+  - @sile
 - [FIX] rustdoc の警告を解消する
   - 構造体やメソッドの参照を明示し、モジュールをまたぐ参照は `crate::` のパス付きリンクにする
   - @sile

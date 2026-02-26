@@ -7,10 +7,10 @@ use std::num::NonZeroU32;
 
 use proptest::prelude::*;
 use shiguredo_mp4::{
-    FixedPointNumber, TrackKind, Uint,
+    Decode, FixedPointNumber, TrackKind, Uint,
     boxes::{
-        AudioSampleEntryFields, Avc1Box, AvccBox, DopsBox, OpusBox, SampleEntry,
-        VisualSampleEntryFields,
+        AudioSampleEntryFields, Av01Box, Av1cBox, Avc1Box, AvccBox, Brand, DopsBox, FtypBox,
+        Hev1Box, Hvc1Box, HvccBox, OpusBox, SampleEntry, VisualSampleEntryFields,
     },
     demux::{Input, Mp4FileDemuxer},
     mux::{
@@ -45,6 +45,94 @@ fn create_avc1_sample_entry(width: u16, height: u16) -> SampleEntry {
         },
         unknown_boxes: vec![],
     })
+}
+
+/// テスト用の Hev1 SampleEntry を作成
+fn create_hev1_sample_entry(width: u16, height: u16) -> SampleEntry {
+    SampleEntry::Hev1(Hev1Box {
+        visual: VisualSampleEntryFields {
+            data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width,
+            height,
+            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+        },
+        hvcc_box: create_hvcc_box(),
+        unknown_boxes: vec![],
+    })
+}
+
+/// テスト用の Hvc1 SampleEntry を作成
+fn create_hvc1_sample_entry(width: u16, height: u16) -> SampleEntry {
+    SampleEntry::Hvc1(Hvc1Box {
+        visual: VisualSampleEntryFields {
+            data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width,
+            height,
+            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+        },
+        hvcc_box: create_hvcc_box(),
+        unknown_boxes: vec![],
+    })
+}
+
+/// テスト用の AV1 SampleEntry を作成
+fn create_av01_sample_entry(width: u16, height: u16) -> SampleEntry {
+    SampleEntry::Av01(Av01Box {
+        visual: VisualSampleEntryFields {
+            data_reference_index: VisualSampleEntryFields::DEFAULT_DATA_REFERENCE_INDEX,
+            width,
+            height,
+            horizresolution: VisualSampleEntryFields::DEFAULT_HORIZRESOLUTION,
+            vertresolution: VisualSampleEntryFields::DEFAULT_VERTRESOLUTION,
+            frame_count: VisualSampleEntryFields::DEFAULT_FRAME_COUNT,
+            compressorname: VisualSampleEntryFields::NULL_COMPRESSORNAME,
+            depth: VisualSampleEntryFields::DEFAULT_DEPTH,
+        },
+        av1c_box: Av1cBox {
+            seq_profile: Uint::new(0),
+            seq_level_idx_0: Uint::new(0),
+            seq_tier_0: Uint::new(0),
+            high_bitdepth: Uint::new(0),
+            twelve_bit: Uint::new(0),
+            monochrome: Uint::new(0),
+            chroma_subsampling_x: Uint::new(1),
+            chroma_subsampling_y: Uint::new(1),
+            chroma_sample_position: Uint::new(0),
+            initial_presentation_delay_minus_one: None,
+            config_obus: vec![],
+        },
+        unknown_boxes: vec![],
+    })
+}
+
+fn create_hvcc_box() -> HvccBox {
+    HvccBox {
+        general_profile_space: Uint::new(0),
+        general_tier_flag: Uint::new(0),
+        general_profile_idc: Uint::new(1),
+        general_profile_compatibility_flags: 0,
+        general_constraint_indicator_flags: Uint::new(0),
+        general_level_idc: 93,
+        min_spatial_segmentation_idc: Uint::new(0),
+        parallelism_type: Uint::new(0),
+        chroma_format_idc: Uint::new(1),
+        bit_depth_luma_minus8: Uint::new(0),
+        bit_depth_chroma_minus8: Uint::new(0),
+        avg_frame_rate: 0,
+        constant_frame_rate: Uint::new(0),
+        num_temporal_layers: Uint::new(1),
+        temporal_id_nested: Uint::new(0),
+        length_size_minus_one: Uint::new(3),
+        nalu_arrays: vec![],
+    }
 }
 
 /// テスト用の Opus SampleEntry を作成
@@ -351,6 +439,99 @@ proptest! {
         }
         prop_assert_eq!(video_count, video_samples.len());
         prop_assert_eq!(audio_count, audio_samples.len());
+    }
+
+    /// 使用した SampleEntry に応じて ftyp compatible brands が更新される
+    #[test]
+    fn compatible_brands_follow_used_sample_entries(
+        codec_mask in 0u8..16,
+        reserved_moov_box_size in 0usize..4096
+    ) {
+        let options = Mp4FileMuxerOptions {
+            reserved_moov_box_size,
+            ..Default::default()
+        };
+        let mut muxer = Mp4FileMuxer::with_options(options).expect("failed to create muxer");
+        let mut data_offset = muxer.initial_boxes_bytes().len() as u64;
+        let mut total_data_size = 0usize;
+
+        let append_video_sample = |muxer: &mut Mp4FileMuxer, data_offset: u64, sample_entry: SampleEntry| {
+            let sample = Sample {
+                track_kind: TrackKind::Video,
+                sample_entry: Some(sample_entry),
+                keyframe: true,
+                timescale: NonZeroU32::new(30).expect("non-zero timescale"),
+                duration: 1,
+                data_offset,
+                data_size: 256,
+            };
+            muxer.append_sample(&sample).expect("failed to append video sample");
+        };
+
+        if codec_mask == 0 {
+            let sample = Sample {
+                track_kind: TrackKind::Audio,
+                sample_entry: Some(create_opus_sample_entry(2)),
+                keyframe: false,
+                timescale: NonZeroU32::new(48000).expect("non-zero timescale"),
+                duration: 960,
+                data_offset,
+                data_size: 256,
+            };
+            muxer
+                .append_sample(&sample)
+                .expect("failed to append audio sample");
+            data_offset += 256;
+            total_data_size += 256;
+        } else {
+            if (codec_mask & 0b0001) != 0 {
+                append_video_sample(&mut muxer, data_offset, create_avc1_sample_entry(1280, 720));
+                data_offset += 256;
+                total_data_size += 256;
+            }
+            if (codec_mask & 0b0010) != 0 {
+                append_video_sample(&mut muxer, data_offset, create_hev1_sample_entry(1280, 720));
+                data_offset += 256;
+                total_data_size += 256;
+            }
+            if (codec_mask & 0b0100) != 0 {
+                append_video_sample(&mut muxer, data_offset, create_hvc1_sample_entry(1280, 720));
+                data_offset += 256;
+                total_data_size += 256;
+            }
+            if (codec_mask & 0b1000) != 0 {
+                append_video_sample(&mut muxer, data_offset, create_av01_sample_entry(1280, 720));
+                data_offset += 256;
+                total_data_size += 256;
+            }
+        }
+
+        prop_assert_eq!(
+            data_offset,
+            muxer.initial_boxes_bytes().len() as u64 + total_data_size as u64
+        );
+
+        let initial_bytes = muxer.initial_boxes_bytes().to_vec();
+        let finalized = muxer.finalize().expect("failed to finalize");
+        let file_data = build_file_data(&initial_bytes, finalized, total_data_size);
+        let (ftyp_box, _) = FtypBox::decode(&file_data).expect("failed to decode ftyp box");
+
+        let mut expected_brands = vec![Brand::ISOM, Brand::ISO2, Brand::MP41];
+        if (codec_mask & 0b0001) != 0 {
+            expected_brands.push(Brand::AVC1);
+        }
+        if (codec_mask & 0b0010) != 0 {
+            expected_brands.push(Brand::HEV1);
+        }
+        if (codec_mask & 0b0100) != 0 {
+            expected_brands.push(Brand::HVC1);
+        }
+        if (codec_mask & 0b1000) != 0 {
+            expected_brands.push(Brand::AV01);
+        }
+
+        prop_assert_eq!(ftyp_box.major_brand, Brand::ISOM);
+        prop_assert_eq!(ftyp_box.compatible_brands, expected_brands);
     }
 }
 
