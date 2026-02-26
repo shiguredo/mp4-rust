@@ -2136,9 +2136,6 @@ impl Decode for SdtpSampleFlags {
 /// [ISO/IEC 14496-12] SampleDependencyTypeBox class (親: [`StblBox`])
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SdtpBox {
-    /// full box version
-    pub version: u8,
-
     /// サンプル単位の依存関係フラグ列
     pub entries: Vec<SdtpSampleFlags>,
 }
@@ -2150,13 +2147,6 @@ impl SdtpBox {
 
 impl Encode for SdtpBox {
     fn encode(&self, buf: &mut [u8]) -> Result<usize> {
-        let version = self.full_box_version();
-        if version > 1 {
-            return Err(Error::invalid_input(format!(
-                "Invalid sdtp box version: {version}"
-            )));
-        }
-
         let header = BoxHeader::new_variable_size(Self::TYPE);
         let mut offset = header.encode(buf)?;
         offset += FullBoxHeader::from_box(self).encode(&mut buf[offset..])?;
@@ -2176,19 +2166,19 @@ impl Decode for SdtpBox {
 
             let mut offset = 0;
             let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if full_header.version != 0 {
+                return Err(Error::invalid_data(format!(
+                    "Invalid sdtp box version: {}",
+                    full_header.version
+                )));
+            }
 
             let mut entries = Vec::new();
             while offset < payload.len() {
                 entries.push(SdtpSampleFlags::decode_at(payload, &mut offset)?);
             }
 
-            Ok((
-                Self {
-                    version: full_header.version,
-                    entries,
-                },
-                header.external_size() + payload.len(),
-            ))
+            Ok((Self { entries }, header.external_size() + payload.len()))
         })
     }
 }
@@ -2205,7 +2195,7 @@ impl BaseBox for SdtpBox {
 
 impl FullBox for SdtpBox {
     fn full_box_version(&self) -> u8 {
-        self.version
+        0
     }
 
     fn full_box_flags(&self) -> FullBoxFlags {

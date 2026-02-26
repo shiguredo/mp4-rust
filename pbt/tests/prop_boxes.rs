@@ -218,14 +218,12 @@ proptest! {
     #[test]
     fn sdtp_box_roundtrip(entries in prop::collection::vec(arb_sdtp_sample_flags(), 0..100)) {
         let sdtp = SdtpBox {
-            version: 0,
             entries: entries.clone(),
         };
         let encoded = sdtp.encode_to_vec().unwrap();
         let (decoded, size) = SdtpBox::decode(&encoded).unwrap();
 
         prop_assert_eq!(size, encoded.len());
-        prop_assert_eq!(decoded.version, 0);
         prop_assert_eq!(decoded.entries, entries);
     }
 
@@ -1001,6 +999,17 @@ mod boundary_tests {
             }],
         };
         assert!(ctts.encode_to_vec().is_err());
+    }
+
+    /// SdtpBox: version が 0 以外の場合はデコードエラー
+    #[test]
+    fn sdtp_box_invalid_version_decode_error() {
+        let sdtp = SdtpBox {
+            entries: vec![SdtpSampleFlags::from_fields(0, 0, 0, 0)],
+        };
+        let mut encoded = sdtp.encode_to_vec().unwrap();
+        encoded[8] = 1; // full box version
+        assert!(SdtpBox::decode(&encoded).is_err());
     }
 
     /// UrlBox: ローカルファイル
