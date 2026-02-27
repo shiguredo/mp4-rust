@@ -179,6 +179,22 @@ proptest! {
         prop_assert!(CttsBox::decode(&encoded).is_err());
     }
 
+    /// CttsBox: version 0 で負の sample_offset をエンコードするとエラー
+    #[test]
+    fn ctts_box_v0_negative_offset_error(
+        sample_count in any::<u32>(),
+        sample_offset in i64::MIN..0i64
+    ) {
+        let ctts = CttsBox {
+            version: 0,
+            entries: vec![CttsEntry {
+                sample_count,
+                sample_offset,
+            }],
+        };
+        prop_assert!(ctts.encode_to_vec().is_err());
+    }
+
     // ===== CslgBox のテスト =====
 
     /// CslgBox (version 0) の encode/decode roundtrip
@@ -260,6 +276,20 @@ proptest! {
 
         prop_assert_eq!(size, encoded.len());
         prop_assert_eq!(decoded.entries, entries);
+    }
+
+    /// SdtpBox: version が 0 以外の場合はデコードエラー
+    #[test]
+    fn sdtp_box_invalid_version_decode_error(
+        entries in prop::collection::vec(arb_sdtp_sample_flags(), 0..100),
+        version in 1u8..=u8::MAX
+    ) {
+        let sdtp = SdtpBox { entries };
+        let mut encoded = sdtp
+            .encode_to_vec()
+            .expect("sdtp test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(SdtpBox::decode(&encoded).is_err());
     }
 
     // ===== StscBox のテスト =====
@@ -1021,30 +1051,6 @@ mod boundary_tests {
         let encoded = stss.encode_to_vec().unwrap();
         let (decoded, _) = StssBox::decode(&encoded).unwrap();
         assert_eq!(decoded.sample_numbers[0], NonZeroU32::MAX);
-    }
-
-    /// CttsBox: version 0 で負の sample_offset をエンコードするとエラー
-    #[test]
-    fn ctts_box_v0_negative_offset_error() {
-        let ctts = CttsBox {
-            version: 0,
-            entries: vec![CttsEntry {
-                sample_count: 1,
-                sample_offset: -1,
-            }],
-        };
-        assert!(ctts.encode_to_vec().is_err());
-    }
-
-    /// SdtpBox: version が 0 以外の場合はデコードエラー
-    #[test]
-    fn sdtp_box_invalid_version_decode_error() {
-        let sdtp = SdtpBox {
-            entries: vec![SdtpSampleFlags::from_fields(0, 0, 0, 0)],
-        };
-        let mut encoded = sdtp.encode_to_vec().unwrap();
-        encoded[8] = 1; // full box version
-        assert!(SdtpBox::decode(&encoded).is_err());
     }
 
     /// UrlBox: ローカルファイル
