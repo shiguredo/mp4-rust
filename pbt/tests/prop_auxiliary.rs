@@ -9,8 +9,8 @@ use shiguredo_mp4::{
     BoxSize, BoxType, Either,
     aux::{SampleTableAccessor, SampleTableAccessorError},
     boxes::{
-        Co64Box, CttsBox, CttsEntry, SampleEntry, StblBox, StcoBox, StscBox, StscEntry, StsdBox,
-        StssBox, StszBox, SttsBox, SttsEntry, UnknownBox,
+        Co64Box, SampleEntry, StblBox, StcoBox, StscBox, StscEntry, StsdBox, StssBox, StszBox,
+        SttsBox, SttsEntry, UnknownBox,
     },
 };
 
@@ -1076,82 +1076,5 @@ mod error_display_tests {
         let err = SampleTableAccessorError::ChunksExistButNoSamples { chunk_count: 5 };
         let msg = format!("{}", err);
         assert!(msg.contains("5"));
-    }
-}
-
-// ===== B フレーム検出のテスト =====
-
-mod b_frame_detection_tests {
-    use super::*;
-
-    fn make_stbl_box(ctts_box: Option<CttsBox>) -> StblBox {
-        StblBox {
-            stsd_box: StsdBox {
-                entries: vec![dummy_sample_entry()],
-            },
-            stts_box: SttsBox {
-                entries: vec![SttsEntry {
-                    sample_count: 3,
-                    sample_delta: 1,
-                }],
-            },
-            ctts_box,
-            cslg_box: None,
-            stsc_box: StscBox {
-                entries: vec![StscEntry {
-                    first_chunk: nz(1),
-                    sample_per_chunk: 3,
-                    sample_description_index: nz(1),
-                }],
-            },
-            stsz_box: StszBox::Variable {
-                entry_sizes: vec![100; 3],
-            },
-            stco_or_co64_box: Either::A(StcoBox {
-                chunk_offsets: vec![0],
-            }),
-            stss_box: None,
-            sdtp_box: None,
-            unknown_boxes: Vec::new(),
-        }
-    }
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(50))]
-
-        #[test]
-        fn contains_b_frames_without_ctts(_dummy in Just(())) {
-            let stbl_box = make_stbl_box(None);
-            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-            prop_assert!(!accessor.contains_b_frames());
-        }
-
-        #[test]
-        fn contains_b_frames_with_all_zero_offsets(entry_count in 1usize..10) {
-            let entries = (0..entry_count)
-                .map(|_| CttsEntry {
-                    sample_count: 1,
-                    sample_offset: 0,
-                })
-                .collect();
-            let stbl_box = make_stbl_box(Some(CttsBox { version: 0, entries }));
-            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-            prop_assert!(!accessor.contains_b_frames());
-        }
-
-        #[test]
-        fn contains_b_frames_with_non_zero_offset(
-            non_zero_offset in any::<i64>().prop_filter("offset must be non-zero", |v| *v != 0)
-        ) {
-            let stbl_box = make_stbl_box(Some(CttsBox {
-                version: 1,
-                entries: vec![CttsEntry {
-                    sample_count: 3,
-                    sample_offset: non_zero_offset,
-                }],
-            }));
-            let accessor = SampleTableAccessor::new(&stbl_box).expect("failed to create accessor");
-            prop_assert!(accessor.contains_b_frames());
-        }
     }
 }

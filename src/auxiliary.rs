@@ -219,16 +219,6 @@ impl<T: AsRef<StblBox>> SampleTableAccessor<T> {
     pub fn stbl_box(&self) -> &StblBox {
         self.stbl_box.as_ref()
     }
-
-    /// このサンプルテーブルに B フレームが含まれているかどうかを返す
-    ///
-    /// 判定には `ctts` ボックスのみを使用し、1 つでも `sample_offset != 0` があれば `true` を返す。
-    pub fn contains_b_frames(&self) -> bool {
-        self.stbl_box()
-            .ctts_box
-            .as_ref()
-            .is_some_and(|ctts| ctts.entries.iter().any(|entry| entry.sample_offset != 0))
-    }
 }
 
 /// [`SampleTableAccessor::new()`] で発生する可能性があるエラー
