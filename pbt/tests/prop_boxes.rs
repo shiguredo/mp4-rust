@@ -162,6 +162,23 @@ proptest! {
         prop_assert_eq!(decoded.entries, entries);
     }
 
+    /// CttsBox: version が 2 以上の場合はデコードエラー
+    #[test]
+    fn ctts_box_invalid_version_decode_error(version in 2u8..=u8::MAX) {
+        let ctts = CttsBox {
+            version: 1,
+            entries: vec![CttsEntry {
+                sample_count: 1,
+                sample_offset: 0,
+            }],
+        };
+        let mut encoded = ctts
+            .encode_to_vec()
+            .expect("ctts test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(CttsBox::decode(&encoded).is_err());
+    }
+
     // ===== CslgBox のテスト =====
 
     /// CslgBox (version 0) の encode/decode roundtrip
@@ -210,6 +227,24 @@ proptest! {
 
         prop_assert_eq!(size, encoded.len());
         prop_assert_eq!(decoded, cslg);
+    }
+
+    /// CslgBox: version が 2 以上の場合はデコードエラー
+    #[test]
+    fn cslg_box_invalid_version_decode_error(version in 2u8..=u8::MAX) {
+        let cslg = CslgBox {
+            version: 1,
+            composition_to_dts_shift: 0,
+            least_decode_to_display_delta: 0,
+            greatest_decode_to_display_delta: 0,
+            composition_start_time: 0,
+            composition_end_time: 0,
+        };
+        let mut encoded = cslg
+            .encode_to_vec()
+            .expect("cslg test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(CslgBox::decode(&encoded).is_err());
     }
 
     // ===== SdtpBox のテスト =====

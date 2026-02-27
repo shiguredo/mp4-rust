@@ -1862,6 +1862,12 @@ impl Decode for CttsBox {
 
             let mut offset = 0;
             let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if full_header.version > 1 {
+                return Err(Error::invalid_data(format!(
+                    "Invalid ctts box version: {}",
+                    full_header.version
+                )));
+            }
             let count = u32::decode_at(payload, &mut offset)? as usize;
 
             let mut entries = Vec::new();
@@ -2015,6 +2021,12 @@ impl Decode for CslgBox {
 
             let mut offset = 0;
             let full_header = FullBoxHeader::decode_at(payload, &mut offset)?;
+            if full_header.version > 1 {
+                return Err(Error::invalid_data(format!(
+                    "Invalid cslg box version: {}",
+                    full_header.version
+                )));
+            }
 
             let (
                 composition_to_dts_shift,
