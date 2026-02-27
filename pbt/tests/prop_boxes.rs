@@ -6,9 +6,9 @@ use proptest::prelude::*;
 use shiguredo_mp4::{
     Decode, Encode, FixedPointNumber, Mp4FileTime, Utf8String,
     boxes::{
-        Brand, Co64Box, DinfBox, DrefBox, EdtsBox, ElstBox, ElstEntry, FtypBox, HdlrBox, MdhdBox,
-        MvhdBox, SmhdBox, StcoBox, StscBox, StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox,
-        UrlBox, VmhdBox,
+        Brand, Co64Box, CslgBox, CttsBox, CttsEntry, DinfBox, DrefBox, EdtsBox, ElstBox, ElstEntry,
+        FtypBox, HdlrBox, MdhdBox, MvhdBox, SdtpBox, SdtpSampleFlags, SmhdBox, StcoBox, StscBox,
+        StscEntry, StssBox, SttsBox, SttsEntry, TkhdBox, UrlBox, VmhdBox,
     },
 };
 
@@ -18,6 +18,36 @@ fn arb_stts_entry() -> impl Strategy<Value = SttsEntry> {
         sample_count,
         sample_delta,
     })
+}
+
+/// CttsEntry (version 0 互換) を生成する Strategy
+fn arb_ctts_entry_v0() -> impl Strategy<Value = CttsEntry> {
+    (any::<u32>(), any::<u32>()).prop_map(|(sample_count, sample_offset)| CttsEntry {
+        sample_count,
+        sample_offset: sample_offset as i64,
+    })
+}
+
+/// CttsEntry (version 1) を生成する Strategy
+fn arb_ctts_entry_v1() -> impl Strategy<Value = CttsEntry> {
+    (any::<u32>(), any::<i32>()).prop_map(|(sample_count, sample_offset)| CttsEntry {
+        sample_count,
+        sample_offset: sample_offset as i64,
+    })
+}
+
+/// SdtpSampleFlags を生成する Strategy
+fn arb_sdtp_sample_flags() -> impl Strategy<Value = SdtpSampleFlags> {
+    (0u8..4, 0u8..4, 0u8..4, 0u8..4).prop_map(
+        |(is_leading, sample_depends_on, sample_is_depended_on, sample_has_redundancy)| {
+            SdtpSampleFlags::from_fields(
+                is_leading,
+                sample_depends_on,
+                sample_is_depended_on,
+                sample_has_redundancy,
+            )
+        },
+    )
 }
 
 /// StscEntry を生成する Strategy
@@ -98,6 +128,168 @@ proptest! {
         // sample_count の合計が元の deltas 数と一致
         let total_count: u32 = stts.entries.iter().map(|e| e.sample_count).sum();
         prop_assert_eq!(total_count as usize, deltas.len());
+    }
+
+    // ===== CttsBox のテスト =====
+
+    /// CttsBox (version 0) の encode/decode roundtrip
+    #[test]
+    fn ctts_box_v0_roundtrip(entries in prop::collection::vec(arb_ctts_entry_v0(), 0..50)) {
+        let ctts = CttsBox {
+            version: 0,
+            entries: entries.clone(),
+        };
+        let encoded = ctts.encode_to_vec().unwrap();
+        let (decoded, size) = CttsBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.version, 0);
+        prop_assert_eq!(decoded.entries, entries);
+    }
+
+    /// CttsBox (version 1) の encode/decode roundtrip
+    #[test]
+    fn ctts_box_v1_roundtrip(entries in prop::collection::vec(arb_ctts_entry_v1(), 0..50)) {
+        let ctts = CttsBox {
+            version: 1,
+            entries: entries.clone(),
+        };
+        let encoded = ctts.encode_to_vec().unwrap();
+        let (decoded, size) = CttsBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.version, 1);
+        prop_assert_eq!(decoded.entries, entries);
+    }
+
+    /// CttsBox: version が 2 以上の場合はデコードエラー
+    #[test]
+    fn ctts_box_invalid_version_decode_error(version in 2u8..=u8::MAX) {
+        let ctts = CttsBox {
+            version: 1,
+            entries: vec![CttsEntry {
+                sample_count: 1,
+                sample_offset: 0,
+            }],
+        };
+        let mut encoded = ctts
+            .encode_to_vec()
+            .expect("ctts test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(CttsBox::decode(&encoded).is_err());
+    }
+
+    /// CttsBox: version 0 で負の sample_offset をエンコードするとエラー
+    #[test]
+    fn ctts_box_v0_negative_offset_error(
+        sample_count in any::<u32>(),
+        sample_offset in i64::MIN..0i64
+    ) {
+        let ctts = CttsBox {
+            version: 0,
+            entries: vec![CttsEntry {
+                sample_count,
+                sample_offset,
+            }],
+        };
+        prop_assert!(ctts.encode_to_vec().is_err());
+    }
+
+    // ===== CslgBox のテスト =====
+
+    /// CslgBox (version 0) の encode/decode roundtrip
+    #[test]
+    fn cslg_box_v0_roundtrip(
+        composition_to_dts_shift in any::<i32>(),
+        least_decode_to_display_delta in any::<i32>(),
+        greatest_decode_to_display_delta in any::<i32>(),
+        composition_start_time in any::<i32>(),
+        composition_end_time in any::<i32>()
+    ) {
+        let cslg = CslgBox {
+            version: 0,
+            composition_to_dts_shift: composition_to_dts_shift as i64,
+            least_decode_to_display_delta: least_decode_to_display_delta as i64,
+            greatest_decode_to_display_delta: greatest_decode_to_display_delta as i64,
+            composition_start_time: composition_start_time as i64,
+            composition_end_time: composition_end_time as i64,
+        };
+        let encoded = cslg.encode_to_vec().unwrap();
+        let (decoded, size) = CslgBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded, cslg);
+    }
+
+    /// CslgBox (version 1) の encode/decode roundtrip
+    #[test]
+    fn cslg_box_v1_roundtrip(
+        composition_to_dts_shift in any::<i64>(),
+        least_decode_to_display_delta in any::<i64>(),
+        greatest_decode_to_display_delta in any::<i64>(),
+        composition_start_time in any::<i64>(),
+        composition_end_time in any::<i64>()
+    ) {
+        let cslg = CslgBox {
+            version: 1,
+            composition_to_dts_shift,
+            least_decode_to_display_delta,
+            greatest_decode_to_display_delta,
+            composition_start_time,
+            composition_end_time,
+        };
+        let encoded = cslg.encode_to_vec().unwrap();
+        let (decoded, size) = CslgBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded, cslg);
+    }
+
+    /// CslgBox: version が 2 以上の場合はデコードエラー
+    #[test]
+    fn cslg_box_invalid_version_decode_error(version in 2u8..=u8::MAX) {
+        let cslg = CslgBox {
+            version: 1,
+            composition_to_dts_shift: 0,
+            least_decode_to_display_delta: 0,
+            greatest_decode_to_display_delta: 0,
+            composition_start_time: 0,
+            composition_end_time: 0,
+        };
+        let mut encoded = cslg
+            .encode_to_vec()
+            .expect("cslg test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(CslgBox::decode(&encoded).is_err());
+    }
+
+    // ===== SdtpBox のテスト =====
+
+    /// SdtpBox の encode/decode roundtrip
+    #[test]
+    fn sdtp_box_roundtrip(entries in prop::collection::vec(arb_sdtp_sample_flags(), 0..100)) {
+        let sdtp = SdtpBox {
+            entries: entries.clone(),
+        };
+        let encoded = sdtp.encode_to_vec().unwrap();
+        let (decoded, size) = SdtpBox::decode(&encoded).unwrap();
+
+        prop_assert_eq!(size, encoded.len());
+        prop_assert_eq!(decoded.entries, entries);
+    }
+
+    /// SdtpBox: version が 0 以外の場合はデコードエラー
+    #[test]
+    fn sdtp_box_invalid_version_decode_error(
+        entries in prop::collection::vec(arb_sdtp_sample_flags(), 0..100),
+        version in 1u8..=u8::MAX
+    ) {
+        let sdtp = SdtpBox { entries };
+        let mut encoded = sdtp
+            .encode_to_vec()
+            .expect("sdtp test fixture must be encodable");
+        encoded[8] = version; // full box version
+        prop_assert!(SdtpBox::decode(&encoded).is_err());
     }
 
     // ===== StscBox のテスト =====

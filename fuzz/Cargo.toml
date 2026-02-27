@@ -173,8 +173,29 @@ doc = false
 bench = false
 
 [[bin]]
+name = "fuzz_ctts_box"
+path = "fuzz_targets/fuzz_ctts_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_cslg_box"
+path = "fuzz_targets/fuzz_cslg_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "fuzz_stsc_box"
 path = "fuzz_targets/fuzz_stsc_box.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sdtp_box"
+path = "fuzz_targets/fuzz_sdtp_box.rs"
 test = false
 doc = false
 bench = false

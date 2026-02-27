@@ -60,6 +60,9 @@ mod error_cases {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -101,6 +104,9 @@ mod error_cases {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -131,6 +137,9 @@ mod error_cases {
                 chunk_offsets: vec![100], // 1 つのチャンク
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -172,6 +181,9 @@ mod error_cases {
                 chunk_offsets: vec![0, 100],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -213,6 +225,9 @@ mod error_cases {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -261,6 +276,9 @@ mod error_cases {
                 chunk_offsets: vec![0, 500],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -309,6 +327,9 @@ mod error_cases {
                 chunk_offsets: vec![0, 500], // 2 チャンクのみ
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -352,6 +373,9 @@ mod timestamp_tests {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -431,6 +455,9 @@ mod timestamp_tests {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -473,6 +500,9 @@ mod timestamp_tests {
                 chunk_offsets: vec![0, 500, 1000, 1500], // 4 チャンク
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -514,6 +544,9 @@ mod co64_tests {
                 chunk_offsets: vec![0x100000000], // u32 を超える値
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -560,6 +593,9 @@ mod sync_sample_tests {
             stss_box: Some(StssBox {
                 sample_numbers: vec![nz(1), nz(5), nz(9)],
             }),
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -631,6 +667,9 @@ mod sync_sample_tests {
                 chunk_offsets: vec![0],
             }),
             stss_box: None, // stss なし
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -677,6 +716,9 @@ mod fixed_stsz_tests {
                 chunk_offsets: vec![1000],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -733,6 +775,9 @@ mod multiple_stts_tests {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -804,6 +849,9 @@ mod multiple_chunks_tests {
                 chunk_offsets: vec![0, 200, 400],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -873,6 +921,9 @@ proptest! {
                 chunk_offsets: vec![0],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -931,6 +982,9 @@ proptest! {
                 chunk_offsets: (0..chunk_count).map(|i| i * samples_per_chunk * 100).collect(),
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 

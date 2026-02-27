@@ -999,6 +999,9 @@ mod moov_tree_error_tests {
                     chunk_offsets: vec![],
                 }),
                 stss_box: None,
+                ctts_box: None,
+                cslg_box: None,
+                sdtp_box: None,
                 unknown_boxes: vec![],
             },
             unknown_boxes: vec![],
@@ -1869,6 +1872,9 @@ mod base_box_tests {
                 chunk_offsets: vec![],
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: vec![],
         }
     }

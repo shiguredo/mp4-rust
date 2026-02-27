@@ -947,10 +947,13 @@ impl Mp4FileMuxer {
         StblBox {
             stsd_box,
             stts_box,
+            ctts_box: None,
+            cslg_box: None,
             stsc_box,
             stsz_box,
             stco_or_co64_box,
             stss_box,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         }
     }

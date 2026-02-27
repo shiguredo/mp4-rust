@@ -526,6 +526,9 @@ mod tests {
             stss_box: Some(StssBox {
                 sample_numbers: vec![index(1), index(3), index(5), index(7), index(9)],
             }),
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 
@@ -597,6 +600,9 @@ mod tests {
                 chunk_offsets: vec![100], // 1 つのチャンクオフセット
             }),
             stss_box: None,
+            ctts_box: None,
+            cslg_box: None,
+            sdtp_box: None,
             unknown_boxes: Vec::new(),
         };
 

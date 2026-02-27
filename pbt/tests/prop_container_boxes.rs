@@ -136,10 +136,13 @@ fn minimal_stbl_box_audio() -> StblBox {
     StblBox {
         stsd_box: minimal_stsd_box_audio(),
         stts_box: minimal_stts_box(),
+        ctts_box: None,
+        cslg_box: None,
         stsc_box: minimal_stsc_box(),
         stsz_box: minimal_stsz_box(),
         stco_or_co64_box: Either::A(minimal_stco_box()),
         stss_box: None,
+        sdtp_box: None,
         unknown_boxes: vec![],
     }
 }
@@ -221,6 +224,8 @@ proptest! {
         let stbl = StblBox {
             stsd_box: minimal_stsd_box_audio(),
             stts_box: SttsBox { entries: stts_entries.clone() },
+            ctts_box: None,
+            cslg_box: None,
             stsc_box: StscBox { entries: stsc_entries.clone() },
             stsz_box: StszBox::Variable { entry_sizes: vec![] },
             stco_or_co64_box: Either::A(StcoBox { chunk_offsets: stco_offsets.clone() }),
@@ -231,6 +236,7 @@ proptest! {
                     sample_numbers: stss_numbers.iter().map(|&n| NonZeroU32::new(n).unwrap()).collect(),
                 })
             },
+            sdtp_box: None,
             unknown_boxes: vec![],
         };
         let encoded = stbl.encode_to_vec().unwrap();
@@ -253,10 +259,13 @@ proptest! {
         let stbl = StblBox {
             stsd_box: minimal_stsd_box_audio(),
             stts_box: minimal_stts_box(),
+            ctts_box: None,
+            cslg_box: None,
             stsc_box: minimal_stsc_box(),
             stsz_box: StszBox::Variable { entry_sizes: vec![] },
             stco_or_co64_box: Either::B(Co64Box { chunk_offsets: co64_offsets.clone() }),
             stss_box: None,
+            sdtp_box: None,
             unknown_boxes: vec![],
         };
         let encoded = stbl.encode_to_vec().unwrap();
